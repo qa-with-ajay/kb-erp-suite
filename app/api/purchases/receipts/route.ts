@@ -52,6 +52,7 @@ export async function GET(request: Request) {
         purchaseOrder: { select: { id: true, orderNumber: true } },
         location: { select: { id: true, name: true } },
         payments: { select: { amount: true, reversedAt: true } },
+        returns: { select: { total: true, reversedAt: true } },
         _count: { select: { lines: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -60,17 +61,25 @@ export async function GET(request: Request) {
     }),
     prisma.purchaseReceipt.count({ where }),
   ]);
-  const summarizedItems = items.map(({ payments, ...receipt }) => {
+  const summarizedItems = items.map(({ payments, returns, ...receipt }) => {
     const paidAmount = payments.reduce(
       (sum, payment) => payment.reversedAt ? sum : sum.plus(payment.amount),
       new Prisma.Decimal(0),
     );
-    const balanceDue = receipt.total.minus(paidAmount);
+    const returnedAmount = returns.reduce(
+      (sum, item) => item.reversedAt ? sum : sum.plus(item.total),
+      new Prisma.Decimal(0),
+    );
+    const netBalance = receipt.total.minus(returnedAmount).minus(paidAmount);
+    const balanceDue = netBalance.greaterThan(0) ? netBalance : new Prisma.Decimal(0);
+    const creditBalance = netBalance.isNegative() ? netBalance.abs() : new Prisma.Decimal(0);
     return {
       ...receipt,
+      returnedAmount: returnedAmount.toString(),
       paidAmount: paidAmount.toString(),
       balanceDue: balanceDue.toString(),
-      paymentStatus: balanceDue.isZero() ? "PAID" : paidAmount.isZero() ? "UNPAID" : "PARTIAL",
+      creditBalance: creditBalance.toString(),
+      paymentStatus: creditBalance.isPositive() ? "CREDIT" : balanceDue.isZero() ? "PAID" : paidAmount.isZero() ? "UNPAID" : "PARTIAL",
     };
   });
   return NextResponse.json({ items: summarizedItems, total, page, pageSize });

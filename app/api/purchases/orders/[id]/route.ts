@@ -16,6 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         include: {
           lines: { orderBy: { lineNumber: "asc" } },
           payments: { select: { amount: true, reversedAt: true } },
+          returns: { select: { total: true, reversedAt: true } },
           location: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -23,17 +24,25 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     },
   });
   if (!order) return NextResponse.json({ error: "Purchase order not found." }, { status: 404 });
-  const receipts = order.receipts.map(({ payments, ...receipt }) => {
+  const receipts = order.receipts.map(({ payments, returns, ...receipt }) => {
     const paidAmount = payments.reduce(
       (sum, payment) => payment.reversedAt ? sum : sum.plus(payment.amount),
       new Prisma.Decimal(0),
     );
-    const balanceDue = receipt.total.minus(paidAmount);
+    const returnedAmount = returns.reduce(
+      (sum, item) => item.reversedAt ? sum : sum.plus(item.total),
+      new Prisma.Decimal(0),
+    );
+    const netBalance = receipt.total.minus(returnedAmount).minus(paidAmount);
+    const balanceDue = netBalance.greaterThan(0) ? netBalance : new Prisma.Decimal(0);
+    const creditBalance = netBalance.isNegative() ? netBalance.abs() : new Prisma.Decimal(0);
     return {
       ...receipt,
+      returnedAmount: returnedAmount.toString(),
       paidAmount: paidAmount.toString(),
       balanceDue: balanceDue.toString(),
-      paymentStatus: balanceDue.isZero() ? "PAID" : paidAmount.isZero() ? "UNPAID" : "PARTIAL",
+      creditBalance: creditBalance.toString(),
+      paymentStatus: creditBalance.isPositive() ? "CREDIT" : balanceDue.isZero() ? "PAID" : paidAmount.isZero() ? "UNPAID" : "PARTIAL",
     };
   });
   return NextResponse.json({ order: { ...order, receipts } });

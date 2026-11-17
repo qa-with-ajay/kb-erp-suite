@@ -67,16 +67,24 @@ const roundingMethods = {
   UP: Prisma.Decimal.ROUND_UP,
 } as const;
 
-function convertPurchaseQuantity(
+export function convertPurchaseQuantity(
   quantity: Prisma.Decimal,
   factor: Prisma.Decimal,
   precision: number,
   roundingMode: keyof typeof roundingMethods,
 ) {
-  return quantity.mul(factor).toDecimalPlaces(precision, roundingMethods[roundingMode]);
+  return roundPurchaseQuantity(quantity.mul(factor), precision, roundingMode);
 }
 
-function lineAmounts(quantity: Prisma.Decimal, unitCost: Prisma.Decimal, gst: Prisma.Decimal, taxMode: "GST" | "NON_GST") {
+export function roundPurchaseQuantity(
+  quantity: Prisma.Decimal,
+  precision: number,
+  roundingMode: keyof typeof roundingMethods,
+) {
+  return quantity.toDecimalPlaces(precision, roundingMethods[roundingMode]);
+}
+
+export function lineAmounts(quantity: Prisma.Decimal, unitCost: Prisma.Decimal, gst: Prisma.Decimal, taxMode: "GST" | "NON_GST") {
   const subtotal = unitCost.mul(quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
   const tax = taxMode === "GST"
     ? subtotal.mul(gst).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)

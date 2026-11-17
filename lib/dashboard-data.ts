@@ -16,6 +16,8 @@ type UnitMetricRow = {
   invoiceCount: number;
   accountsReceivable: Prisma.Decimal;
   accountsPayable: Prisma.Decimal;
+  customerCredits: Prisma.Decimal;
+  supplierCredits: Prisma.Decimal;
 };
 
 type LowStockRow = {
@@ -53,6 +55,8 @@ export type UnitDashboardData = {
   invoiceCount: number;
   accountsReceivable: string;
   accountsPayable: string;
+  customerCredits: string;
+  supplierCredits: string;
   lowStockCount: number;
   lowStockItems: LowStockItem[];
 };
@@ -84,28 +88,77 @@ async function loadInventoryDashboard(businessUnitId?: string): Promise<UnitDash
           WHERE balance."businessUnitId" = unit."id" AND balance."stockKind" = 'STANDARD'::"StockKind") AS "stockValue",
         (SELECT COUNT(*)::int FROM "StockMovement" movement
           WHERE movement."businessUnitId" = unit."id") AS "movementCount",
-        (SELECT COALESCE(SUM(sale."total"), 0)::numeric FROM "Sale" sale
+        (SELECT COALESCE(SUM(sale."total" - COALESCE((
+            SELECT SUM(saleReturn."total") FROM "SaleReturn" saleReturn
+            WHERE saleReturn."businessUnitId" = sale."businessUnitId"
+              AND saleReturn."saleId" = sale."id"
+              AND saleReturn."reversedAt" IS NULL
+          ), 0)), 0)::numeric FROM "Sale" sale
           WHERE sale."businessUnitId" = unit."id") AS "salesTotal",
-        (SELECT COALESCE(SUM(sale."subtotal" - sale."costOfGoods"), 0)::numeric FROM "Sale" sale
+        (SELECT COALESCE(SUM(
+            sale."subtotal" - sale."costOfGoods"
+            - COALESCE((
+              SELECT SUM(saleReturn."subtotal") FROM "SaleReturn" saleReturn
+              WHERE saleReturn."businessUnitId" = sale."businessUnitId"
+                AND saleReturn."saleId" = sale."id"
+                AND saleReturn."reversedAt" IS NULL
+            ), 0)
+            + COALESCE((
+              SELECT SUM(line."lineCost") FROM "SaleReturnLine" line
+              JOIN "SaleReturn" saleReturn ON saleReturn."businessUnitId" = line."businessUnitId" AND saleReturn."id" = line."saleReturnId"
+              WHERE line."businessUnitId" = sale."businessUnitId"
+                AND line."saleId" = sale."id"
+                AND line."disposition" = 'RESTOCK'::"SaleReturnDisposition"
+                AND saleReturn."reversedAt" IS NULL
+            ), 0)
+          ), 0)::numeric FROM "Sale" sale
           WHERE sale."businessUnitId" = unit."id") AS "grossProfit",
         (SELECT COUNT(*)::int FROM "Sale" sale
           WHERE sale."businessUnitId" = unit."id") AS "invoiceCount",
-        (SELECT COALESCE(SUM(sale."total" - COALESCE((
-            SELECT SUM(payment."amount") FROM "Payment" payment
-            WHERE payment."businessUnitId" = sale."businessUnitId"
-              AND payment."saleId" = sale."id"
-              AND payment."reversedAt" IS NULL
-          ), 0)), 0)::numeric
+        (SELECT COALESCE(SUM(GREATEST(
+            sale."total"
+            - COALESCE((SELECT SUM(saleReturn."total") FROM "SaleReturn" saleReturn
+                WHERE saleReturn."businessUnitId" = sale."businessUnitId"
+                  AND saleReturn."saleId" = sale."id" AND saleReturn."reversedAt" IS NULL), 0)
+            - COALESCE((SELECT SUM(payment."amount") FROM "Payment" payment
+                WHERE payment."businessUnitId" = sale."businessUnitId"
+                  AND payment."saleId" = sale."id" AND payment."reversedAt" IS NULL), 0),
+            0)), 0)::numeric
           FROM "Sale" sale
           WHERE sale."businessUnitId" = unit."id") AS "accountsReceivable",
-        (SELECT COALESCE(SUM(receipt."total" - COALESCE((
-            SELECT SUM(payment."amount") FROM "Payment" payment
-            WHERE payment."businessUnitId" = receipt."businessUnitId"
-              AND payment."purchaseReceiptId" = receipt."id"
-              AND payment."reversedAt" IS NULL
-          ), 0)), 0)::numeric
+        (SELECT COALESCE(SUM(GREATEST(
+            receipt."total"
+            - COALESCE((SELECT SUM(purchaseReturn."total") FROM "PurchaseReturn" purchaseReturn
+                WHERE purchaseReturn."businessUnitId" = receipt."businessUnitId"
+                  AND purchaseReturn."purchaseReceiptId" = receipt."id" AND purchaseReturn."reversedAt" IS NULL), 0)
+            - COALESCE((SELECT SUM(payment."amount") FROM "Payment" payment
+                WHERE payment."businessUnitId" = receipt."businessUnitId"
+                  AND payment."purchaseReceiptId" = receipt."id" AND payment."reversedAt" IS NULL), 0),
+            0)), 0)::numeric
           FROM "PurchaseReceipt" receipt
-          WHERE receipt."businessUnitId" = unit."id") AS "accountsPayable"
+          WHERE receipt."businessUnitId" = unit."id") AS "accountsPayable",
+        (SELECT COALESCE(SUM(GREATEST(
+            COALESCE((SELECT SUM(saleReturn."total") FROM "SaleReturn" saleReturn
+                WHERE saleReturn."businessUnitId" = sale."businessUnitId"
+                  AND saleReturn."saleId" = sale."id" AND saleReturn."reversedAt" IS NULL), 0)
+            + COALESCE((SELECT SUM(payment."amount") FROM "Payment" payment
+                WHERE payment."businessUnitId" = sale."businessUnitId"
+                  AND payment."saleId" = sale."id" AND payment."reversedAt" IS NULL), 0)
+            - sale."total",
+            0)), 0)::numeric
+          FROM "Sale" sale
+          WHERE sale."businessUnitId" = unit."id") AS "customerCredits",
+        (SELECT COALESCE(SUM(GREATEST(
+            COALESCE((SELECT SUM(purchaseReturn."total") FROM "PurchaseReturn" purchaseReturn
+                WHERE purchaseReturn."businessUnitId" = receipt."businessUnitId"
+                  AND purchaseReturn."purchaseReceiptId" = receipt."id" AND purchaseReturn."reversedAt" IS NULL), 0)
+            + COALESCE((SELECT SUM(payment."amount") FROM "Payment" payment
+                WHERE payment."businessUnitId" = receipt."businessUnitId"
+                  AND payment."purchaseReceiptId" = receipt."id" AND payment."reversedAt" IS NULL), 0)
+            - receipt."total",
+            0)), 0)::numeric
+          FROM "PurchaseReceipt" receipt
+          WHERE receipt."businessUnitId" = unit."id") AS "supplierCredits"
       FROM "BusinessUnit" unit
       WHERE unit."isActive" = true ${filter}
       ORDER BY unit."name" ASC
@@ -154,6 +207,8 @@ async function loadInventoryDashboard(businessUnitId?: string): Promise<UnitDash
       invoiceCount: unit.invoiceCount,
       accountsReceivable: unit.accountsReceivable.toString(),
       accountsPayable: unit.accountsPayable.toString(),
+      customerCredits: unit.customerCredits.toString(),
+      supplierCredits: unit.supplierCredits.toString(),
       lowStockItems: alerts.slice(0, 5).map((item) => ({
         productId: item.productId,
         productName: item.productName,

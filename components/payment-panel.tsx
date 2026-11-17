@@ -17,8 +17,10 @@ type PaymentRow = {
 };
 type PaymentData = {
   total: string;
+  returnedAmount: string;
   paidAmount: string;
   balanceDue: string;
+  creditBalance: string;
   payments: PaymentRow[];
 };
 
@@ -178,10 +180,16 @@ export function PaymentPanel({
           <p className="mt-1 text-sm text-gray-600">Record collections or payments against this invoice.</p>
         </div>
         {data && (
-          <div className="grid grid-cols-3 gap-3 text-right text-sm">
+          <div className="grid grid-cols-2 gap-3 text-right text-sm sm:grid-cols-4">
             <div><p className="text-xs text-gray-500">Invoice total</p><p className="mt-1 font-semibold">{money(data.total, currency)}</p></div>
+            <div><p className="text-xs text-gray-500">Returns</p><p className="mt-1 font-semibold">{money(data.returnedAmount, currency)}</p></div>
             <div><p className="text-xs text-gray-500">Paid</p><p className="mt-1 font-semibold text-emerald-800">{money(data.paidAmount, currency)}</p></div>
-            <div><p className="text-xs text-gray-500">Balance due</p><p className="mt-1 font-semibold text-amber-800">{money(data.balanceDue, currency)}</p></div>
+            <div>
+              <p className="text-xs text-gray-500">{Number(data.creditBalance) > 0 ? "Account credit" : "Balance due"}</p>
+              <p className={`mt-1 font-semibold ${Number(data.creditBalance) > 0 ? "text-blue-800" : "text-amber-800"}`}>
+                {money(Number(data.creditBalance) > 0 ? data.creditBalance : data.balanceDue, currency)}
+              </p>
+            </div>
           </div>
         )}
       </div>

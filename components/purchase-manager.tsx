@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { PaymentPanel } from "@/components/payment-panel";
+import { ReturnPanel } from "@/components/return-panel";
 
 type Supplier = { id: string; name: string; phone: string | null; gstin: string | null };
 type Location = { id: string; name: string; code: string };
@@ -85,9 +86,11 @@ type Receipt = {
   subtotal: string;
   taxAmount: string;
   total: string;
+  returnedAmount: string;
   paidAmount: string;
   balanceDue: string;
-  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
+  creditBalance: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID" | "CREDIT";
   location: { id: string; name: string };
   lines: ReceiptLine[];
 };
@@ -485,6 +488,7 @@ export function PurchaseManager() {
                 <h2 id="supplier-payment-title" className="text-lg font-semibold">Supplier invoice {paymentReceipt.supplierInvoiceNumber}</h2>
                 <button type="button" onClick={() => setPaymentReceipt(null)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:border-gray-500">Close</button>
               </div>
+              <ReturnPanel endpoint={`/api/purchases/receipts/${paymentReceipt.id}/returns`} kind="purchase" currency="INR" canManage />
               <PaymentPanel endpoint={`/api/purchases/receipts/${paymentReceipt.id}/payments`} currency="INR" canManage />
             </div>
           </div>
@@ -651,10 +655,10 @@ export function PurchaseManager() {
             </table>
           ) : (
             <table className="w-full min-w-[72rem] text-left text-sm">
-              <thead className="border-b border-gray-200 text-xs uppercase text-gray-500"><tr><th className="py-3 pr-4">Supplier invoice</th><th className="py-3 pr-4">Supplier</th><th className="py-3 pr-4">Purchase order</th><th className="py-3 pr-4">Received at</th><th className="py-3 pr-4">Location</th><th className="py-3 pr-4 text-right">Total</th><th className="py-3 pr-4 text-right">Paid</th><th className="py-3 pr-4 text-right">Balance due</th><th className="py-3 pr-4">Status</th><th className="py-3 text-right">Action</th></tr></thead>
+              <thead className="border-b border-gray-200 text-xs uppercase text-gray-500"><tr><th className="py-3 pr-4">Supplier invoice</th><th className="py-3 pr-4">Supplier</th><th className="py-3 pr-4">Purchase order</th><th className="py-3 pr-4">Received at</th><th className="py-3 pr-4">Location</th><th className="py-3 pr-4 text-right">Total</th><th className="py-3 pr-4 text-right">Returns</th><th className="py-3 pr-4 text-right">Paid</th><th className="py-3 pr-4 text-right">Due / credit</th><th className="py-3 pr-4">Status</th><th className="py-3 text-right">Action</th></tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {loading ? <tr><td colSpan={10} className="py-8 text-center text-gray-500">Loading receipts…</td></tr>
-                  : receipts.items.length === 0 ? <tr><td colSpan={10} className="py-8 text-center text-gray-500">No goods receipts found.</td></tr>
+                {loading ? <tr><td colSpan={11} className="py-8 text-center text-gray-500">Loading receipts…</td></tr>
+                  : receipts.items.length === 0 ? <tr><td colSpan={11} className="py-8 text-center text-gray-500">No goods receipts found.</td></tr>
                     : receipts.items.map((receipt) => (
                       <tr key={receipt.id}>
                         <td className="py-3 pr-4 font-semibold">{receipt.supplierInvoiceNumber}<span className="mt-1 block text-xs font-normal text-gray-500">{receipt._count.lines} line{receipt._count.lines === 1 ? "" : "s"}</span></td>
@@ -663,10 +667,11 @@ export function PurchaseManager() {
                         <td className="py-3 pr-4">{dateLabel(receipt.createdAt)}</td>
                         <td className="py-3 pr-4">{receipt.location.name}</td>
                         <td className="py-3 pr-4 text-right">{money(receipt.total)}</td>
+                        <td className="py-3 pr-4 text-right">{money(receipt.returnedAmount)}</td>
                         <td className="py-3 pr-4 text-right">{money(receipt.paidAmount)}</td>
-                        <td className="py-3 pr-4 text-right font-medium">{money(receipt.balanceDue)}</td>
-                        <td className="py-3 pr-4"><span className={`rounded-full px-2.5 py-1 text-xs ${receipt.paymentStatus === "PAID" ? "bg-emerald-50 text-emerald-800" : receipt.paymentStatus === "PARTIAL" ? "bg-amber-50 text-amber-800" : "bg-gray-100 text-gray-700"}`}>{receipt.paymentStatus.toLowerCase()}</span></td>
-                        <td className="py-3 text-right"><button type="button" onClick={() => setPaymentReceipt({ id: receipt.id, supplierInvoiceNumber: receipt.supplierInvoiceNumber })} className="font-semibold text-emerald-900 hover:underline">Payments</button></td>
+                        <td className="py-3 pr-4 text-right font-medium">{money(receipt.creditBalance !== "0" ? receipt.creditBalance : receipt.balanceDue)}</td>
+                        <td className="py-3 pr-4"><span className={`rounded-full px-2.5 py-1 text-xs ${receipt.paymentStatus === "PAID" ? "bg-emerald-50 text-emerald-800" : receipt.paymentStatus === "PARTIAL" ? "bg-amber-50 text-amber-800" : receipt.paymentStatus === "CREDIT" ? "bg-blue-50 text-blue-800" : "bg-gray-100 text-gray-700"}`}>{receipt.paymentStatus.toLowerCase()}</span></td>
+                        <td className="py-3 text-right"><button type="button" onClick={() => setPaymentReceipt({ id: receipt.id, supplierInvoiceNumber: receipt.supplierInvoiceNumber })} className="font-semibold text-emerald-900 hover:underline">Manage</button></td>
                       </tr>
                     ))}
               </tbody>
@@ -779,8 +784,8 @@ export function PurchaseManager() {
                         <div className="flex flex-wrap justify-between gap-2 text-sm">
                           <p className="font-semibold">{receipt.supplierInvoiceNumber} <span className="font-normal text-gray-500">· {dateLabel(receipt.createdAt)} · {receipt.location.name}</span></p>
                           <div className="flex items-center gap-3">
-                            <p className="text-right font-semibold">{money(receipt.total)}<span className="mt-1 block text-xs font-normal text-gray-500">Paid {money(receipt.paidAmount)} · Due {money(receipt.balanceDue)}</span></p>
-                            <button type="button" onClick={() => setPaymentReceipt({ id: receipt.id, supplierInvoiceNumber: receipt.supplierInvoiceNumber })} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold hover:border-emerald-800">Payments</button>
+                            <p className="text-right font-semibold">{money(receipt.total)}<span className="mt-1 block text-xs font-normal text-gray-500">Returns {money(receipt.returnedAmount)} · Paid {money(receipt.paidAmount)} · {Number(receipt.creditBalance) > 0 ? "Credit" : "Due"} {money(receipt.creditBalance !== "0" ? receipt.creditBalance : receipt.balanceDue)}</span></p>
+                            <button type="button" onClick={() => setPaymentReceipt({ id: receipt.id, supplierInvoiceNumber: receipt.supplierInvoiceNumber })} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold hover:border-emerald-800">Manage</button>
                           </div>
                         </div>
                         <ul className="mt-2 divide-y divide-gray-100 text-sm">

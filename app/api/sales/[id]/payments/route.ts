@@ -15,10 +15,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) return NextResponse.json({ error: "Invalid invoice identifier." }, { status: 400 });
 
-  const sale = await prisma.sale.findFirst({
+  const [sale, returns] = await Promise.all([
+    prisma.sale.findFirst({
     where: { id, businessUnitId: access.context.businessUnit.id },
     select: { total: true },
-  });
+    }),
+    prisma.saleReturn.aggregate({
+      where: { saleId: id, businessUnitId: access.context.businessUnit.id, reversedAt: null },
+      _sum: { total: true },
+    }),
+  ]);
   if (!sale) return NextResponse.json({ error: "Invoice not found." }, { status: 404 });
 
   const payments = await prisma.payment.findMany({
@@ -33,10 +39,14 @@ export async function GET(_request: Request, { params }: RouteContext) {
     (total, payment) => payment.reversedAt ? total : total.plus(payment.amount),
     new Prisma.Decimal(0),
   );
+  const returnedAmount = returns._sum.total ?? new Prisma.Decimal(0);
+  const netBalance = sale.total.minus(returnedAmount).minus(paidAmount);
   return NextResponse.json({
     total: sale.total.toString(),
+    returnedAmount: returnedAmount.toString(),
     paidAmount: paidAmount.toString(),
-    balanceDue: sale.total.minus(paidAmount).toString(),
+    balanceDue: netBalance.greaterThan(0) ? netBalance.toString() : "0",
+    creditBalance: netBalance.isNegative() ? netBalance.abs().toString() : "0",
     payments: payments.map((payment) => ({
       id: payment.id,
       amount: payment.amount.toString(),

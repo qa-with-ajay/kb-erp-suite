@@ -62,6 +62,7 @@ type kb-interiors-backup.sql | docker exec -i kb-interiors-db psql -U kb_user -d
 - AuditLog foundation
 - Business-unit-scoped Customer and Supplier master records; customer links and snapshots on sales invoices
 - Unit-scoped customer collections and supplier payments linked to invoices/receipts, with partial balances and audited reversals
+- Unit-scoped sales and purchase returns with credit/debit notes, stock ledger effects, quantity caps, and audited reversals
 - Measurement units include PCS, SQFT, BOX, RFT, ROLL, METER, KG, LITRE, BUNDLE and SET
 
 ## Phase 2 progress
@@ -81,10 +82,12 @@ type kb-interiors-backup.sql | docker exec -i kb-interiors-db psql -U kb_user -d
 - Added printable invoice details and unit/group all-time sales and sales gross-profit summaries; tax is calculated on top of the product selling price.
 - Added unit-scoped purchase-order APIs and goods-receipt APIs with partial receiving, supplier invoice duplicate protection, idempotency, purchase-in stock ledger entries, weighted-average costing, and audit history in a single transaction.
 - Added unit-scoped customer collections and supplier payments against sales invoices and received supplier invoices, including partial payments, outstanding balances, payment methods, idempotent recording, overpayment prevention, and audited reversals.
+- Added sales and purchase returns with credit/debit notes, return quantity limits, selectable stock locations, restock-or-damaged sales dispositions, supplier stock checks, idempotent posting, and audited compensating reversals.
+- Updated invoice/receipt balances and dashboard receivables, payables, sales, gross profit, and account credits to account for active returns.
 - Added the unit-scoped purchase screen for creating/searching/filtering purchase orders, viewing order and receipt history, and recording partial goods receipts.
 - Purchase orders snapshot the selected purchase unit, conversion factor, precision, and rounding mode. Receipts are always recorded in purchase units; stock balances and ledger entries update only when cumulative rounding produces a nonzero base-unit delta.
 - Invoice quantities must be whole numbers in the product base unit. Panel products must use PCS; cutting, partial-panel sales, and remnants are intentionally not supported.
-- Expenses, payment tracking, receivables/payables, GST compliance validation, monthly financial trends, and broader profit-and-loss reporting are not implemented yet.
+- Expenses, GST compliance validation, monthly financial trends, and broader profit-and-loss reporting are not implemented yet.
 
 ## Current limitations
-The application does not yet provide user-management UI, detailed consolidated reports, bank reconciliation, payment refunds, account-level statements, sales returns, GST compliance checks, backup automation, or dedicated A4/thermal invoice layouts. Sales are whole-unit only; panel cutting and remnant workflows are intentionally excluded. Complete and test remaining features before live shop use.
+The application does not yet provide user-management UI, detailed consolidated reports, bank reconciliation, cash-refund processing, account-level statements, GST compliance checks, backup automation, or dedicated A4/thermal invoice layouts. Returns create account credit and do not automatically issue cash refunds. Sales are whole-unit only; panel cutting and remnant workflows are intentionally excluded. Complete and test remaining features before live shop use.

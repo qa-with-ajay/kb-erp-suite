@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PaymentPanel } from "@/components/payment-panel";
+import { ReturnPanel } from "@/components/return-panel";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 import { PrintInvoiceButton } from "./print-invoice-button";
@@ -48,6 +49,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       taxAmount: true,
       total: true,
       payments: { select: { amount: true, reversedAt: true } },
+      returns: { select: { total: true, reversedAt: true } },
       createdAt: true,
       creator: { select: { name: true } },
       businessUnit: {
@@ -99,7 +101,13 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     (total, payment) => payment.reversedAt ? total : total.plus(payment.amount),
     new Prisma.Decimal(0),
   );
-  const balanceDue = sale.total.minus(paidAmount);
+  const returnedAmount = sale.returns.reduce(
+    (total, item) => item.reversedAt ? total : total.plus(item.total),
+    new Prisma.Decimal(0),
+  );
+  const netBalance = sale.total.minus(returnedAmount).minus(paidAmount);
+  const balanceDue = netBalance.greaterThan(0) ? netBalance : new Prisma.Decimal(0);
+  const creditBalance = netBalance.isNegative() ? netBalance.abs() : new Prisma.Decimal(0);
 
   return (
     <main className="min-h-screen bg-gray-50 p-5 md:p-10 print:bg-white print:p-0">
@@ -176,13 +184,23 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
             <div className="flex justify-between"><span>GST</span><span>{formatAmount(sale.taxAmount.toString(), currency)}</span></div>
             <div className="flex justify-between border-t border-gray-300 pt-3 text-base font-bold"><span>Total</span><span>{formatAmount(sale.total.toString(), currency)}</span></div>
             <div className="flex justify-between"><span>Amount paid</span><span>{formatAmount(paidAmount.toString(), currency)}</span></div>
-            <div className="flex justify-between font-semibold"><span>Balance due</span><span>{formatAmount(balanceDue.toString(), currency)}</span></div>
+            <div className="flex justify-between"><span>Returns / credit notes</span><span>{formatAmount(returnedAmount.toString(), currency)}</span></div>
+            <div className="flex justify-between font-semibold">
+              <span>{creditBalance.isPositive() ? "Customer account credit" : "Balance due"}</span>
+              <span>{formatAmount((creditBalance.isPositive() ? creditBalance : balanceDue).toString(), currency)}</span>
+            </div>
           </section>
           <footer className="mt-10 border-t border-gray-200 pt-4 text-center text-xs text-gray-500">
             Full-unit sale • Stock was deducted when this invoice was issued.
           </footer>
         </article>
         <div className="mt-6 print:hidden">
+          <ReturnPanel
+            endpoint={`/api/sales/${sale.id}/returns`}
+            kind="sale"
+            currency={currency}
+            canManage={canManagePayments}
+          />
           <PaymentPanel endpoint={`/api/sales/${sale.id}/payments`} currency={currency} canManage={canManagePayments} />
         </div>
       </div>

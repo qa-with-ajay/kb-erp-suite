@@ -28,7 +28,7 @@ export default async function DashboardPage() {
   ]);
   if (!dashboard) redirect("/inventory");
 
-  const financialMetrics = ["Purchases", "Expenses", "Customer receivables", "Supplier payables"];
+  const financialMetrics = ["Purchases", "Expenses", "Customer receivables", "Supplier payables", "Customer account credits", "Supplier account credits"];
 
   return (
     <main className="min-h-screen bg-gray-50 p-5 md:p-10">
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
 
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="font-semibold">Financial overview</h2>
-          <p className="mt-1 text-sm text-gray-600">Invoiced sales for {dashboard.name}; gross profit is sales subtotal less recorded stock cost.</p>
+          <p className="mt-1 text-sm text-gray-600">Net sales for {dashboard.name}, after returns; gross profit reflects restocked returns.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg bg-emerald-50 p-4">
               <p className="text-xs text-gray-600">Invoiced sales (all time)</p>
@@ -121,6 +121,10 @@ export default async function DashboardPage() {
                 ? formatAmount(dashboard.accountsReceivable, dashboard.currency)
                 : metric === "Supplier payables"
                   ? formatAmount(dashboard.accountsPayable, dashboard.currency)
+                  : metric === "Customer account credits"
+                    ? formatAmount(dashboard.customerCredits, dashboard.currency)
+                    : metric === "Supplier account credits"
+                      ? formatAmount(dashboard.supplierCredits, dashboard.currency)
                   : null;
               return (
                 <div key={metric} className="rounded-lg bg-gray-50 p-3">

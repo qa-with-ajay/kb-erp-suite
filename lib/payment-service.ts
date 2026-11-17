@@ -76,9 +76,14 @@ export async function recordSalePayment(
     where: { businessUnitId, saleId, reversedAt: null },
     _sum: { amount: true },
   });
+  const returnTotals = await tx.saleReturn.aggregate({
+    where: { businessUnitId, saleId, reversedAt: null },
+    _sum: { total: true },
+  });
   const paid = totals._sum.amount ?? new Prisma.Decimal(0);
+  const returned = returnTotals._sum.total ?? new Prisma.Decimal(0);
   const amount = new Prisma.Decimal(input.amount);
-  if (amount.greaterThan(sale.total.minus(paid))) {
+  if (amount.greaterThan(sale.total.minus(returned).minus(paid))) {
     return { kind: "error", error: "AMOUNT_EXCEEDS_BALANCE" };
   }
 
@@ -140,9 +145,14 @@ export async function recordSupplierPayment(
     where: { businessUnitId, purchaseReceiptId: receiptId, reversedAt: null },
     _sum: { amount: true },
   });
+  const returnTotals = await tx.purchaseReturn.aggregate({
+    where: { businessUnitId, purchaseReceiptId: receiptId, reversedAt: null },
+    _sum: { total: true },
+  });
   const paid = totals._sum.amount ?? new Prisma.Decimal(0);
+  const returned = returnTotals._sum.total ?? new Prisma.Decimal(0);
   const amount = new Prisma.Decimal(input.amount);
-  if (amount.greaterThan(receipt.total.minus(paid))) {
+  if (amount.greaterThan(receipt.total.minus(returned).minus(paid))) {
     return { kind: "error", error: "AMOUNT_EXCEEDS_BALANCE" };
   }
 

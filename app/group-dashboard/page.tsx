@@ -27,6 +27,8 @@ export default async function GroupDashboardPage() {
   const grossProfitByCurrency = new Map<string, Prisma.Decimal>();
   const receivablesByCurrency = new Map<string, Prisma.Decimal>();
   const payablesByCurrency = new Map<string, Prisma.Decimal>();
+  const customerCreditsByCurrency = new Map<string, Prisma.Decimal>();
+  const supplierCreditsByCurrency = new Map<string, Prisma.Decimal>();
   for (const unit of units) {
     const total = valuationByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
     valuationByCurrency.set(unit.currency, total.plus(unit.stockValue));
@@ -38,6 +40,10 @@ export default async function GroupDashboardPage() {
     receivablesByCurrency.set(unit.currency, receivables.plus(unit.accountsReceivable));
     const payables = payablesByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
     payablesByCurrency.set(unit.currency, payables.plus(unit.accountsPayable));
+    const customerCredits = customerCreditsByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
+    customerCreditsByCurrency.set(unit.currency, customerCredits.plus(unit.customerCredits));
+    const supplierCredits = supplierCreditsByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
+    supplierCreditsByCurrency.set(unit.currency, supplierCredits.plus(unit.supplierCredits));
   }
   const valuationSummary = valuationByCurrency.size
     ? [...valuationByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
@@ -54,10 +60,16 @@ export default async function GroupDashboardPage() {
   const payablesSummary = payablesByCurrency.size
     ? [...payablesByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
     : "—";
+  const customerCreditsSummary = customerCreditsByCurrency.size
+    ? [...customerCreditsByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
+    : "—";
+  const supplierCreditsSummary = supplierCreditsByCurrency.size
+    ? [...supplierCreditsByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
+    : "—";
   const lowStockItems = units.flatMap((unit) =>
     unit.lowStockItems.map((item) => ({ ...item, businessUnitName: unit.name })),
   ).slice(0, 10);
-  const financialMetrics = ["Purchases", "Expenses", "Receivables", "Payables"];
+  const financialMetrics = ["Purchases", "Expenses", "Receivables", "Payables", "Customer credits", "Supplier credits"];
 
   return (
     <main className="min-h-screen bg-gray-50 p-5 md:p-10">
@@ -81,7 +93,7 @@ export default async function GroupDashboardPage() {
           <MetricCard label="Active business units" value={units.length.toLocaleString("en-IN")} detail="Included in this snapshot" />
           <MetricCard label="Active products" value={productCount.toLocaleString("en-IN")} detail="Across active units" />
           <MetricCard label="Stock valuation" value={valuationSummary} detail="Standard stock at average cost; grouped by currency" />
-        <MetricCard label="Invoiced sales" value={salesSummary} detail="All time; grouped by currency" />
+        <MetricCard label="Net sales after returns" value={salesSummary} detail="All time; grouped by currency" />
         <MetricCard label="Gross profit on sales" value={grossProfitSummary} detail="Before expenses; grouped by currency" />
           <MetricCard label="Low-stock products" value={lowStockCount.toLocaleString("en-IN")} detail="At or below configured minimum" />
           <MetricCard label="Stock movements" value={movementCount.toLocaleString("en-IN")} detail="Recorded across active units" />
@@ -134,12 +146,16 @@ export default async function GroupDashboardPage() {
                 ? receivablesSummary
                 : metric === "Payables"
                   ? payablesSummary
+                  : metric === "Customer credits"
+                    ? customerCreditsSummary
+                    : metric === "Supplier credits"
+                      ? supplierCreditsSummary
                   : null;
               return (
                 <div key={metric} className="rounded-lg bg-gray-50 p-3">
                   <p className="text-xs text-gray-500">{metric}</p>
                   <p className={`mt-2 font-semibold ${value ? "text-gray-900" : "text-gray-400"}`}>{value ?? "Not tracked yet"}</p>
-                  {(metric === "Receivables" || metric === "Payables") && (
+                  {(metric === "Receivables" || metric === "Payables" || metric === "Customer credits" || metric === "Supplier credits") && (
                     <p className="mt-1 text-xs text-gray-500">Outstanding invoices, grouped by currency</p>
                   )}
                 </div>

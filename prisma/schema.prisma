@@ -17,16 +17,20 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  auditLogs         AuditLog[]
-  stockMovements    StockMovement[]
-  purchaseOrders    PurchaseOrder[]        @relation("PurchaseOrderCreator")
-  purchaseReceipts  PurchaseReceipt[]      @relation("PurchaseReceiptCreator")
-  sales             Sale[]                 @relation("SaleCreator")
-  paymentsRecorded  Payment[]              @relation("PaymentRecorder")
-  paymentsReversed  Payment[]              @relation("PaymentReverser")
-  remnantMovements  RemnantMovement[]
-  groupRoles        UserGroupRole[]
-  businessUnitRoles UserBusinessUnitRole[]
+  auditLogs               AuditLog[]
+  stockMovements          StockMovement[]
+  purchaseOrders          PurchaseOrder[]        @relation("PurchaseOrderCreator")
+  purchaseReceipts        PurchaseReceipt[]      @relation("PurchaseReceiptCreator")
+  sales                   Sale[]                 @relation("SaleCreator")
+  paymentsRecorded        Payment[]              @relation("PaymentRecorder")
+  paymentsReversed        Payment[]              @relation("PaymentReverser")
+  salesReturns            SaleReturn[]           @relation("SaleReturnCreator")
+  purchaseReturns         PurchaseReturn[]       @relation("PurchaseReturnCreator")
+  salesReturnReversals    SaleReturn[]           @relation("SaleReturnReverser")
+  purchaseReturnReversals PurchaseReturn[]       @relation("PurchaseReturnReverser")
+  remnantMovements        RemnantMovement[]
+  groupRoles              UserGroupRole[]
+  businessUnitRoles       UserBusinessUnitRole[]
 }
 
 model BusinessProfile {
@@ -125,9 +129,13 @@ enum RoundingMode {
 enum StockMovementType {
   OPENING
   PURCHASE_IN
+  PURCHASE_RETURN
+  PURCHASE_RETURN_REVERSAL
   INWARD
   OUTWARD
   SALE
+  SALE_RETURN
+  SALE_RETURN_REVERSAL
   ADJUSTMENT
   TRANSFER
   PANEL_OPERATION
@@ -150,6 +158,11 @@ enum PaymentMethod {
   BANK_TRANSFER
   CHEQUE
   OTHER
+}
+
+enum SaleReturnDisposition {
+  RESTOCK
+  DAMAGED
 }
 
 enum PurchaseStatus {
@@ -187,13 +200,15 @@ enum RemnantMovementType {
 }
 
 model BusinessUnit {
-  id                  String   @id @default(uuid()) @db.Uuid
-  code                String   @unique
-  name                String
-  isActive            Boolean  @default(true)
-  nextPurchaseOrderNo Int      @default(1)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                      String   @id @default(uuid()) @db.Uuid
+  code                    String   @unique
+  name                    String
+  isActive                Boolean  @default(true)
+  nextPurchaseOrderNo     Int      @default(1)
+  nextSalesCreditNoteNo   Int      @default(1)
+  nextPurchaseDebitNoteNo Int      @default(1)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   profile          BusinessProfile?
   auditLogs        AuditLog[]
@@ -216,6 +231,8 @@ model BusinessUnit {
   purchaseOrders   PurchaseOrder[]
   purchaseReceipts PurchaseReceipt[]
   payments         Payment[]
+  salesReturns     SaleReturn[]
+  purchaseReturns  PurchaseReturn[]
 
   @@index([isActive, name])
 }
@@ -388,6 +405,8 @@ model Product {
   saleLines            SaleLine[]
   purchaseOrderLines   PurchaseOrderLine[]
   purchaseReceiptLines PurchaseReceiptLine[]
+  saleReturnLines      SaleReturnLine[]
+  purchaseReturnLines  PurchaseReturnLine[]
   remnants             Remnant[]
   panelOperations      PanelOperation[]
 
@@ -417,6 +436,8 @@ model ProductVariant {
   saleLines            SaleLine[]
   purchaseOrderLines   PurchaseOrderLine[]
   purchaseReceiptLines PurchaseReceiptLine[]
+  saleReturnLines      SaleReturnLine[]
+  purchaseReturnLines  PurchaseReturnLine[]
   remnants             Remnant[]
   panelOperations      PanelOperation[]
 
@@ -463,6 +484,8 @@ model StockLocation {
   remnants             Remnant[]
   remnantMovements     RemnantMovement[]
   purchaseReceipts     PurchaseReceipt[]
+  salesReturns         SaleReturn[]
+  purchaseReturns      PurchaseReturn[]
 
   @@unique([businessUnitId, name])
   @@unique([businessUnitId, code])
@@ -481,14 +504,18 @@ model StockMovement {
   reason                String?
   createdAt             DateTime          @default(now())
 
-  businessUnit        BusinessUnit       @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  actor               User               @relation(fields: [actorId], references: [id], onDelete: Restrict)
-  sourceLocation      StockLocation?     @relation("MovementSource", fields: [businessUnitId, sourceLocationId], references: [businessUnitId, id], onDelete: Restrict)
-  destinationLocation StockLocation?     @relation("MovementDestination", fields: [businessUnitId, destinationLocationId], references: [businessUnitId, id], onDelete: Restrict)
-  ledgerEntries       StockLedgerEntry[]
-  panelOperation      PanelOperation?
-  sale                Sale?
-  purchaseReceipt     PurchaseReceipt?
+  businessUnit           BusinessUnit       @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  actor                  User               @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  sourceLocation         StockLocation?     @relation("MovementSource", fields: [businessUnitId, sourceLocationId], references: [businessUnitId, id], onDelete: Restrict)
+  destinationLocation    StockLocation?     @relation("MovementDestination", fields: [businessUnitId, destinationLocationId], references: [businessUnitId, id], onDelete: Restrict)
+  ledgerEntries          StockLedgerEntry[]
+  panelOperation         PanelOperation?
+  sale                   Sale?
+  purchaseReceipt        PurchaseReceipt?
+  saleReturnReversal     SaleReturn?        @relation("SaleReturnReversalMovement")
+  purchaseReturnReversal PurchaseReturn?    @relation("PurchaseReturnReversalMovement")
+  saleReturn             SaleReturn?
+  purchaseReturn         PurchaseReturn?
 
   @@unique([businessUnitId, idempotencyKey])
   @@unique([businessUnitId, id])
@@ -559,6 +586,7 @@ model Sale {
   creator       User          @relation("SaleCreator", fields: [createdBy], references: [id], onDelete: Restrict)
   lines         SaleLine[]
   payments      Payment[]
+  returns       SaleReturn[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, invoiceNumber])
@@ -589,11 +617,14 @@ model SaleLine {
   unitCost          Decimal         @db.Decimal(14, 4)
   lineCost          Decimal         @db.Decimal(14, 2)
 
-  sale    Sale            @relation(fields: [businessUnitId, saleId], references: [businessUnitId, id], onDelete: Restrict)
-  product Product         @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
-  variant ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  sale    Sale             @relation(fields: [businessUnitId, saleId], references: [businessUnitId, id], onDelete: Restrict)
+  product Product          @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant ProductVariant?  @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  returns SaleReturnLine[]
 
   @@unique([businessUnitId, saleId, lineNumber])
+  @@unique([businessUnitId, saleId, id])
+  @@index([businessUnitId, saleId])
   @@index([businessUnitId, productId])
 }
 
@@ -689,6 +720,7 @@ model PurchaseReceipt {
   receiver      User                  @relation("PurchaseReceiptCreator", fields: [receivedBy], references: [id], onDelete: Restrict)
   lines         PurchaseReceiptLine[]
   payments      Payment[]
+  returns       PurchaseReturn[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, stockMovementId])
@@ -723,13 +755,15 @@ model PurchaseReceiptLine {
   lineTax             Decimal         @db.Decimal(14, 2)
   lineTotal           Decimal         @db.Decimal(14, 2)
 
-  receipt           PurchaseReceipt   @relation(fields: [businessUnitId, purchaseReceiptId], references: [businessUnitId, id], onDelete: Restrict)
-  purchaseOrderLine PurchaseOrderLine @relation(fields: [businessUnitId, purchaseOrderLineId], references: [businessUnitId, id], onDelete: Restrict)
-  product           Product           @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
-  variant           ProductVariant?   @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  receipt           PurchaseReceipt      @relation(fields: [businessUnitId, purchaseReceiptId], references: [businessUnitId, id], onDelete: Restrict)
+  purchaseOrderLine PurchaseOrderLine    @relation(fields: [businessUnitId, purchaseOrderLineId], references: [businessUnitId, id], onDelete: Restrict)
+  product           Product              @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant           ProductVariant?      @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  returns           PurchaseReturnLine[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, purchaseReceiptId, lineNumber])
+  @@unique([businessUnitId, purchaseReceiptId, id])
   @@index([businessUnitId, purchaseOrderLineId])
 }
 
@@ -760,6 +794,154 @@ model Payment {
   @@unique([businessUnitId, idempotencyKey])
   @@index([businessUnitId, saleId, paidAt])
   @@index([businessUnitId, purchaseReceiptId, paidAt])
+}
+
+model SaleReturn {
+  id                     String    @id @default(uuid()) @db.Uuid
+  businessUnitId         String    @db.Uuid
+  saleId                 String    @db.Uuid
+  stockMovementId        String    @db.Uuid
+  locationId             String    @db.Uuid
+  creditNoteNumber       String
+  idempotencyKey         String
+  reason                 String
+  subtotal               Decimal   @db.Decimal(14, 2)
+  taxAmount              Decimal   @db.Decimal(14, 2)
+  total                  Decimal   @db.Decimal(14, 2)
+  createdBy              String
+  createdAt              DateTime  @default(now())
+  reversalMovementId     String?   @db.Uuid
+  reversalIdempotencyKey String?
+  reversedBy             String?
+  reversedAt             DateTime?
+  reversalReason         String?
+
+  businessUnit     BusinessUnit     @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  sale             Sale             @relation(fields: [businessUnitId, saleId], references: [businessUnitId, id], onDelete: Restrict)
+  stockMovement    StockMovement    @relation(fields: [businessUnitId, stockMovementId], references: [businessUnitId, id], onDelete: Restrict)
+  location         StockLocation    @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
+  creator          User             @relation("SaleReturnCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  reverser         User?            @relation("SaleReturnReverser", fields: [reversedBy], references: [id], onDelete: Restrict)
+  reversalMovement StockMovement?   @relation("SaleReturnReversalMovement", fields: [businessUnitId, reversalMovementId], references: [businessUnitId, id], onDelete: Restrict)
+  lines            SaleReturnLine[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, id, saleId])
+  @@unique([businessUnitId, stockMovementId])
+  @@unique([businessUnitId, reversalMovementId])
+  @@unique([businessUnitId, reversalIdempotencyKey])
+  @@unique([businessUnitId, creditNoteNumber])
+  @@unique([businessUnitId, idempotencyKey])
+  @@index([businessUnitId, saleId, createdAt])
+}
+
+model SaleReturnLine {
+  id                String                @id @default(uuid()) @db.Uuid
+  businessUnitId    String                @db.Uuid
+  saleReturnId      String                @db.Uuid
+  saleId            String                @db.Uuid
+  saleLineId        String                @db.Uuid
+  lineNumber        Int
+  productId         String                @db.Uuid
+  variantId         String?               @db.Uuid
+  productName       String
+  sku               String
+  baseUnit          MeasurementUnit
+  variantCode       String?
+  variantAttributes Json?
+  quantity          Decimal               @db.Decimal(18, 4)
+  disposition       SaleReturnDisposition
+  unitPrice         Decimal               @db.Decimal(14, 2)
+  gstPercentage     Decimal               @db.Decimal(5, 2)
+  lineSubtotal      Decimal               @db.Decimal(14, 2)
+  lineTax           Decimal               @db.Decimal(14, 2)
+  lineTotal         Decimal               @db.Decimal(14, 2)
+  unitCost          Decimal               @db.Decimal(14, 4)
+  lineCost          Decimal               @db.Decimal(14, 2)
+
+  saleReturn SaleReturn      @relation(fields: [businessUnitId, saleReturnId, saleId], references: [businessUnitId, id, saleId], onDelete: Restrict)
+  saleLine   SaleLine        @relation(fields: [businessUnitId, saleId, saleLineId], references: [businessUnitId, saleId, id], onDelete: Restrict)
+  product    Product         @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant    ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@unique([businessUnitId, saleReturnId, lineNumber])
+  @@index([businessUnitId, saleLineId])
+}
+
+model PurchaseReturn {
+  id                     String    @id @default(uuid()) @db.Uuid
+  businessUnitId         String    @db.Uuid
+  purchaseReceiptId      String    @db.Uuid
+  stockMovementId        String    @db.Uuid
+  locationId             String    @db.Uuid
+  debitNoteNumber        String
+  idempotencyKey         String
+  reason                 String
+  subtotal               Decimal   @db.Decimal(14, 2)
+  taxAmount              Decimal   @db.Decimal(14, 2)
+  total                  Decimal   @db.Decimal(14, 2)
+  createdBy              String
+  createdAt              DateTime  @default(now())
+  reversalMovementId     String?   @db.Uuid
+  reversalIdempotencyKey String?
+  reversedBy             String?
+  reversedAt             DateTime?
+  reversalReason         String?
+
+  businessUnit     BusinessUnit         @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  purchaseReceipt  PurchaseReceipt      @relation(fields: [businessUnitId, purchaseReceiptId], references: [businessUnitId, id], onDelete: Restrict)
+  stockMovement    StockMovement        @relation(fields: [businessUnitId, stockMovementId], references: [businessUnitId, id], onDelete: Restrict)
+  location         StockLocation        @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
+  creator          User                 @relation("PurchaseReturnCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  reverser         User?                @relation("PurchaseReturnReverser", fields: [reversedBy], references: [id], onDelete: Restrict)
+  reversalMovement StockMovement?       @relation("PurchaseReturnReversalMovement", fields: [businessUnitId, reversalMovementId], references: [businessUnitId, id], onDelete: Restrict)
+  lines            PurchaseReturnLine[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, id, purchaseReceiptId])
+  @@unique([businessUnitId, stockMovementId])
+  @@unique([businessUnitId, reversalMovementId])
+  @@unique([businessUnitId, reversalIdempotencyKey])
+  @@unique([businessUnitId, debitNoteNumber])
+  @@unique([businessUnitId, idempotencyKey])
+  @@index([businessUnitId, purchaseReceiptId, createdAt])
+}
+
+model PurchaseReturnLine {
+  id                  String          @id @default(uuid()) @db.Uuid
+  businessUnitId      String          @db.Uuid
+  purchaseReturnId    String          @db.Uuid
+  purchaseReceiptId   String          @db.Uuid
+  receiptLineId       String          @db.Uuid
+  lineNumber          Int
+  productId           String          @db.Uuid
+  variantId           String?         @db.Uuid
+  productName         String
+  sku                 String
+  baseUnit            MeasurementUnit
+  variantCode         String?
+  variantAttributes   Json?
+  purchaseQuantity    Decimal         @db.Decimal(18, 4)
+  purchaseUnit        MeasurementUnit
+  conversionFactor    Decimal         @db.Decimal(18, 8)
+  conversionPrecision Int
+  roundingMode        RoundingMode
+  quantity            Decimal         @db.Decimal(18, 8)
+  unitCost            Decimal         @db.Decimal(14, 4)
+  purchaseUnitCost    Decimal         @db.Decimal(14, 4)
+  stockUnitCost       Decimal         @db.Decimal(14, 4)
+  gstPercentage       Decimal         @db.Decimal(5, 2)
+  lineSubtotal        Decimal         @db.Decimal(14, 2)
+  lineTax             Decimal         @db.Decimal(14, 2)
+  lineTotal           Decimal         @db.Decimal(14, 2)
+
+  purchaseReturn PurchaseReturn      @relation(fields: [businessUnitId, purchaseReturnId, purchaseReceiptId], references: [businessUnitId, id, purchaseReceiptId], onDelete: Restrict)
+  receiptLine    PurchaseReceiptLine @relation(fields: [businessUnitId, purchaseReceiptId, receiptLineId], references: [businessUnitId, purchaseReceiptId, id], onDelete: Restrict)
+  product        Product             @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant        ProductVariant?     @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@unique([businessUnitId, purchaseReturnId, lineNumber])
+  @@index([businessUnitId, receiptLineId])
 }
 
 model PanelOperation {
