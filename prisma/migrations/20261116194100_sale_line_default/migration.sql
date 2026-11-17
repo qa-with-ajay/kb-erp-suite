@@ -1,0 +1,1 @@
+ALTER TABLE "SaleLine" ALTER COLUMN "lineNumber" SET DEFAULT 0;

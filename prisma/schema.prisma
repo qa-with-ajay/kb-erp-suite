@@ -1,0 +1,798 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(CASHIER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  auditLogs         AuditLog[]
+  stockMovements    StockMovement[]
+  purchaseOrders    PurchaseOrder[]        @relation("PurchaseOrderCreator")
+  purchaseReceipts  PurchaseReceipt[]      @relation("PurchaseReceiptCreator")
+  sales             Sale[]                 @relation("SaleCreator")
+  remnantMovements  RemnantMovement[]
+  groupRoles        UserGroupRole[]
+  businessUnitRoles UserBusinessUnitRole[]
+}
+
+model BusinessProfile {
+  id             String             @id @default(cuid())
+  legalName      String?
+  tradeName      String             @default("KB Interiors")
+  unit           LegacyBusinessUnit @default(KB_INTERIORS)
+  businessUnitId String             @unique @db.Uuid
+  gstin          String?
+  phone          String?
+  email          String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  state          String?
+  stateCode      String?
+  pincode        String?
+  invoicePrefix  String             @default("KBI")
+  nextInvoiceNo  Int                @default(1)
+  currency       String             @default("INR")
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+}
+
+model OrganizationProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @default("Kumar Brothers & Associates")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  userId         String?
+  businessUnitId String?  @db.Uuid
+  action         String
+  entity         String
+  entityId       String?
+  details        Json?
+  createdAt      DateTime @default(now())
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([businessUnitId, createdAt])
+  @@index([createdAt])
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+enum LegacyBusinessUnit {
+  KB_INTERIORS
+  KB_ELECTRICALS
+  KB_KITCHEN_BATH
+  KB_TOOLS
+  KB_TECH
+}
+
+enum RoleScope {
+  GROUP
+  BUSINESS_UNIT
+}
+
+enum MeasurementUnit {
+  PCS
+  SQFT
+  BOX
+  RFT
+  ROLL
+  METER
+  KG
+  LITRE
+  BUNDLE
+  SET
+}
+
+enum ProductType {
+  STANDARD
+  PANEL
+}
+
+enum RoundingMode {
+  HALF_UP
+  HALF_EVEN
+  DOWN
+  UP
+}
+
+enum StockMovementType {
+  OPENING
+  PURCHASE_IN
+  INWARD
+  OUTWARD
+  SALE
+  ADJUSTMENT
+  TRANSFER
+  PANEL_OPERATION
+}
+
+enum SaleTaxMode {
+  GST
+  NON_GST
+}
+
+enum PurchaseTaxMode {
+  GST
+  NON_GST
+}
+
+enum PurchaseStatus {
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+}
+
+enum StockKind {
+  STANDARD
+  REMNANT
+}
+
+enum PanelOperationType {
+  CUT
+  REMNANT_SALE
+  WASTAGE
+  ADJUSTMENT
+}
+
+enum RemnantStatus {
+  AVAILABLE
+  SOLD
+  CONSUMED
+  WASTED
+  ADJUSTED
+}
+
+enum RemnantMovementType {
+  CREATED
+  SOLD
+  CONSUMED
+  WASTED
+  ADJUSTED
+}
+
+model BusinessUnit {
+  id                  String   @id @default(uuid()) @db.Uuid
+  code                String   @unique
+  name                String
+  isActive            Boolean  @default(true)
+  nextPurchaseOrderNo Int      @default(1)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  profile          BusinessProfile?
+  auditLogs        AuditLog[]
+  categories       Category[]
+  brands           Brand[]
+  products         Product[]
+  customers        Customer[]
+  suppliers        Supplier[]
+  variants         ProductVariant[]
+  unitConversions  ProductUnitConversion[]
+  stockLocations   StockLocation[]
+  stockMovements   StockMovement[]
+  stockLedger      StockLedgerEntry[]
+  stockBalances    StockBalance[]
+  panelOperations  PanelOperation[]
+  remnants         Remnant[]
+  remnantMovements RemnantMovement[]
+  userAssignments  UserBusinessUnitRole[]
+  sales            Sale[]
+  purchaseOrders   PurchaseOrder[]
+  purchaseReceipts PurchaseReceipt[]
+
+  @@index([isActive, name])
+}
+
+model Role {
+  id        String    @id @default(uuid()) @db.Uuid
+  code      String    @unique
+  name      String
+  scope     RoleScope
+  isSystem  Boolean   @default(true)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  permissions RolePermission[]
+  groupUsers  UserGroupRole[]
+  unitUsers   UserBusinessUnitRole[]
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  description String
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model UserGroupRole {
+  userId String @db.Text
+  roleId String @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+}
+
+model UserBusinessUnitRole {
+  userId         String @db.Text
+  businessUnitId String @db.Uuid
+  roleId         String @db.Uuid
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, businessUnitId, roleId])
+  @@index([businessUnitId, roleId])
+}
+
+model Category {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessUnitId String   @db.Uuid
+  name           String
+  description    String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  products     Product[]
+
+  @@unique([businessUnitId, name])
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, isActive, name])
+}
+
+model Brand {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessUnitId String   @db.Uuid
+  name           String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  products     Product[]
+
+  @@unique([businessUnitId, name])
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, isActive, name])
+}
+
+model Customer {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessUnitId String   @db.Uuid
+  name           String
+  phone          String?
+  email          String?
+  gstin          String?
+  addressLine1   String?
+  city           String?
+  state          String?
+  pincode        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  sales        Sale[]
+
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, isActive, name])
+  @@index([businessUnitId, phone])
+}
+
+model Supplier {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessUnitId String   @db.Uuid
+  name           String
+  phone          String?
+  email          String?
+  gstin          String?
+  addressLine1   String?
+  city           String?
+  state          String?
+  pincode        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  businessUnit     BusinessUnit      @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  purchaseOrders   PurchaseOrder[]
+  purchaseReceipts PurchaseReceipt[]
+
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, isActive, name])
+  @@index([businessUnitId, phone])
+}
+
+model Product {
+  id             String          @id @default(uuid()) @db.Uuid
+  businessUnitId String          @db.Uuid
+  name           String
+  sku            String
+  description    String?
+  productType    ProductType     @default(STANDARD)
+  baseUnit       MeasurementUnit
+  purchasePrice  Decimal         @db.Decimal(14, 2)
+  sellingPrice   Decimal         @db.Decimal(14, 2)
+  gstPercentage  Decimal         @default(0) @db.Decimal(5, 2)
+  minimumStock   Decimal         @default(0) @db.Decimal(14, 4)
+  barcode        String?
+  imageUrl       String?
+  isActive       Boolean         @default(true)
+  categoryId     String?         @db.Uuid
+  brandId        String?         @db.Uuid
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  businessUnit         BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  category             Category?               @relation(fields: [businessUnitId, categoryId], references: [businessUnitId, id], onDelete: Restrict)
+  brand                Brand?                  @relation(fields: [businessUnitId, brandId], references: [businessUnitId, id], onDelete: Restrict)
+  variants             ProductVariant[]
+  unitConversions      ProductUnitConversion[]
+  stockBalances        StockBalance[]
+  stockLedger          StockLedgerEntry[]
+  saleLines            SaleLine[]
+  purchaseOrderLines   PurchaseOrderLine[]
+  purchaseReceiptLines PurchaseReceiptLine[]
+  remnants             Remnant[]
+  panelOperations      PanelOperation[]
+
+  @@unique([businessUnitId, sku])
+  @@unique([businessUnitId, barcode])
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, name])
+  @@index([businessUnitId, categoryId, isActive])
+  @@index([businessUnitId, brandId, isActive])
+}
+
+model ProductVariant {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessUnitId String   @db.Uuid
+  productId      String   @db.Uuid
+  code           String?
+  barcode        String?
+  attributes     Json
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  businessUnit         BusinessUnit          @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  product              Product               @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  stockBalances        StockBalance[]
+  stockLedger          StockLedgerEntry[]
+  saleLines            SaleLine[]
+  purchaseOrderLines   PurchaseOrderLine[]
+  purchaseReceiptLines PurchaseReceiptLine[]
+  remnants             Remnant[]
+  panelOperations      PanelOperation[]
+
+  @@unique([businessUnitId, code])
+  @@unique([businessUnitId, barcode])
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, productId, isActive])
+}
+
+model ProductUnitConversion {
+  id               String          @id @default(uuid()) @db.Uuid
+  businessUnitId   String          @db.Uuid
+  productId        String          @db.Uuid
+  unit             MeasurementUnit
+  conversionFactor Decimal         @db.Decimal(18, 8)
+  isPurchaseUnit   Boolean         @default(false)
+  isSalesUnit      Boolean         @default(false)
+  precision        Int             @default(4)
+  roundingMode     RoundingMode    @default(HALF_UP)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  product      Product      @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Cascade)
+
+  @@unique([productId, unit])
+  @@index([businessUnitId, productId])
+}
+
+model StockLocation {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessUnitId String   @db.Uuid
+  name           String
+  code           String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  businessUnit         BusinessUnit       @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  sourceMovements      StockMovement[]    @relation("MovementSource")
+  destinationMovements StockMovement[]    @relation("MovementDestination")
+  stockBalances        StockBalance[]
+  stockLedger          StockLedgerEntry[]
+  remnants             Remnant[]
+  remnantMovements     RemnantMovement[]
+  purchaseReceipts     PurchaseReceipt[]
+
+  @@unique([businessUnitId, name])
+  @@unique([businessUnitId, code])
+  @@unique([businessUnitId, id])
+}
+
+model StockMovement {
+  id                    String            @id @default(uuid()) @db.Uuid
+  businessUnitId        String            @db.Uuid
+  type                  StockMovementType
+  actorId               String
+  sourceLocationId      String?           @db.Uuid
+  destinationLocationId String?           @db.Uuid
+  reference             String?
+  idempotencyKey        String?
+  reason                String?
+  createdAt             DateTime          @default(now())
+
+  businessUnit        BusinessUnit       @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  actor               User               @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  sourceLocation      StockLocation?     @relation("MovementSource", fields: [businessUnitId, sourceLocationId], references: [businessUnitId, id], onDelete: Restrict)
+  destinationLocation StockLocation?     @relation("MovementDestination", fields: [businessUnitId, destinationLocationId], references: [businessUnitId, id], onDelete: Restrict)
+  ledgerEntries       StockLedgerEntry[]
+  panelOperation      PanelOperation?
+  sale                Sale?
+  purchaseReceipt     PurchaseReceipt?
+
+  @@unique([businessUnitId, idempotencyKey])
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, type, createdAt])
+  @@index([reference])
+}
+
+model StockLedgerEntry {
+  id             String    @id @default(uuid()) @db.Uuid
+  businessUnitId String    @db.Uuid
+  movementId     String    @db.Uuid
+  productId      String    @db.Uuid
+  variantId      String?   @db.Uuid
+  locationId     String    @db.Uuid
+  stockKind      StockKind @default(STANDARD)
+  quantityDelta  Decimal   @db.Decimal(18, 8)
+  unitCost       Decimal   @db.Decimal(14, 4)
+  createdAt      DateTime  @default(now())
+
+  businessUnit BusinessUnit    @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  movement     StockMovement   @relation(fields: [businessUnitId, movementId], references: [businessUnitId, id], onDelete: Restrict)
+  product      Product         @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant      ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  location     StockLocation   @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@index([businessUnitId, productId, variantId, locationId, createdAt])
+  @@index([movementId])
+}
+
+model StockBalance {
+  id             String    @id @default(uuid()) @db.Uuid
+  businessUnitId String    @db.Uuid
+  locationId     String    @db.Uuid
+  productId      String    @db.Uuid
+  variantId      String?   @db.Uuid
+  stockKind      StockKind @default(STANDARD)
+  quantity       Decimal   @default(0) @db.Decimal(18, 8)
+  averageCost    Decimal   @default(0) @db.Decimal(14, 4)
+  updatedAt      DateTime  @updatedAt
+
+  businessUnit BusinessUnit    @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  location     StockLocation   @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
+  product      Product         @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant      ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@index([businessUnitId, locationId, productId, variantId, stockKind])
+}
+
+model Sale {
+  id              String      @id @default(uuid()) @db.Uuid
+  businessUnitId  String      @db.Uuid
+  stockMovementId String      @db.Uuid
+  customerId      String?     @db.Uuid
+  invoiceNumber   String
+  taxMode         SaleTaxMode
+  customerName    String?
+  customerPhone   String?
+  subtotal        Decimal     @db.Decimal(14, 2)
+  taxAmount       Decimal     @db.Decimal(14, 2)
+  total           Decimal     @db.Decimal(14, 2)
+  costOfGoods     Decimal     @db.Decimal(14, 2)
+  createdBy       String
+  createdAt       DateTime    @default(now())
+
+  businessUnit  BusinessUnit  @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  customer      Customer?     @relation(fields: [businessUnitId, customerId], references: [businessUnitId, id], onDelete: Restrict)
+  stockMovement StockMovement @relation(fields: [businessUnitId, stockMovementId], references: [businessUnitId, id], onDelete: Restrict)
+  creator       User          @relation("SaleCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  lines         SaleLine[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, invoiceNumber])
+  @@unique([businessUnitId, stockMovementId])
+  @@index([businessUnitId, customerId])
+  @@index([businessUnitId, createdAt])
+  @@index([businessUnitId, customerName])
+}
+
+model SaleLine {
+  id                String          @id @default(uuid()) @db.Uuid
+  businessUnitId    String          @db.Uuid
+  saleId            String          @db.Uuid
+  lineNumber        Int             @default(0)
+  productId         String          @db.Uuid
+  variantId         String?         @db.Uuid
+  productName       String
+  sku               String
+  baseUnit          MeasurementUnit
+  variantCode       String?
+  variantAttributes Json?
+  quantity          Decimal         @db.Decimal(18, 4)
+  unitPrice         Decimal         @db.Decimal(14, 2)
+  gstPercentage     Decimal         @db.Decimal(5, 2)
+  lineSubtotal      Decimal         @db.Decimal(14, 2)
+  lineTax           Decimal         @db.Decimal(14, 2)
+  lineTotal         Decimal         @db.Decimal(14, 2)
+  unitCost          Decimal         @db.Decimal(14, 4)
+  lineCost          Decimal         @db.Decimal(14, 2)
+
+  sale    Sale            @relation(fields: [businessUnitId, saleId], references: [businessUnitId, id], onDelete: Restrict)
+  product Product         @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@unique([businessUnitId, saleId, lineNumber])
+  @@index([businessUnitId, productId])
+}
+
+model PurchaseOrder {
+  id             String          @id @default(uuid()) @db.Uuid
+  businessUnitId String          @db.Uuid
+  supplierId     String          @db.Uuid
+  orderNumber    String
+  idempotencyKey String?
+  status         PurchaseStatus  @default(ORDERED)
+  taxMode        PurchaseTaxMode
+  orderDate      DateTime        @default(now())
+  expectedDate   DateTime?
+  notes          String?
+  subtotal       Decimal         @db.Decimal(14, 2)
+  taxAmount      Decimal         @db.Decimal(14, 2)
+  total          Decimal         @db.Decimal(14, 2)
+  createdBy      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  businessUnit BusinessUnit        @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  supplier     Supplier            @relation(fields: [businessUnitId, supplierId], references: [businessUnitId, id], onDelete: Restrict)
+  creator      User                @relation("PurchaseOrderCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  lines        PurchaseOrderLine[]
+  receipts     PurchaseReceipt[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, orderNumber])
+  @@unique([businessUnitId, idempotencyKey])
+  @@index([businessUnitId, status, orderDate])
+  @@index([businessUnitId, supplierId, orderDate])
+}
+
+model PurchaseOrderLine {
+  id                       String          @id @default(uuid()) @db.Uuid
+  businessUnitId           String          @db.Uuid
+  purchaseOrderId          String          @db.Uuid
+  lineNumber               Int
+  productId                String          @db.Uuid
+  variantId                String?         @db.Uuid
+  productName              String
+  sku                      String
+  baseUnit                 MeasurementUnit
+  variantCode              String?
+  variantAttributes        Json?
+  purchaseQuantity         Decimal         @db.Decimal(18, 4)
+  receivedPurchaseQuantity Decimal         @default(0) @db.Decimal(18, 4)
+  purchaseUnit             MeasurementUnit
+  conversionFactor         Decimal         @db.Decimal(18, 8)
+  conversionPrecision      Int
+  roundingMode             RoundingMode
+  quantity                 Decimal         @db.Decimal(18, 8)
+  receivedQuantity         Decimal         @default(0) @db.Decimal(18, 8)
+  unitCost                 Decimal         @db.Decimal(14, 4)
+  purchaseUnitCost         Decimal         @db.Decimal(14, 4)
+  gstPercentage            Decimal         @db.Decimal(5, 2)
+  lineSubtotal             Decimal         @db.Decimal(14, 2)
+  lineTax                  Decimal         @db.Decimal(14, 2)
+  lineTotal                Decimal         @db.Decimal(14, 2)
+
+  purchaseOrder PurchaseOrder         @relation(fields: [businessUnitId, purchaseOrderId], references: [businessUnitId, id], onDelete: Restrict)
+  product       Product               @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant       ProductVariant?       @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  receiptLines  PurchaseReceiptLine[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, purchaseOrderId, lineNumber])
+  @@index([businessUnitId, productId])
+}
+
+model PurchaseReceipt {
+  id                    String          @id @default(uuid()) @db.Uuid
+  businessUnitId        String          @db.Uuid
+  stockMovementId       String          @db.Uuid
+  purchaseOrderId       String          @db.Uuid
+  supplierId            String          @db.Uuid
+  locationId            String          @db.Uuid
+  supplierInvoiceNumber String
+  supplierInvoiceDate   DateTime?
+  taxMode               PurchaseTaxMode
+  subtotal              Decimal         @db.Decimal(14, 2)
+  taxAmount             Decimal         @db.Decimal(14, 2)
+  total                 Decimal         @db.Decimal(14, 2)
+  receivedBy            String
+  createdAt             DateTime        @default(now())
+
+  businessUnit  BusinessUnit          @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  stockMovement StockMovement         @relation(fields: [businessUnitId, stockMovementId], references: [businessUnitId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder         @relation(fields: [businessUnitId, purchaseOrderId], references: [businessUnitId, id], onDelete: Restrict)
+  supplier      Supplier              @relation(fields: [businessUnitId, supplierId], references: [businessUnitId, id], onDelete: Restrict)
+  location      StockLocation         @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
+  receiver      User                  @relation("PurchaseReceiptCreator", fields: [receivedBy], references: [id], onDelete: Restrict)
+  lines         PurchaseReceiptLine[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, stockMovementId])
+  @@unique([businessUnitId, supplierId, supplierInvoiceNumber])
+  @@index([businessUnitId, createdAt])
+  @@index([businessUnitId, purchaseOrderId])
+}
+
+model PurchaseReceiptLine {
+  id                  String          @id @default(uuid()) @db.Uuid
+  businessUnitId      String          @db.Uuid
+  purchaseReceiptId   String          @db.Uuid
+  purchaseOrderLineId String          @db.Uuid
+  lineNumber          Int
+  productId           String          @db.Uuid
+  variantId           String?         @db.Uuid
+  productName         String
+  sku                 String
+  baseUnit            MeasurementUnit
+  variantCode         String?
+  variantAttributes   Json?
+  purchaseQuantity    Decimal         @db.Decimal(18, 4)
+  purchaseUnit        MeasurementUnit
+  conversionFactor    Decimal         @db.Decimal(18, 8)
+  conversionPrecision Int
+  roundingMode        RoundingMode
+  quantity            Decimal         @db.Decimal(18, 8)
+  unitCost            Decimal         @db.Decimal(14, 4)
+  purchaseUnitCost    Decimal         @db.Decimal(14, 4)
+  gstPercentage       Decimal         @db.Decimal(5, 2)
+  lineSubtotal        Decimal         @db.Decimal(14, 2)
+  lineTax             Decimal         @db.Decimal(14, 2)
+  lineTotal           Decimal         @db.Decimal(14, 2)
+
+  receipt           PurchaseReceipt   @relation(fields: [businessUnitId, purchaseReceiptId], references: [businessUnitId, id], onDelete: Restrict)
+  purchaseOrderLine PurchaseOrderLine @relation(fields: [businessUnitId, purchaseOrderLineId], references: [businessUnitId, id], onDelete: Restrict)
+  product           Product           @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant           ProductVariant?   @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, purchaseReceiptId, lineNumber])
+  @@index([businessUnitId, purchaseOrderLineId])
+}
+
+model PanelOperation {
+  id              String             @id @default(uuid()) @db.Uuid
+  businessUnitId  String             @db.Uuid
+  movementId      String             @unique @db.Uuid
+  productId       String             @db.Uuid
+  variantId       String?            @db.Uuid
+  sourceRemnantId String?            @unique @db.Uuid
+  type            PanelOperationType
+  inputLength     Decimal            @db.Decimal(12, 4)
+  inputWidth      Decimal            @db.Decimal(12, 4)
+  soldArea        Decimal            @default(0) @db.Decimal(14, 4)
+  wastedArea      Decimal            @default(0) @db.Decimal(14, 4)
+  createdAt       DateTime           @default(now())
+
+  businessUnit   BusinessUnit      @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  movement       StockMovement     @relation(fields: [businessUnitId, movementId], references: [businessUnitId, id], onDelete: Restrict)
+  product        Product           @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant        ProductVariant?   @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  sourceRemnant  Remnant?          @relation("RemnantSource", fields: [businessUnitId, sourceRemnantId], references: [businessUnitId, id], onDelete: Restrict)
+  outputRemnants Remnant[]         @relation("RemnantOutput")
+  remnantHistory RemnantMovement[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, movementId])
+  @@unique([businessUnitId, sourceRemnantId])
+  @@index([businessUnitId, productId, createdAt])
+}
+
+model Remnant {
+  id                String        @id @default(uuid()) @db.Uuid
+  businessUnitId    String        @db.Uuid
+  code              String
+  productId         String        @db.Uuid
+  variantId         String?       @db.Uuid
+  locationId        String        @db.Uuid
+  sourceOperationId String        @db.Uuid
+  length            Decimal       @db.Decimal(12, 4)
+  width             Decimal       @db.Decimal(12, 4)
+  area              Decimal       @db.Decimal(14, 4)
+  status            RemnantStatus @default(AVAILABLE)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  businessUnit    BusinessUnit      @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  product         Product           @relation(fields: [businessUnitId, productId], references: [businessUnitId, id], onDelete: Restrict)
+  variant         ProductVariant?   @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id], onDelete: Restrict)
+  location        StockLocation     @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
+  sourceOperation PanelOperation    @relation("RemnantOutput", fields: [businessUnitId, sourceOperationId], references: [businessUnitId, id], onDelete: Restrict)
+  usedAsSource    PanelOperation?   @relation("RemnantSource")
+  movements       RemnantMovement[]
+
+  @@unique([businessUnitId, code])
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, productId, variantId, status])
+  @@index([businessUnitId, locationId, status])
+}
+
+model RemnantMovement {
+  id             String              @id @default(uuid()) @db.Uuid
+  businessUnitId String              @db.Uuid
+  remnantId      String              @db.Uuid
+  operationId    String?             @db.Uuid
+  locationId     String              @db.Uuid
+  actorId        String
+  type           RemnantMovementType
+  quantityDelta  Decimal             @db.Decimal(14, 4)
+  reason         String?
+  createdAt      DateTime            @default(now())
+
+  businessUnit BusinessUnit    @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  remnant      Remnant         @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id], onDelete: Restrict)
+  operation    PanelOperation? @relation(fields: [businessUnitId, operationId], references: [businessUnitId, id], onDelete: Restrict)
+  location     StockLocation   @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
+  actor        User            @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([businessUnitId, remnantId, createdAt])
+}
