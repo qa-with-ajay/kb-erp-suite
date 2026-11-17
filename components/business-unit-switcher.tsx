@@ -44,13 +44,20 @@ export function BusinessUnitSwitcher() {
     }
   }
 
-  if (units.length < 2) {
-    return error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null;
+  if (units.length === 0) return error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null;
+  if (units.length === 1) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-xs font-medium text-gray-500">Active unit</span>
+        <p className="text-sm font-semibold text-gray-800">{units[0].name}</p>
+        {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <label htmlFor="active-business-unit" className="text-xs font-medium text-gray-500">Business unit</label>
+      <label htmlFor="active-business-unit" className="text-xs font-medium text-gray-500">Active unit</label>
       <select
         id="active-business-unit"
         className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { auth } from "@/auth";
+import { AuthProvider } from "@/components/auth-provider";
 import { AppShell, type AppNavItem } from "@/components/app-shell";
 import { getBusinessUnitPermissionCodes } from "@/lib/inventory-auth";
 import "./globals.css";
@@ -12,9 +13,11 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await auth();
   let items: AppNavItem[] = [];
+  let canViewLowStock = false;
 
   if (session?.user?.id) {
     const permissions = await getBusinessUnitPermissionCodes();
+    canViewLowStock = permissions.has("inventory.read") || permissions.has("reports.unit.read");
 
     if (permissions.has("group.dashboard.read")) {
       items.push({ label: "Group dashboard", href: "/group-dashboard" });
@@ -38,13 +41,16 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en">
       <body>
-        <AppShell
-          items={items}
-          userName={session?.user?.name ?? "Signed in user"}
-          userRole={session?.user?.role ?? ""}
-        >
-          {children}
-        </AppShell>
+        <AuthProvider session={session}>
+          <AppShell
+            items={items}
+            userName={session?.user?.name ?? "Signed in user"}
+            userRole={session?.user?.role ?? ""}
+            canViewLowStock={canViewLowStock}
+          >
+            {children}
+          </AppShell>
+        </AuthProvider>
       </body>
     </html>
   );

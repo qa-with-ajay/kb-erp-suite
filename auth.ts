@@ -18,10 +18,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.userId = user.id;
         token.role = user.role;
+      }
+      if (trigger === "update" && typeof token.userId === "string") {
+        const profile = await prisma.user.findUnique({
+          where: { id: token.userId },
+          select: { name: true, email: true, role: true, isActive: true },
+        });
+        if (profile?.isActive) {
+          token.name = profile.name;
+          token.email = profile.email;
+          token.role = profile.role;
+        }
       }
       return token;
     },
@@ -32,6 +43,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
         session.user.id = token.userId;
         session.user.role = token.role;
+        if (typeof token.name === "string") session.user.name = token.name;
+        if (typeof token.email === "string") session.user.email = token.email;
       }
       return session;
     },

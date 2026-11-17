@@ -34,16 +34,11 @@ export default async function DashboardPage() {
     <main className="min-h-screen bg-gray-50 p-5 md:p-10">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
-          <p className="text-xs font-bold tracking-widest text-emerald-800">KUMAR BROTHERS & ASSOCIATES</p>
           <h1 className="mt-1 text-2xl font-bold">{dashboard.name} Dashboard</h1>
           <p className="mt-1 text-sm text-gray-600">Current inventory and business overview</p>
         </div>
         <div className="flex flex-wrap items-center gap-5">
           <BusinessUnitSwitcher />
-          <div className="text-right text-sm">
-            <p className="font-semibold">{access.context.session.user.name}</p>
-            <p className="text-gray-500">{access.context.session.user.role}</p>
-          </div>
         </div>
       </header>
 

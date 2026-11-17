@@ -75,15 +75,8 @@ export default async function GroupDashboardPage() {
     <main className="min-h-screen bg-gray-50 p-5 md:p-10">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
-          <p className="text-xs font-bold tracking-widest text-emerald-800">KUMAR BROTHERS & ASSOCIATES</p>
           <h1 className="mt-1 text-2xl font-bold">Group Dashboard</h1>
           <p className="mt-1 text-sm text-gray-600">Consolidated current inventory snapshot across active business units</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-5">
-          <div className="text-right text-sm">
-            <p className="font-semibold">{session.user.name}</p>
-            <p className="text-gray-500">{session.user.role}</p>
-          </div>
         </div>
       </header>
 
