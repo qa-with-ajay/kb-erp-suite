@@ -14,6 +14,8 @@ type UnitMetricRow = {
   salesTotal: Prisma.Decimal;
   grossProfit: Prisma.Decimal;
   invoiceCount: number;
+  accountsReceivable: Prisma.Decimal;
+  accountsPayable: Prisma.Decimal;
 };
 
 type LowStockRow = {
@@ -49,6 +51,8 @@ export type UnitDashboardData = {
   salesTotal: string;
   grossProfit: string;
   invoiceCount: number;
+  accountsReceivable: string;
+  accountsPayable: string;
   lowStockCount: number;
   lowStockItems: LowStockItem[];
 };
@@ -85,7 +89,23 @@ async function loadInventoryDashboard(businessUnitId?: string): Promise<UnitDash
         (SELECT COALESCE(SUM(sale."subtotal" - sale."costOfGoods"), 0)::numeric FROM "Sale" sale
           WHERE sale."businessUnitId" = unit."id") AS "grossProfit",
         (SELECT COUNT(*)::int FROM "Sale" sale
-          WHERE sale."businessUnitId" = unit."id") AS "invoiceCount"
+          WHERE sale."businessUnitId" = unit."id") AS "invoiceCount",
+        (SELECT COALESCE(SUM(sale."total" - COALESCE((
+            SELECT SUM(payment."amount") FROM "Payment" payment
+            WHERE payment."businessUnitId" = sale."businessUnitId"
+              AND payment."saleId" = sale."id"
+              AND payment."reversedAt" IS NULL
+          ), 0)), 0)::numeric
+          FROM "Sale" sale
+          WHERE sale."businessUnitId" = unit."id") AS "accountsReceivable",
+        (SELECT COALESCE(SUM(receipt."total" - COALESCE((
+            SELECT SUM(payment."amount") FROM "Payment" payment
+            WHERE payment."businessUnitId" = receipt."businessUnitId"
+              AND payment."purchaseReceiptId" = receipt."id"
+              AND payment."reversedAt" IS NULL
+          ), 0)), 0)::numeric
+          FROM "PurchaseReceipt" receipt
+          WHERE receipt."businessUnitId" = unit."id") AS "accountsPayable"
       FROM "BusinessUnit" unit
       WHERE unit."isActive" = true ${filter}
       ORDER BY unit."name" ASC
@@ -132,6 +152,8 @@ async function loadInventoryDashboard(businessUnitId?: string): Promise<UnitDash
       grossProfit: unit.grossProfit.toString(),
       lowStockCount: alerts.length,
       invoiceCount: unit.invoiceCount,
+      accountsReceivable: unit.accountsReceivable.toString(),
+      accountsPayable: unit.accountsPayable.toString(),
       lowStockItems: alerts.slice(0, 5).map((item) => ({
         productId: item.productId,
         productName: item.productName,

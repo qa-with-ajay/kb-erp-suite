@@ -25,6 +25,8 @@ export default async function GroupDashboardPage() {
   const valuationByCurrency = new Map<string, Prisma.Decimal>();
   const salesByCurrency = new Map<string, Prisma.Decimal>();
   const grossProfitByCurrency = new Map<string, Prisma.Decimal>();
+  const receivablesByCurrency = new Map<string, Prisma.Decimal>();
+  const payablesByCurrency = new Map<string, Prisma.Decimal>();
   for (const unit of units) {
     const total = valuationByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
     valuationByCurrency.set(unit.currency, total.plus(unit.stockValue));
@@ -32,6 +34,10 @@ export default async function GroupDashboardPage() {
     salesByCurrency.set(unit.currency, sales.plus(unit.salesTotal));
     const profit = grossProfitByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
     grossProfitByCurrency.set(unit.currency, profit.plus(unit.grossProfit));
+    const receivables = receivablesByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
+    receivablesByCurrency.set(unit.currency, receivables.plus(unit.accountsReceivable));
+    const payables = payablesByCurrency.get(unit.currency) ?? new Prisma.Decimal(0);
+    payablesByCurrency.set(unit.currency, payables.plus(unit.accountsPayable));
   }
   const valuationSummary = valuationByCurrency.size
     ? [...valuationByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
@@ -41,6 +47,12 @@ export default async function GroupDashboardPage() {
     : "—";
   const grossProfitSummary = grossProfitByCurrency.size
     ? [...grossProfitByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
+    : "—";
+  const receivablesSummary = receivablesByCurrency.size
+    ? [...receivablesByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
+    : "—";
+  const payablesSummary = payablesByCurrency.size
+    ? [...payablesByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
     : "—";
   const lowStockItems = units.flatMap((unit) =>
     unit.lowStockItems.map((item) => ({ ...item, businessUnitName: unit.name })),
@@ -117,12 +129,22 @@ export default async function GroupDashboardPage() {
           <h2 className="font-semibold">Other consolidated financials</h2>
           <p className="mt-1 text-sm text-gray-600">Sales and sales gross profit are shown above. Other totals need their transaction modules.</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            {financialMetrics.map((metric) => (
-              <div key={metric} className="rounded-lg bg-gray-50 p-3">
-                <p className="text-xs text-gray-500">{metric}</p>
-                <p className="mt-2 font-semibold text-gray-400">Not tracked yet</p>
-              </div>
-            ))}
+            {financialMetrics.map((metric) => {
+              const value = metric === "Receivables"
+                ? receivablesSummary
+                : metric === "Payables"
+                  ? payablesSummary
+                  : null;
+              return (
+                <div key={metric} className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500">{metric}</p>
+                  <p className={`mt-2 font-semibold ${value ? "text-gray-900" : "text-gray-400"}`}>{value ?? "Not tracked yet"}</p>
+                  {(metric === "Receivables" || metric === "Payables") && (
+                    <p className="mt-1 text-xs text-gray-500">Outstanding invoices, grouped by currency</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <p className="mt-4 text-xs text-gray-500">Monthly trends and net profitability are not yet available; gross profit excludes expenses and overhead.</p>
         </div>

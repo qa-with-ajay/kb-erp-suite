@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +15,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       receipts: {
         include: {
           lines: { orderBy: { lineNumber: "asc" } },
+          payments: { select: { amount: true, reversedAt: true } },
           location: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -21,5 +23,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     },
   });
   if (!order) return NextResponse.json({ error: "Purchase order not found." }, { status: 404 });
-  return NextResponse.json({ order });
+  const receipts = order.receipts.map(({ payments, ...receipt }) => {
+    const paidAmount = payments.reduce(
+      (sum, payment) => payment.reversedAt ? sum : sum.plus(payment.amount),
+      new Prisma.Decimal(0),
+    );
+    const balanceDue = receipt.total.minus(paidAmount);
+    return {
+      ...receipt,
+      paidAmount: paidAmount.toString(),
+      balanceDue: balanceDue.toString(),
+      paymentStatus: balanceDue.isZero() ? "PAID" : paidAmount.isZero() ? "UNPAID" : "PARTIAL",
+    };
+  });
+  return NextResponse.json({ order: { ...order, receipts } });
 }

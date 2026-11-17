@@ -116,17 +116,26 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            {financialMetrics.map((metric) => (
-              <div key={metric} className="rounded-lg bg-gray-50 p-3">
-                <p className="text-xs text-gray-500">{metric}</p>
-                <p className="mt-2 font-semibold text-gray-400">
-                  {metric === "Purchases" ? "Tracked in purchase orders" : "Not tracked yet"}
-                </p>
-                {metric === "Purchases" && canManagePurchases && (
-                  <Link href="/purchases" className="mt-1 inline-block text-xs font-medium text-emerald-900 hover:underline">Open purchases</Link>
-                )}
-              </div>
-            ))}
+            {financialMetrics.map((metric) => {
+              const balance = metric === "Customer receivables"
+                ? formatAmount(dashboard.accountsReceivable, dashboard.currency)
+                : metric === "Supplier payables"
+                  ? formatAmount(dashboard.accountsPayable, dashboard.currency)
+                  : null;
+              return (
+                <div key={metric} className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500">{metric}</p>
+                  <p className={`mt-2 font-semibold ${balance ? "text-gray-900" : "text-gray-400"}`}>
+                    {balance ?? (metric === "Purchases" ? "Tracked in purchase orders" : "Not tracked yet")}
+                  </p>
+                  {metric === "Customer receivables" && <p className="mt-1 text-xs text-gray-500">Outstanding customer invoices</p>}
+                  {metric === "Supplier payables" && <p className="mt-1 text-xs text-gray-500">Outstanding supplier invoices</p>}
+                  {metric === "Purchases" && canManagePurchases && (
+                    <Link href="/purchases" className="mt-1 inline-block text-xs font-medium text-emerald-900 hover:underline">Open purchases</Link>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <Link href="/sales" className="mt-4 inline-block text-sm font-semibold text-emerald-900 hover:underline">Open sales & billing</Link>
         </div>

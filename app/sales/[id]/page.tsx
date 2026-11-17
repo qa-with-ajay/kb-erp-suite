@@ -1,6 +1,8 @@
+import { Prisma } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { PaymentPanel } from "@/components/payment-panel";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 import { PrintInvoiceButton } from "./print-invoice-button";
@@ -45,6 +47,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       subtotal: true,
       taxAmount: true,
       total: true,
+      payments: { select: { amount: true, reversedAt: true } },
       createdAt: true,
       creator: { select: { name: true } },
       businessUnit: {
@@ -91,6 +94,12 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const profile = sale.businessUnit.profile;
   const currency = profile?.currency || "INR";
   const address = profile ? formatAddress(profile) : "";
+  const canManagePayments = (await getBusinessUnitAccess("billing.manage")).ok;
+  const paidAmount = sale.payments.reduce(
+    (total, payment) => payment.reversedAt ? total : total.plus(payment.amount),
+    new Prisma.Decimal(0),
+  );
+  const balanceDue = sale.total.minus(paidAmount);
 
   return (
     <main className="min-h-screen bg-gray-50 p-5 md:p-10 print:bg-white print:p-0">
@@ -166,11 +175,16 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
             <div className="flex justify-between"><span>Subtotal</span><span>{formatAmount(sale.subtotal.toString(), currency)}</span></div>
             <div className="flex justify-between"><span>GST</span><span>{formatAmount(sale.taxAmount.toString(), currency)}</span></div>
             <div className="flex justify-between border-t border-gray-300 pt-3 text-base font-bold"><span>Total</span><span>{formatAmount(sale.total.toString(), currency)}</span></div>
+            <div className="flex justify-between"><span>Amount paid</span><span>{formatAmount(paidAmount.toString(), currency)}</span></div>
+            <div className="flex justify-between font-semibold"><span>Balance due</span><span>{formatAmount(balanceDue.toString(), currency)}</span></div>
           </section>
           <footer className="mt-10 border-t border-gray-200 pt-4 text-center text-xs text-gray-500">
             Full-unit sale • Stock was deducted when this invoice was issued.
           </footer>
         </article>
+        <div className="mt-6 print:hidden">
+          <PaymentPanel endpoint={`/api/sales/${sale.id}/payments`} currency={currency} canManage={canManagePayments} />
+        </div>
       </div>
     </main>
   );

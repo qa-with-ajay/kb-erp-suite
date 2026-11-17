@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         supplier: { select: { id: true, name: true } },
         purchaseOrder: { select: { id: true, orderNumber: true } },
         location: { select: { id: true, name: true } },
+        payments: { select: { amount: true, reversedAt: true } },
         _count: { select: { lines: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -59,7 +60,20 @@ export async function GET(request: Request) {
     }),
     prisma.purchaseReceipt.count({ where }),
   ]);
-  return NextResponse.json({ items, total, page, pageSize });
+  const summarizedItems = items.map(({ payments, ...receipt }) => {
+    const paidAmount = payments.reduce(
+      (sum, payment) => payment.reversedAt ? sum : sum.plus(payment.amount),
+      new Prisma.Decimal(0),
+    );
+    const balanceDue = receipt.total.minus(paidAmount);
+    return {
+      ...receipt,
+      paidAmount: paidAmount.toString(),
+      balanceDue: balanceDue.toString(),
+      paymentStatus: balanceDue.isZero() ? "PAID" : paidAmount.isZero() ? "UNPAID" : "PARTIAL",
+    };
+  });
+  return NextResponse.json({ items: summarizedItems, total, page, pageSize });
 }
 
 export async function POST(request: Request) {

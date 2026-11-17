@@ -29,7 +29,6 @@ export function AppShell({ children, items, userName, userRole }: Props) {
         <Link href={items[0]?.href ?? "/login"} className="app-shell__brand" aria-label="Kumar Brothers ERP home">
           <span className="app-shell__brand-mark" aria-hidden="true">KB</span>
           <span>
-            <span className="app-shell__brand-name">Kumar Brothers</span>
             <span className="app-shell__brand-subtitle">Business suite</span>
           </span>
         </Link>

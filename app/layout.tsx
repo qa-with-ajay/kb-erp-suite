@@ -20,7 +20,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       items.push({ label: "Group dashboard", href: "/group-dashboard" });
     }
     if (permissions.has("reports.unit.read") || permissions.has("inventory.read")) {
-      items.push({ label: "Dashboard", href: "/dashboard" });
+      items.push({ label: "Unit Dashboard", href: "/dashboard" });
     }
     if (permissions.has("inventory.read")) {
       items.push(

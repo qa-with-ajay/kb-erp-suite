@@ -25,6 +25,9 @@ type SaleRow = {
   subtotal: string;
   taxAmount: string;
   total: string;
+  paidAmount: string;
+  balanceDue: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
   createdAt: string;
   _count: { lines: number };
 };
@@ -373,9 +376,9 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
         </div>
         {loading ? <p className="mt-5 text-sm text-gray-600">Loading invoices…</p> : sales.items.length ? (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[42rem] text-left text-sm">
+            <table className="w-full min-w-[58rem] text-left text-sm">
               <thead className="border-b border-gray-200 text-xs uppercase text-gray-500">
-                <tr><th className="py-2 pr-4">Invoice</th><th className="py-2 pr-4">Date</th><th className="py-2 pr-4">Customer</th><th className="py-2 pr-4">Tax mode</th><th className="py-2 pr-4">Total</th><th className="py-2">Items</th></tr>
+                <tr><th className="py-2 pr-4">Invoice</th><th className="py-2 pr-4">Date</th><th className="py-2 pr-4">Customer</th><th className="py-2 pr-4">Tax mode</th><th className="py-2 pr-4 text-right">Total</th><th className="py-2 pr-4 text-right">Paid</th><th className="py-2 pr-4 text-right">Balance due</th><th className="py-2 pr-4">Status</th><th className="py-2">Items</th></tr>
               </thead>
               <tbody>
                 {sales.items.map((sale) => (
@@ -384,7 +387,10 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                     <td className="py-3 pr-4">{new Date(sale.createdAt).toLocaleString("en-IN")}</td>
                     <td className="py-3 pr-4">{sale.customerName || "Walk-in"}</td>
                     <td className="py-3 pr-4">{sale.taxMode === "GST" ? "GST" : "Non-GST"}</td>
-                    <td className="py-3 pr-4">{money(sale.total)}</td>
+                    <td className="py-3 pr-4 text-right">{money(sale.total)}</td>
+                    <td className="py-3 pr-4 text-right">{money(sale.paidAmount)}</td>
+                    <td className="py-3 pr-4 text-right font-medium">{money(sale.balanceDue)}</td>
+                    <td className="py-3 pr-4"><span className={`rounded-full px-2.5 py-1 text-xs ${sale.paymentStatus === "PAID" ? "bg-emerald-50 text-emerald-800" : sale.paymentStatus === "PARTIAL" ? "bg-amber-50 text-amber-800" : "bg-gray-100 text-gray-700"}`}>{sale.paymentStatus.toLowerCase()}</span></td>
                     <td className="py-3">{sale._count.lines}</td>
                   </tr>
                 ))}

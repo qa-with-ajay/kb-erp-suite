@@ -22,6 +22,8 @@ model User {
   purchaseOrders    PurchaseOrder[]        @relation("PurchaseOrderCreator")
   purchaseReceipts  PurchaseReceipt[]      @relation("PurchaseReceiptCreator")
   sales             Sale[]                 @relation("SaleCreator")
+  paymentsRecorded  Payment[]              @relation("PaymentRecorder")
+  paymentsReversed  Payment[]              @relation("PaymentReverser")
   remnantMovements  RemnantMovement[]
   groupRoles        UserGroupRole[]
   businessUnitRoles UserBusinessUnitRole[]
@@ -141,6 +143,15 @@ enum PurchaseTaxMode {
   NON_GST
 }
 
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
 enum PurchaseStatus {
   ORDERED
   PARTIALLY_RECEIVED
@@ -204,6 +215,7 @@ model BusinessUnit {
   sales            Sale[]
   purchaseOrders   PurchaseOrder[]
   purchaseReceipts PurchaseReceipt[]
+  payments         Payment[]
 
   @@index([isActive, name])
 }
@@ -546,6 +558,7 @@ model Sale {
   stockMovement StockMovement @relation(fields: [businessUnitId, stockMovementId], references: [businessUnitId, id], onDelete: Restrict)
   creator       User          @relation("SaleCreator", fields: [createdBy], references: [id], onDelete: Restrict)
   lines         SaleLine[]
+  payments      Payment[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, invoiceNumber])
@@ -675,6 +688,7 @@ model PurchaseReceipt {
   location      StockLocation         @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id], onDelete: Restrict)
   receiver      User                  @relation("PurchaseReceiptCreator", fields: [receivedBy], references: [id], onDelete: Restrict)
   lines         PurchaseReceiptLine[]
+  payments      Payment[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, stockMovementId])
@@ -717,6 +731,35 @@ model PurchaseReceiptLine {
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, purchaseReceiptId, lineNumber])
   @@index([businessUnitId, purchaseOrderLineId])
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  businessUnitId    String        @db.Uuid
+  saleId            String?       @db.Uuid
+  purchaseReceiptId String?       @db.Uuid
+  idempotencyKey    String
+  amount            Decimal       @db.Decimal(14, 2)
+  method            PaymentMethod
+  reference         String?
+  notes             String?
+  paidAt            DateTime      @default(now())
+  recordedBy        String
+  createdAt         DateTime      @default(now())
+  reversedAt        DateTime?
+  reversedBy        String?
+  reversalReason    String?
+
+  businessUnit    BusinessUnit     @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  sale            Sale?            @relation(fields: [businessUnitId, saleId], references: [businessUnitId, id], onDelete: Restrict)
+  purchaseReceipt PurchaseReceipt? @relation(fields: [businessUnitId, purchaseReceiptId], references: [businessUnitId, id], onDelete: Restrict)
+  recorder        User             @relation("PaymentRecorder", fields: [recordedBy], references: [id], onDelete: Restrict)
+  reverser        User?            @relation("PaymentReverser", fields: [reversedBy], references: [id], onDelete: Restrict)
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, idempotencyKey])
+  @@index([businessUnitId, saleId, paidAt])
+  @@index([businessUnitId, purchaseReceiptId, paidAt])
 }
 
 model PanelOperation {
