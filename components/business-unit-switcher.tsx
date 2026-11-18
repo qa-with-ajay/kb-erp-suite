@@ -57,7 +57,7 @@ export function BusinessUnitSwitcher() {
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <label htmlFor="active-business-unit" className="text-xs font-medium text-gray-500">Active unit</label>
+      <label htmlFor="active-business-unit" className="text-xs font-medium text-gray-500"></label>
       <select
         id="active-business-unit"
         className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"

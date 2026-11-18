@@ -1,0 +1,6 @@
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TZ=Asia/Kolkata
+
+0 2 * * * /scripts/backup.sh >> /backups/backup.log 2>&1

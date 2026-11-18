@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
-
+import { auth } from "@/auth";
 type LowStockRow = {
   productId: string;
   productName: string;
@@ -41,11 +41,80 @@ export async function GET() {
     SELECT low_stock.*, COUNT(*) OVER()::int AS "total"
     FROM low_stock
     ORDER BY "currentStock"::numeric ASC, "productName" ASC
-    LIMIT 5
+    
   `);
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
+  const userId = session.user.id;
+  const businessUnitId = access.context.businessUnit.id;
+
+  const currentProductIds = rows.map((row) => row.productId);
+
+  await prisma.$transaction(async (tx) => {
+    // Remove notification records for products that recovered.
+    if (currentProductIds.length === 0) {
+      await tx.lowStockNotification.deleteMany({
+        where: { userId, businessUnitId },
+      });
+    } else {
+      await tx.lowStockNotification.deleteMany({
+        where: {
+          userId,
+          businessUnitId,
+          productId: { notIn: currentProductIds },
+        },
+      });
+    }
+
+    // Create notifications for newly low-stock products.
+    await tx.lowStockNotification.createMany({
+      data: currentProductIds.map((productId) => ({
+        userId,
+        businessUnitId,
+        productId,
+      })),
+      skipDuplicates: true,
+    });
+  });
+
+  const notifications = await prisma.lowStockNotification.findMany({
+    where: {
+      userId,
+      businessUnitId,
+      productId: { in: currentProductIds },
+    },
+    select: {
+      productId: true,
+      isRead: true,
+    },
+  });
+
+  const notificationMap = new Map(
+    notifications.map((notification) => [
+      notification.productId,
+      notification.isRead,
+    ])
+  );
+
+  const items = rows.slice(0, 5).map(({ total: _total, ...item }) => ({
+    ...item,
+    isRead: notificationMap.get(item.productId) ?? false,
+  }));
+
+  const unreadCount = notifications.filter(
+    (notification) => !notification.isRead
+  ).length;
 
   return NextResponse.json({
-    count: rows[0]?.total ?? 0,
-    items: rows.map(({ total: _total, ...item }) => item),
+    count: unreadCount,
+    total: rows[0]?.total ?? 0,
+    items,
   });
 }

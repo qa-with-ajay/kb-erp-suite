@@ -1,7 +1,8 @@
+name: kb-erp-suite
 services:
   db:
     image: postgres:17-alpine
-    container_name: kb-interiors-db
+    container_name: kb-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
@@ -16,5 +17,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  db-backup:
+    build:
+      context: ./docker/backup
+    container_name: kb-db-backup
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Kolkata
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      DB_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-}
+    volumes:
+      - ./backups/daily:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   kb_postgres_data:

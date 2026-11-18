@@ -9,7 +9,7 @@ export async function loginAction(_previousState: LoginState, formData: FormData
     await signIn("credentials", {
       email: String(formData.get("email") ?? "").trim().toLowerCase(),
       password: String(formData.get("password") ?? ""),
-      redirectTo: "/dashboard",
+      redirectTo: "/post-login",
     });
   } catch (error) {
     if (error instanceof AuthError) return { error: "Invalid email or password." };

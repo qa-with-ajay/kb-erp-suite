@@ -9,14 +9,21 @@ import { LOW_STOCK_NOTIFICATIONS_KEY, UI_PREFERENCES_CHANGED_EVENT } from "@/lib
 export type AppNavItem = {
   label: string;
   href: string;
+  section?: "Workspace" | "Administration";
 };
 
 type Props = {
+  // children: React.ReactNode;
+  // items: AppNavItem[];
+  // userName: string;
+  // userRole: string;
+  // canViewLowStock: boolean;
   children: React.ReactNode;
   items: AppNavItem[];
   userName: string;
   userRole: string;
   canViewLowStock: boolean;
+  isAuthenticated: boolean;
 };
 
 type LowStockNotification = {
@@ -26,6 +33,7 @@ type LowStockNotification = {
   baseUnit: string;
   currentStock: string;
   minimumStock: string;
+  isRead: boolean;
 };
 
 function getInitials(name: string) {
@@ -104,7 +112,40 @@ function LowStockNotifications() {
   const [count, setCount] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  async function markAllAsRead() {
+    try {
+      setError("");
 
+      const response = await fetch(
+        "/api/notifications/low-stock",
+        { method: "GET" }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ?? "Unable to mark notifications as read."
+        );
+      }
+
+      setItems((previous) =>
+        previous.map((item) => ({
+          ...item,
+          isRead: true,
+        }))
+      );
+
+      setCount(0);
+
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to mark notifications as read."
+      );
+    }
+  }
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/notifications/low-stock", { signal: controller.signal })
@@ -130,7 +171,14 @@ function LowStockNotifications() {
         aria-label={`Low-stock notifications${count ? `, ${count} products` : ""}`}
         aria-expanded={open}
         aria-controls={open ? "app-shell-low-stock-panel" : undefined}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          const nextOpen = !open;
+          setOpen(nextOpen);
+
+          if (nextOpen && count > 0) {
+            void markAllAsRead();
+          }
+        }}
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" className="app-shell__bell-icon">
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
@@ -144,8 +192,8 @@ function LowStockNotifications() {
               <h2>Low-stock alerts</h2>
               <p>{count} product{count === 1 ? "" : "s"} at or below minimum stock</p>
             </div>
-            <button type="button" className="app-shell__panel-close" aria-label="Close notifications" onClick={() => setOpen(false)}>x</button>
           </div>
+
           {loading ? <p className="app-shell__notification-message">Loading alerts...</p> : null}
           {error ? <p className="app-shell__notification-error" role="alert">{error}</p> : null}
           {!loading && !error && items.length === 0 ? <p className="app-shell__notification-message">No low-stock alerts for this unit.</p> : null}
@@ -154,7 +202,7 @@ function LowStockNotifications() {
               {items.map((item) => (
                 <li key={item.productId}>
                   <span className="app-shell__notification-product">{item.productName}<small>{item.sku}</small></span>
-                  <span className="app-shell__notification-stock">{item.currentStock} / {item.minimumStock} {item.baseUnit}</span>
+                  <span className="app-shell__notification-stock">{Number(item.currentStock)} / {Number(item.minimumStock)} {item.baseUnit}</span>
                 </li>
               ))}
             </ul>
@@ -166,12 +214,12 @@ function LowStockNotifications() {
   );
 }
 
-export function AppShell({ children, items, userName, userRole, canViewLowStock }: Props) {
+export function AppShell({ children, items, userName, userRole, canViewLowStock, isAuthenticated }: Props) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean | null>(null);
   const currentUserName = session?.user?.name || userName;
-  const currentUserRole = session?.user?.role || userRole;
+  const currentUserRole = userRole || session?.user?.role || "";
 
   useEffect(() => {
     function syncPreference() {
@@ -186,8 +234,9 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock 
     };
   }, []);
 
-  if (pathname.startsWith("/login") || !session?.user?.id) return children;
-
+  if (pathname.startsWith("/login") || !isAuthenticated) {
+    return children;
+  }
   const activeItem = [...items]
     .sort((left, right) => right.href.length - left.href.length)
     .find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
@@ -202,24 +251,25 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock 
           </span>
         </Link>
         {items.length > 0 ? (
-          <>
-            <p className="app-shell__section-label">Workspace</p>
-            <nav className="app-shell__nav" aria-label="Main navigation">
-              {items.map((item) => {
-                const active = activeItem?.href === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="app-shell__nav-link"
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </>
+          (["Workspace", "Administration"] as const).map((section) => {
+            const sectionItems = items.filter((item) => (item.section ?? "Workspace") === section);
+            if (!sectionItems.length) return null;
+            return (
+              <section key={section} className="app-shell__nav-section">
+                <p className="app-shell__section-label">{section}</p>
+                <nav className="app-shell__nav" aria-label={`${section} navigation`}>
+                  {sectionItems.map((item) => {
+                    const active = activeItem?.href === item.href;
+                    return (
+                      <Link key={item.href} href={item.href} className="app-shell__nav-link" aria-current={active ? "page" : undefined}>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </section>
+            );
+          })
         ) : <p className="app-shell__no-access">No workspace access assigned</p>}
       </aside>
       <div className="app-shell__main">
@@ -230,6 +280,12 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock 
           </div>
           <div className="app-shell__topbar-actions">
             {canViewLowStock && notificationsEnabled && <LowStockNotifications />}
+            <Link href="/settings" className="app-shell__settings-button" aria-label="Settings" title="Settings">
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="app-shell__settings-icon">
+                <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                <path d="m19.4 13.5 1.1.9-1.1 1.9-1.4-.5a7.8 7.8 0 0 1-1.5.9l-.2 1.5h-2.2l-.4-1.4a7.8 7.8 0 0 1-1.7 0l-.8 1.2-1.9-1.1.5-1.4a7.8 7.8 0 0 1-.9-1.5l-1.5-.2v-2.2l1.4-.4a7.8 7.8 0 0 1 0-1.7l-1.2-.8 1.1-1.9 1.4.5a7.8 7.8 0 0 1 1.5-.9l.2-1.5h2.2l.4 1.4a7.8 7.8 0 0 1 1.7 0l.8-1.2 1.9 1.1-.5 1.4a7.8 7.8 0 0 1 .9 1.5l1.5.2v2.2l-1.4.4a7.8 7.8 0 0 1 0 1.7Z" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
             <ProfileMenu userName={currentUserName} userRole={currentUserRole} />
           </div>
         </header>

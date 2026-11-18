@@ -33,7 +33,7 @@ The login screen is intentionally closed to public registration. Create the firs
 node scripts/create-admin.mjs admin@example.com "Your Admin Name" "Use-A-Long-Unique-Password"
 ```
 
-Then sign in with those credentials. Do not share the admin password. The script maps `ADMIN` to Group Admin and maps `MANAGER` or `CASHIER` to the KB Interiors unit role. Add additional users through the admin user-management feature when it is implemented in a later phase; until then, additional accounts can be created using the same script with a role argument (`ADMIN`, `MANAGER`, or `CASHIER`).
+Then sign in with those credentials. Do not share the admin password. The script maps `ADMIN` to Group Admin and maps `MANAGER` or `CASHIER` to the KB Interiors unit role. After signing in, use **User management** to create accounts and assign a built-in or custom role to one or more business units. A Unit Manager must be assigned to exactly one business unit; a Group Admin has organization-wide access. Use **Roles & permissions** to create custom roles and select their permissions. The built-in system roles are protected from editing.
 
 ## Optional demo data (development only)
 After applying migrations and creating an administrator, run `npm run db:seed:demo` to add sample catalog items, customers, suppliers, opening stock, purchase orders/receipts, and sales across all five business units. The seed is safe to rerun, uses clearly labeled demo records, and refuses to run when `NODE_ENV=production`. It does not delete existing data.
@@ -73,6 +73,9 @@ type kb-interiors-backup.sql | docker exec -i kb-interiors-db psql -U kb_user -d
 - Added permission-checked business-unit switching and scoped existing category, brand, product, variant and unit APIs to the active unit.
 - Added database composite foreign keys to prevent cross-unit product, category, brand, location, and stock references.
 - Seeded Group Admin, Unit Manager, Accountant, Inventory Manager, and Cashier roles and the initial permission catalog.
+- Added centralized user management with group-wide and business-unit role assignment, account activation/deactivation, audit logging, and protection against removing the last active administrator.
+- Added custom role creation and permission configuration; built-in roles remain protected.
+- Added backend authorization for user and role administration, and refresh account status on session checks so deactivated accounts lose access.
 - Added unit and group dashboards with active product/category/brand counts, standard-stock valuation, recorded movement counts, and low-stock alerts.
 - Added permission-checked, ledger-backed opening stock, inward, outward, and adjustment workflows with idempotency, negative-stock prevention, and weighted-average costing.
 - Added unit-scoped stock balance and ledger views with movement entry and pagination.
@@ -90,4 +93,4 @@ type kb-interiors-backup.sql | docker exec -i kb-interiors-db psql -U kb_user -d
 - Expenses, GST compliance validation, monthly financial trends, and broader profit-and-loss reporting are not implemented yet.
 
 ## Current limitations
-The application does not yet provide user-management UI, detailed consolidated reports, bank reconciliation, cash-refund processing, account-level statements, GST compliance checks, backup automation, or dedicated A4/thermal invoice layouts. Returns create account credit and do not automatically issue cash refunds. Sales are whole-unit only; panel cutting and remnant workflows are intentionally excluded. Complete and test remaining features before live shop use.
+The application does not yet provide detailed consolidated reports, bank reconciliation, cash-refund processing, account-level statements, GST compliance checks, backup automation, or dedicated A4/thermal invoice layouts. Returns create account credit and do not automatically issue cash refunds. Sales are whole-unit only; panel cutting and remnant workflows are intentionally excluded. Complete and test remaining features before live shop use.

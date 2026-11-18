@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { AuthProvider } from "@/components/auth-provider";
 import { AppShell, type AppNavItem } from "@/components/app-shell";
 import { getBusinessUnitPermissionCodes } from "@/lib/inventory-auth";
+import { prisma } from "@/lib/prisma";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,9 +15,20 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const session = await auth();
   let items: AppNavItem[] = [];
   let canViewLowStock = false;
+  let userDisplayRole = session?.user?.role ?? "";
 
   if (session?.user?.id) {
-    const permissions = await getBusinessUnitPermissionCodes();
+    const [permissions, accountRoles] = await Promise.all([
+      getBusinessUnitPermissionCodes(),
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          groupRoles: { where: { role: { isActive: true } }, include: { role: { select: { name: true } } } },
+          businessUnitRoles: { where: { role: { isActive: true }, businessUnit: { isActive: true } }, include: { role: { select: { name: true } } }, orderBy: { businessUnit: { name: "asc" } } },
+        },
+      }),
+    ]);
+    userDisplayRole = accountRoles?.groupRoles[0]?.role.name ?? accountRoles?.businessUnitRoles[0]?.role.name ?? userDisplayRole;
     canViewLowStock = permissions.has("inventory.read") || permissions.has("reports.unit.read");
 
     if (permissions.has("group.dashboard.read")) {
@@ -36,6 +48,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     if (permissions.has("purchases.manage")) items.push({ label: "Purchases", href: "/purchases" });
     if (permissions.has("customers.manage")) items.push({ label: "Customers", href: "/customers" });
     if (permissions.has("suppliers.manage")) items.push({ label: "Suppliers", href: "/suppliers" });
+    if (permissions.has("users.manage")) items.push({ label: "User management", href: "/admin/users", section: "Administration" });
+    if (permissions.has("roles.manage")) items.push({ label: "Roles & permissions", href: "/admin/roles", section: "Administration" });
   }
 
   return (
@@ -45,8 +59,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <AppShell
             items={items}
             userName={session?.user?.name ?? "Signed in user"}
-            userRole={session?.user?.role ?? ""}
+            userRole={userDisplayRole}
             canViewLowStock={canViewLowStock}
+            isAuthenticated={Boolean(session?.user?.id)}
           >
             {children}
           </AppShell>
