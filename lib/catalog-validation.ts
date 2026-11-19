@@ -47,6 +47,16 @@ export const productInputSchema = productFieldsSchema.superRefine((value, contex
   if (value.productType === "PANEL" && value.baseUnit !== "SQFT") {
     context.addIssue({ code: "custom", path: ["baseUnit"], message: "Panel products must use SQFT as their base unit." });
   }
+  openingStock: z
+  .array(
+    z.object({
+      locationId: z.string().uuid(),
+      quantity: z.coerce.number().positive(),
+      unitCost: z.coerce.number().min(0),
+    })
+  )
+  .optional()
+  .default([])
 });
 
 export const productUpdateSchema = productFieldsSchema.partial().superRefine((value, context) => {

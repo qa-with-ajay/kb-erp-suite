@@ -39,7 +39,6 @@ Then sign in as the existing Group Admin (or create the first one with `scripts/
 
 The source changes and migration are included. A full Next.js build was not run in this workspace because package installation did not complete; run the commands above in the project environment to generate Prisma Client and perform the authoritative type/build checks before using it with live business data.
 
-
 ## Product barcode implementation
 
 - New products default to a KB-generated internal Code 128 barcode. The API generates it from a UUID on the server, so clients cannot choose or collide with the generated value.
