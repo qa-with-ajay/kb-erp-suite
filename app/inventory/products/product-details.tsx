@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BarcodeLabel } from "@/components/barcode-label";
 
 type Variant = {
   id: string;
@@ -32,6 +33,7 @@ type Product = {
   gstPercentage: string;
   minimumStock: string;
   barcode: string | null;
+  barcodeType: "INTERNAL" | "MANUFACTURER";
   imageUrl: string | null;
   isActive: boolean;
   category: { id: string; name: string } | null;
@@ -263,7 +265,11 @@ export function ProductDetails({ productId, canManage }: Props) {
         <p><span className="block text-xs text-gray-500">Selling price / GST</span>{product.sellingPrice} / {product.gstPercentage}%</p>
         <p><span className="block text-xs text-gray-500">Minimum stock</span>{product.minimumStock} {product.baseUnit}</p>
         <p><span className="block text-xs text-gray-500">Status</span>{product.isActive ? "Active" : "Inactive"}</p>
-        <p><span className="block text-xs text-gray-500">Barcode</span>{product.barcode ?? "—"}</p>
+        <div className="sm:col-span-2 lg:col-span-2">
+          <span className="mb-1 block text-xs text-gray-500">Barcode · {product.barcodeType === "MANUFACTURER" ? "Manufacturer" : "KB internal"}</span>
+          {product.barcode ? <BarcodeLabel value={product.barcode} title={product.name} /> : "—"}
+          {product.barcodeType === "INTERNAL" && <p className="mt-1 text-xs text-gray-500">Internal Code 128 · Not a GS1/GTIN barcode</p>}
+        </div>
         <p><span className="block text-xs text-gray-500">Image reference</span>{product.imageUrl ?? "—"}</p>
         {product.description && <p className="sm:col-span-2 lg:col-span-4"><span className="block text-xs text-gray-500">Description</span>{product.description}</p>}
       </section>

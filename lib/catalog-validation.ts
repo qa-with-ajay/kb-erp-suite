@@ -36,16 +36,24 @@ const productFieldsSchema = z.object({
   categoryId: z.string().uuid().nullable().optional(),
   brandId: z.string().uuid().nullable().optional(),
   barcode: z.string().trim().max(100).nullable().optional(),
+  barcodeType: z.enum(["INTERNAL", "MANUFACTURER"]).optional(),
   imageUrl: z.string().trim().max(500).nullable().optional(),
 });
 
 export const productInputSchema = productFieldsSchema.superRefine((value, context) => {
+  if ((value.barcodeType ?? (value.barcode ? "MANUFACTURER" : "INTERNAL")) === "MANUFACTURER" && !value.barcode) {
+    context.addIssue({ code: "custom", path: ["barcode"], message: "Enter or scan the manufacturer barcode." });
+  }
   if (value.productType === "PANEL" && value.baseUnit !== "SQFT") {
     context.addIssue({ code: "custom", path: ["baseUnit"], message: "Panel products must use SQFT as their base unit." });
   }
 });
 
-export const productUpdateSchema = productFieldsSchema.partial();
+export const productUpdateSchema = productFieldsSchema.partial().superRefine((value, context) => {
+  if (value.barcodeType === "MANUFACTURER" && !value.barcode) {
+    context.addIssue({ code: "custom", path: ["barcode"], message: "Enter or scan the manufacturer barcode." });
+  }
+});
 
 export const productListSchema = z.object({
   search: z.string().trim().max(100).default(""),
@@ -61,6 +69,7 @@ export const productListSchema = z.object({
 const productVariantFields = z.object({
   code: z.string().trim().max(80).nullable().optional(),
   barcode: z.string().trim().max(100).nullable().optional(),
+  barcodeType: z.enum(["INTERNAL", "MANUFACTURER"]).optional(),
   attributes: z.record(z.string().trim().min(1).max(40), z.string().trim().min(1).max(100)),
 });
 

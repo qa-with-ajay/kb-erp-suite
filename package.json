@@ -1,5 +1,5 @@
 {
-  "name": "kb-interiors-management",
+  "name": "kb-erp-management",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,12 +15,14 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "@zxing/browser": "^0.1.5",
     "bcryptjs": "^3.0.2",
     "next": "^15.5.6",
     "next-auth": "^5.0.0-beta.30",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@zxing/library": "^0.21.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",

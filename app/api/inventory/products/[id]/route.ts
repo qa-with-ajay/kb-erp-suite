@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getInventoryAccess } from "@/lib/inventory-auth";
@@ -72,14 +73,24 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         if (!brand) return { error: "BRAND_NOT_AVAILABLE" as const };
       }
 
+      const nextBarcodeType = parsed.data.barcodeType ?? current.barcodeType;
+      if (nextBarcodeType === "MANUFACTURER" && !(parsed.data.barcode ?? current.barcode)) {
+        return { error: "MANUFACTURER_BARCODE_REQUIRED" as const };
+      }
+      const shouldGenerateBarcode = nextBarcodeType === "INTERNAL" &&
+        (current.barcodeType !== "INTERNAL" || !current.barcode);
+      const generatedBarcode = shouldGenerateBarcode
+        ? `KB${randomUUID().replace(/-/g, "").toUpperCase()}`
+        : null;
       const updated = await tx.product.update({
         where: { id },
         data: {
           ...parsed.data,
+          barcodeType: nextBarcodeType,
+          barcode: nextBarcodeType === "INTERNAL" ? (generatedBarcode ?? current.barcode) : (parsed.data.barcode ?? current.barcode),
           ...("description" in parsed.data ? { description: parsed.data.description || null } : {}),
           ...("categoryId" in parsed.data ? { categoryId: parsed.data.categoryId || null } : {}),
           ...("brandId" in parsed.data ? { brandId: parsed.data.brandId || null } : {}),
-          ...("barcode" in parsed.data ? { barcode: parsed.data.barcode || null } : {}),
           ...("imageUrl" in parsed.data ? { imageUrl: parsed.data.imageUrl || null } : {}),
         },
       });
@@ -98,6 +109,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     if ("error" in result) {
       if (result.error === "NOT_FOUND") return NextResponse.json({ error: "Product not found." }, { status: 404 });
+      if (result.error === "MANUFACTURER_BARCODE_REQUIRED") return NextResponse.json({ error: "Enter or scan the manufacturer barcode." }, { status: 400 });
       if (result.error === "PANEL_BASE_UNIT") return NextResponse.json({ error: "Panel products must use SQFT as their base unit." }, { status: 400 });
       if (result.error === "BASE_UNIT_IN_USE") return NextResponse.json({ error: "Base unit cannot change after conversions or stock ledger entries exist." }, { status: 409 });
       if (result.error === "CATEGORY_NOT_AVAILABLE") return NextResponse.json({ error: "Select an active category." }, { status: 400 });

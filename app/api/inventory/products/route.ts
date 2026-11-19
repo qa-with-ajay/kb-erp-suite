@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getInventoryAccess } from "@/lib/inventory-auth";
@@ -75,14 +76,21 @@ export async function POST(request: Request) {
         });
         if (!brand) throw new Error("BRAND_NOT_AVAILABLE");
       }
+      const barcodeType = parsed.data.barcodeType ?? (parsed.data.barcode ? "MANUFACTURER" : "INTERNAL");
+      const productId = randomUUID();
+      const barcode = barcodeType === "INTERNAL"
+        ? `KB${productId.replace(/-/g, "").toUpperCase()}`
+        : parsed.data.barcode;
       const created = await tx.product.create({
         data: {
+          id: productId,
           businessUnitId: businessUnit.id,
           ...parsed.data,
+          barcode,
+          barcodeType,
           description: parsed.data.description || null,
           categoryId: parsed.data.categoryId || null,
           brandId: parsed.data.brandId || null,
-          barcode: parsed.data.barcode || null,
           imageUrl: parsed.data.imageUrl || null,
         },
       });

@@ -38,3 +38,14 @@ Then sign in as the existing Group Admin (or create the first one with `scripts/
 ## Verification note
 
 The source changes and migration are included. A full Next.js build was not run in this workspace because package installation did not complete; run the commands above in the project environment to generate Prisma Client and perform the authoritative type/build checks before using it with live business data.
+
+
+## Product barcode implementation
+
+- New products default to a KB-generated internal Code 128 barcode. The API generates it from a UUID on the server, so clients cannot choose or collide with the generated value.
+- Products can instead use a manufacturer barcode scanned with the existing camera/USB scanner or entered manually. Manufacturer values are preserved as supplied.
+- `Product.barcodeType` records `INTERNAL` versus `MANUFACTURER`; the migration classifies existing non-empty barcodes as manufacturer-provided and leaves products without a barcode as internal.
+- Product details render the barcode and provide a print-label action. Internal identifiers are not represented as GS1/GTIN numbers.
+- Barcode uniqueness continues to be enforced by the existing business-unit-scoped unique constraint.
+
+Apply the new migration with `npx prisma migrate deploy`, then run `npx prisma generate` and `npm run build`.

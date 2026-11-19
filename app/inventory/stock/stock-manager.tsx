@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 
 type ProductOption = { id: string; name: string; sku: string; baseUnit: string };
 type VariantOption = { id: string; code: string | null; attributes: Record<string, string>; isActive?: boolean };
@@ -146,8 +147,9 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     fetch(`/api/inventory/products/${productId}/variants`, { signal: controller.signal })
       .then((response) => readJson<{ items: VariantOption[] }>(response))
       .then(({ items }) => {
-        setVariants(items.filter((variant) => variant.isActive !== false));
-        setVariantId("");
+        const activeItems = items.filter((variant) => variant.isActive !== false);
+        setVariants(activeItems);
+        setVariantId((current) => activeItems.some((variant) => variant.id === current) ? current : "");
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load product variants.");
@@ -158,6 +160,22 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   function invalidateRequestKey() {
     setRequestKey("");
     setSuccess("");
+  }
+
+  async function handleBarcodeScan(code: string) {
+    try {
+      const response = await fetch(`/api/inventory/scan?code=${encodeURIComponent(code)}${locationId ? `&locationId=${encodeURIComponent(locationId)}` : ""}`);
+      const body = await readJson<{ product: ProductOption & { purchasePrice?: string }; matchedVariantId: string | null }>(response);
+      setProducts((current) => current.some((item) => item.id === body.product.id) ? current : [body.product, ...current]);
+      setProductId(body.product.id);
+      setVariantId(body.matchedVariantId ?? "");
+      setQuantity((current) => current || "1");
+      setUnitCost((current) => current || body.product.purchasePrice || "0");
+      invalidateRequestKey();
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to find scanned product.");
+    }
   }
 
   async function submitMovement(event: React.FormEvent<HTMLFormElement>) {
@@ -215,6 +233,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
           <h2 className="text-lg font-semibold">Record stock movement</h2>
           <p className="mt-1 text-sm text-gray-600">Quantities are entered in the product’s base unit. Every entry is recorded in the stock ledger.</p>
           <form onSubmit={submitMovement} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="sm:col-span-2 xl:col-span-4"><BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan product to select it for this stock movement" /></div>
             <label className="text-sm font-medium">
               Movement type
               <select value={type} onChange={(event) => { setType(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">

@@ -7,6 +7,8 @@ type ProductItem = {
   id: string;
   name: string;
   sku: string;
+  barcode: string | null;
+  barcodeType: "INTERNAL" | "MANUFACTURER";
   productType: "STANDARD" | "PANEL";
   baseUnit: string;
   sellingPrice: string;
@@ -150,7 +152,7 @@ export function ProductList({ canManage }: Props) {
               <tr><td colSpan={7} className="py-8 text-center text-gray-500">No products found.</td></tr>
             ) : items.map((item) => (
               <tr key={item.id}>
-                <td className="py-3 pr-4"><p className="font-medium">{item.name}</p><p className="text-xs text-gray-500">{item.sku}</p></td>
+                <td className="py-3 pr-4"><p className="font-medium">{item.name}</p><p className="text-xs text-gray-500">{item.sku}</p><p className="text-xs text-gray-400">{item.barcode ? `${item.barcode} · ${item.barcodeType === "MANUFACTURER" ? "Manufacturer" : "KB"}` : "No barcode"}</p></td>
                 <td className="py-3 pr-4">{item.category?.name ?? "—"} / {item.brand?.name ?? "—"}</td>
                 <td className="py-3 pr-4">{item.productType === "PANEL" ? "Panel" : "Standard"} / {item.baseUnit}</td>
                 <td className="py-3 pr-4">{item.sellingPrice} <span className="text-xs text-gray-500">+ {item.gstPercentage}% GST</span></td>

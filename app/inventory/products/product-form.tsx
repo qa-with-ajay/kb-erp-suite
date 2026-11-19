@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 
 type Option = { id: string; name: string };
 type ProductData = {
@@ -18,18 +19,20 @@ type ProductData = {
   gstPercentage: string;
   minimumStock: string;
   barcode: string | null;
+  barcodeType: "INTERNAL" | "MANUFACTURER";
   imageUrl: string | null;
   categoryId: string | null;
   brandId: string | null;
   isActive: boolean;
 };
-type FormValues = Omit<ProductData, "id" | "isActive" | "purchasePrice" | "sellingPrice" | "gstPercentage" | "minimumStock" | "description" | "barcode" | "imageUrl" | "categoryId" | "brandId"> & {
+type FormValues = Omit<ProductData, "id" | "isActive" | "purchasePrice" | "sellingPrice" | "gstPercentage" | "minimumStock" | "description" | "barcode" | "barcodeType" | "imageUrl" | "categoryId" | "brandId"> & {
   description: string;
   purchasePrice: string;
   sellingPrice: string;
   gstPercentage: string;
   minimumStock: string;
   barcode: string;
+  barcodeType: "INTERNAL" | "MANUFACTURER";
   imageUrl: string;
   categoryId: string;
   brandId: string;
@@ -37,7 +40,7 @@ type FormValues = Omit<ProductData, "id" | "isActive" | "purchasePrice" | "selli
 const emptyValues: FormValues = {
   name: "", sku: "", description: "", productType: "STANDARD", baseUnit: "PCS",
   purchasePrice: "0", sellingPrice: "0", gstPercentage: "0", minimumStock: "0",
-  barcode: "", imageUrl: "", categoryId: "", brandId: "",
+  barcode: "", barcodeType: "INTERNAL", imageUrl: "", categoryId: "", brandId: "",
 };
 const units = ["PCS", "SQFT", "BOX", "RFT", "ROLL", "METER", "KG", "LITRE", "BUNDLE", "SET"];
 
@@ -86,6 +89,7 @@ export function ProductForm({ productId }: Props) {
         gstPercentage: product.gstPercentage,
         minimumStock: product.minimumStock,
         barcode: product.barcode ?? "",
+        barcodeType: product.barcodeType ?? (product.barcode ? "MANUFACTURER" : "INTERNAL"),
         imageUrl: product.imageUrl ?? "",
         categoryId: product.categoryId ?? "",
         brandId: product.brandId ?? "",
@@ -114,6 +118,7 @@ export function ProductForm({ productId }: Props) {
           ...values,
           description: values.description || null,
           barcode: values.barcode || null,
+          barcodeType: values.barcodeType,
           imageUrl: values.imageUrl || null,
           categoryId: values.categoryId || null,
           brandId: values.brandId || null,
@@ -180,9 +185,28 @@ export function ProductForm({ productId }: Props) {
         <label className="text-sm font-medium">Minimum stock ({values.baseUnit})
           <input type="number" min="0" step="0.0001" value={values.minimumStock} onChange={(event) => update("minimumStock", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
         </label>
-        <label className="text-sm font-medium">Barcode (optional)
-          <input maxLength={100} value={values.barcode ?? ""} onChange={(event) => update("barcode", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
+        <label className="text-sm font-medium">Barcode source
+          <select value={values.barcodeType} onChange={(event) => {
+            const barcodeType = event.target.value === "MANUFACTURER" ? "MANUFACTURER" : "INTERNAL";
+            setValues((current) => ({ ...current, barcodeType, barcode: barcodeType === "INTERNAL" ? "" : current.barcode }));
+          }} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5">
+            <option value="INTERNAL">Generate KB barcode automatically</option>
+            <option value="MANUFACTURER">Use manufacturer barcode</option>
+          </select>
         </label>
+        {values.barcodeType === "INTERNAL" ? (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            <p className="font-semibold">Automatic KB barcode</p>
+            <p className="mt-1 text-xs">A unique internal Code 128 barcode will be generated when you save this product. It is not a GS1/GTIN manufacturer barcode.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div><BarcodeScanner compact autoFocus={false} placeholder="Scan manufacturer barcode" onScan={(code) => update("barcode", code)} /></div>
+            <label className="block text-sm font-medium">Manufacturer barcode
+              <input required maxLength={100} value={values.barcode} onChange={(event) => update("barcode", event.target.value)} placeholder="Scan or enter barcode value" className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
+            </label>
+          </div>
+        )}
         <label className="text-sm font-medium">Product image path or URL (optional)
           <input maxLength={500} value={values.imageUrl ?? ""} onChange={(event) => update("imageUrl", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
         </label>

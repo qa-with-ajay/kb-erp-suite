@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Location = { id: string; name: string; code: string };
@@ -170,6 +171,28 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
     setLines((current) => current.map((line) => line.key === key ? { ...line, ...update } : line));
   }
 
+  async function handleBarcodeScan(code: string) {
+    if (!locationId) { setError("Select a stock location before scanning products."); return; }
+    try {
+      const response = await fetch(`/api/inventory/scan?code=${encodeURIComponent(code)}&locationId=${encodeURIComponent(locationId)}`);
+      const body = await readJson<{ product: Product; matchedVariantId: string | null }>(response);
+      const product = body.product;
+      const variantId = body.matchedVariantId ?? (product.variants.length === 1 ? product.variants[0].id : "");
+      setProducts((current) => current.some((item) => item.id === product.id) ? current : [...current, product]);
+      invalidateRequestKey();
+      setLines((current) => {
+        const existing = current.find((line) => line.product?.id === product.id && line.variantId === variantId);
+        if (existing) return current.map((line) => line.key === existing.key ? { ...line, quantity: String(Number(line.quantity || 0) + 1) } : line);
+        const empty = current.find((line) => !line.product);
+        if (empty) return current.map((line) => line.key === empty.key ? { ...line, product, variantId, quantity: "1" } : line);
+        return [...current, { key: crypto.randomUUID(), product, variantId, quantity: "1" }];
+      });
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to find scanned product.");
+    }
+  }
+
   async function submitSale(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -274,6 +297,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               </label>
             )}
 
+            <BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan to add product to this invoice" />
             <label className="block max-w-lg text-sm font-medium">
               Search products with stock
               <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Product name or SKU" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
