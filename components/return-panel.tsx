@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type ReturnLine = {
@@ -93,6 +94,7 @@ export function ReturnPanel({
   currency: string;
   canManage: boolean;
 }) {
+  const router = useRouter();
   const [data, setData] = useState<ReturnData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -166,6 +168,7 @@ export function ReturnPanel({
       setDispositions({});
       setFormOpen(false);
       setNotice(result.replayed ? `${result.number} was already recorded.` : `${result.number} recorded.`);
+      router.refresh(); // re-render the invoice with updated returns / balance
       try {
         await reload();
       } catch {
@@ -199,6 +202,7 @@ export function ReturnPanel({
         return next;
       });
       setNotice(result.replayed ? "This return reversal was already recorded." : "Return reversed. Its credit and stock effect have been cancelled.");
+      router.refresh();
       try {
         await reload();
       } catch {

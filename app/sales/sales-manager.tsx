@@ -77,6 +77,10 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [customerPhone, setCustomerPhone] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", quantity: "1" }]);
   const [requestKey, setRequestKey] = useState("");
+  // null = "not edited": the amount follows the invoice total (full payment).
+  const [amountReceived, setAmountReceived] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "UPI" | "CARD" | "BANK_TRANSFER" | "CHEQUE" | "OTHER">("CASH");
+  const [paymentReference, setPaymentReference] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -162,6 +166,13 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
     };
   }, { subtotal: 0, tax: 0, total: 0 }), [lines, taxMode]);
 
+  const receivedText = amountReceived ?? totals.total.toFixed(2);
+  const receivedValue = Number(receivedText);
+  const dueAfterPayment = Math.max(0, roundMoney(totals.total - (Number.isFinite(receivedValue) ? receivedValue : 0)));
+  const paymentInvalid =
+    !/^\d+(\.\d{1,2})?$/.test(receivedText) || receivedValue > totals.total;
+  const needsCustomer = dueAfterPayment > 0 && !customerId && !customerName.trim();
+
   function invalidateRequestKey() {
     setRequestKey("");
   }
@@ -209,7 +220,15 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("One or more quantities exceed the available whole-unit stock.");
       return;
     }
-    if (!window.confirm(`Confirm this full-unit sale for ${money(totals.total)}? Stock will be deducted immediately.`)) return;
+    if (paymentInvalid) {
+      setError("Amount received must be a valid amount (max 2 decimals) and cannot exceed the invoice total.");
+      return;
+    }
+    if (needsCustomer) {
+      setError("Select or enter a customer to leave a balance due.");
+      return;
+    }
+    if (!window.confirm(`Confirm this full-unit sale for ${money(totals.total)}? Received ${money(receivedValue)}${dueAfterPayment > 0 ? `, balance due ${money(dueAfterPayment)}` : ""}. Stock will be deducted immediately.`)) return;
 
     setSaving(true);
     const idempotencyKey = requestKey || crypto.randomUUID();
@@ -225,6 +244,11 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
           customerName,
           customerPhone,
           idempotencyKey,
+          payment: {
+            ...(amountReceived === null ? { payInFull: true } : { amount: receivedText }),
+            method: paymentMethod,
+            reference: paymentReference.trim() || undefined,
+          },
           lines: completeLines.map((line) => ({
             productId: line.product.id,
             variantId: line.variantId || null,
@@ -381,7 +405,47 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               <div className="flex justify-between"><span>Subtotal</span><span>{money(totals.subtotal)}</span></div>
               <div className="flex justify-between"><span>GST (added to listed price)</span><span>{money(totals.tax)}</span></div>
               <div className="flex justify-between text-base font-bold"><span>Total</span><span>{money(totals.total)}</span></div>
-              <button type="submit" disabled={saving || !locationId || !lines.length} className="mt-3 w-full rounded-lg bg-emerald-900 px-4 py-2.5 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              <div className="space-y-3 border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium">
+                  Amount received
+                  <input
+                    type="number" min="0" max={totals.total} step="0.01" inputMode="decimal"
+                    value={receivedText}
+                    onChange={(event) => { invalidateRequestKey(); setAmountReceived(event.target.value); }}
+                    className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
+                  />
+                </label>
+                <label className="block text-sm font-medium">
+                  Payment method
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) => { invalidateRequestKey(); setPaymentMethod(event.target.value as typeof paymentMethod); }}
+                    className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="CARD">Card</option>
+                    <option value="BANK_TRANSFER">Bank transfer</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </label>
+                <label className="block text-sm font-medium">
+                  Reference (optional)
+                  <input
+                    maxLength={100} value={paymentReference}
+                    onChange={(event) => { invalidateRequestKey(); setPaymentReference(event.target.value); }}
+                    placeholder="Transaction or cheque number"
+                    className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
+                  />
+                </label>
+                <div className="flex justify-between font-semibold">
+                  <span>Balance due</span>
+                  <span className={dueAfterPayment > 0 ? "text-amber-800" : "text-emerald-800"}>{money(dueAfterPayment)}</span>
+                </div>
+                {needsCustomer && <p className="text-xs text-amber-800">Select or enter a customer to leave a balance due.</p>}
+              </div>
+              <button type="submit" disabled={saving || !locationId || !lines.length || paymentInvalid || needsCustomer} className="mt-3 w-full rounded-lg bg-emerald-900 px-4 py-2.5 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Completing sale…" : "Complete sale"}
               </button>
             </div>

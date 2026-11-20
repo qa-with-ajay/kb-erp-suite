@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type PaymentMethod = "CASH" | "UPI" | "CARD" | "BANK_TRANSFER" | "CHEQUE" | "OTHER";
@@ -71,6 +72,7 @@ export function PaymentPanel({
   currency: string;
   canManage: boolean;
 }) {
+  const router = useRouter();
   const [data, setData] = useState<PaymentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,6 +136,7 @@ export function PaymentPanel({
       setNotes("");
       setRequestKey("");
       setNotice(result.replayed ? "This payment was already recorded." : "Payment recorded.");
+      router.refresh(); // re-render the invoice above with the new paid / balance
       try {
         await reload();
       } catch {
@@ -160,6 +163,7 @@ export function PaymentPanel({
       setReversingId("");
       setReversalReason("");
       setNotice("Payment reversed. Its balance is outstanding again.");
+      router.refresh();
       try {
         await reload();
       } catch {

@@ -4,7 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 import { readJsonBody } from "@/lib/catalog-validation";
 import { createSale, isSameSaleRequest, type SaleResult } from "@/lib/sales-service";
+import { z } from "zod";
 import { parseSalesList, saleInputSchema } from "@/lib/sales-validation";
+
+// Optional first payment, captured with the sale. Parsed separately so the existing saleInputSchema is untouched.
+const initialPaymentSchema = z.object({
+  // payInFull = settle the server-computed total (avoids browser/server rounding differences).
+  payInFull: z.boolean().optional(),
+  amount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+  method: z.enum(["CASH", "UPI", "CARD", "BANK_TRANSFER", "CHEQUE", "OTHER"]),
+  reference: z.string().trim().max(100).optional(),
+}).refine((value) => value.payInFull || value.amount !== undefined, { message: "Amount is required." });
+
+class PaymentRejected extends Error {}
 
 type SaleError = Extract<SaleResult, { kind: "error" }>["error"];
 
@@ -92,22 +104,65 @@ export async function POST(request: Request) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const body = await readJsonBody(request);
   if (!body.success) return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
-  const parsed = saleInputSchema.safeParse(body.data);
+  const { payment: rawPayment, ...saleBody } =
+    typeof body.data === "object" && body.data !== null ? (body.data as Record<string, unknown>) : { payment: undefined };
+  const parsedPayment = rawPayment === undefined ? null : initialPaymentSchema.safeParse(rawPayment);
+  if (parsedPayment && !parsedPayment.success) {
+    return NextResponse.json({ error: "Invalid payment details." }, { status: 400 });
+  }
+  const payment = parsedPayment?.data ?? null;
+  const parsed = saleInputSchema.safeParse(saleBody);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid full-unit sale.", details: parsed.error.flatten() }, { status: 400 });
   }
   const input = parsed.data;
 
   try {
-    const result = await prisma.$transaction((tx) =>
-      createSale(tx, access.context.businessUnit.id, access.context.session.user.id, input),
-    );
+    // Sale + first payment commit or roll back together.
+    const result = await prisma.$transaction(async (tx) => {
+      const sale = await createSale(tx, access.context.businessUnit.id, access.context.session.user.id, input);
+      // Errors and idempotent replays never create another payment.
+      if (sale.kind === "error" || sale.kind === "replayed" || !payment) return sale;
+
+      const { total } = await tx.sale.findUniqueOrThrow({ where: { id: sale.saleId }, select: { total: true } });
+      const amount = payment.payInFull ? total : new Prisma.Decimal(payment.amount ?? "0");
+      if (amount.greaterThan(total)) throw new PaymentRejected("Amount received cannot exceed the invoice total.");
+      if (amount.lessThan(total) && !input.customerId && !input.customerName?.trim()) {
+        throw new PaymentRejected("Select or enter a customer to leave a balance due.");
+      }
+      if (amount.greaterThan(0)) {
+        await tx.payment.create({
+          data: {
+            businessUnitId: access.context.businessUnit.id,
+            saleId: sale.saleId,
+            idempotencyKey: `${input.idempotencyKey}:initial-payment`,
+            amount,
+            method: payment.method,
+            reference: payment.reference || null,
+            recordedBy: access.context.session.user.id,
+          },
+        });
+        // Mirror createSale's audit trail. Align action/entity naming with your /payments route if it differs.
+        await tx.auditLog.create({
+          data: {
+            userId: access.context.session.user.id,
+            businessUnitId: access.context.businessUnit.id,
+            action: "CREATE",
+            entity: "Payment",
+            entityId: sale.saleId,
+            details: { invoiceNumber: sale.invoiceNumber, amount: amount.toString(), method: payment.method, source: "sale-checkout" },
+          },
+        });
+      }
+      return sale;
+    });
     if (result.kind === "error") {
       const { message, status } = saleErrors[result.error];
       return NextResponse.json({ error: result.productName ? `${result.productName}: ${message}` : message }, { status });
     }
     return saleResponse(result.saleId, result.invoiceNumber, result.kind === "replayed");
   } catch (error) {
+    if (error instanceof PaymentRejected) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const prior = await prisma.stockMovement.findUnique({
         where: {

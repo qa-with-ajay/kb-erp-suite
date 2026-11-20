@@ -1,0 +1,921 @@
+
+/* =========================================================
+   INVOICE PRINT STYLES
+   A4 | THERMAL 80mm | THERMAL 58mm
+   ========================================================= */
+
+/* ---------- Common Invoice Styles ---------- */
+
+.invoice-document {
+  width: 100%;
+  color: #111827;
+}
+
+.invoice-print-area {
+  width: 100%;
+  background: #ffffff;
+  color: #111827;
+  box-sizing: border-box;
+}
+
+.invoice-print-area *,
+.invoice-print-area *::before,
+.invoice-print-area *::after {
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   A4 INVOICE
+   ========================================================= */
+
+.a4-invoice {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 270mm;
+  margin: 0 auto;
+  padding: 10mm;
+  background: #ffffff;
+  color: #111827;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  border: 1px solid #e5e7eb;
+}
+
+.a4-invoice p {
+  margin: 2px 0;
+}
+
+.a4-invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid #111827;
+}
+
+.a4-company-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1;
+}
+
+.a4-company-logo {
+  max-width: 75px;
+  max-height: 75px;
+  object-fit: contain;
+}
+
+.a4-company-details h1 {
+  margin: 0 0 5px;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.a4-invoice-heading {
+  min-width: 130px;
+  text-align: right;
+}
+
+.a4-invoice-heading h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.a4-invoice-heading span {
+  font-size: 9px;
+  color: #6b7280;
+}
+
+.a4-invoice-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.a4-invoice-meta h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.a4-customer-name {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.a4-invoice-info table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.a4-invoice-info th,
+.a4-invoice-info td {
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.a4-invoice-info th {
+  width: 42%;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.a4-items-section {
+  margin-top: 18px;
+  width: 100%;
+}
+
+.a4-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+
+.a4-items-table th {
+  background: #f3f4f6;
+  font-weight: 700;
+  text-align: left;
+  border: 1px solid #d1d5db;
+  padding: 8px 5px;
+}
+
+.a4-items-table td {
+  border: 1px solid #d1d5db;
+  padding: 8px 5px;
+  vertical-align: top;
+}
+
+.a4-items-table th:first-child,
+.a4-items-table td:first-child {
+  text-align: center;
+}
+
+.a4-invoice-summary {
+  display: grid;
+  grid-template-columns: 1fr 270px;
+  gap: 20px;
+  margin-top: 20px;
+  align-items: start;
+}
+
+.a4-amount-words {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  min-height: 75px;
+}
+
+.a4-amount-words p {
+  margin-top: 5px;
+}
+
+.a4-totals table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.a4-totals th,
+.a4-totals td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.a4-totals th {
+  text-align: left;
+  font-weight: 500;
+}
+
+.a4-totals td {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.a4-grand-total th,
+.a4-grand-total td {
+  font-size: 13px;
+  font-weight: 800;
+  border-top: 2px solid #111827;
+  border-bottom: 2px solid #111827;
+}
+
+.a4-invoice-notes {
+  margin-top: 18px;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+}
+
+.a4-invoice-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 35px;
+  padding-top: 15px;
+  border-top: 1px solid #d1d5db;
+}
+
+.a4-signature {
+  min-width: 180px;
+  text-align: center;
+}
+
+.a4-signature-space {
+  height: 45px;
+}
+
+/* =========================================================
+   THERMAL INVOICE COMMON STYLES
+   ========================================================= */
+
+.thermal-invoice {
+  width: 100%;
+  margin: 0 auto;
+  padding: 3mm;
+  background: #ffffff;
+  color: #000000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.thermal-invoice p {
+  margin: 2px 0;
+}
+
+.thermal-invoice--80 {
+  max-width: 80mm;
+  width: 80mm;
+}
+
+.thermal-invoice--58 {
+  max-width: 58mm;
+  width: 58mm;
+  font-size: 9px;
+}
+
+.thermal-header {
+  text-align: center;
+}
+
+.thermal-logo {
+  display: block;
+  max-width: 45mm;
+  max-height: 18mm;
+  margin: 0 auto 6px;
+  object-fit: contain;
+}
+
+.thermal-header h1 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.thermal-header h2 {
+  margin: 7px 0 2px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.thermal-header p {
+  margin: 2px 0;
+}
+
+.thermal-divider {
+  width: 100%;
+  border-top: 1px solid #000000;
+  margin: 8px 0;
+}
+
+.thermal-dotted-divider {
+  width: 100%;
+  border-top: 1px dashed #666666;
+  margin: 7px 0;
+}
+
+.thermal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 3px 0;
+}
+
+.thermal-row > :last-child {
+  text-align: right;
+}
+
+.thermal-details,
+.thermal-customer,
+.thermal-tax-summary,
+.thermal-totals,
+.thermal-payment,
+.thermal-amount-words,
+.thermal-notes {
+  margin: 6px 0;
+}
+
+.thermal-customer-name {
+  font-weight: 700;
+}
+
+.thermal-item {
+  margin: 8px 0;
+}
+
+.thermal-item-heading {
+  margin-bottom: 4px;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.thermal-item-total {
+  font-weight: 700;
+  margin-top: 5px;
+}
+
+.thermal-grand-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 0;
+  border-top: 2px solid #000000;
+  border-bottom: 2px solid #000000;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.thermal-footer {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.thermal-footer strong {
+  font-size: 12px;
+}
+
+.thermal-footer p {
+  margin: 3px 0;
+}
+
+/* Slightly smaller layout for 58mm paper */
+
+.thermal-invoice--58 .thermal-header h1 {
+  font-size: 12px;
+}
+
+.thermal-invoice--58 .thermal-header h2 {
+  font-size: 11px;
+}
+
+.thermal-invoice--58 .thermal-item-heading {
+  font-size: 9px;
+}
+
+.thermal-invoice--58 .thermal-grand-total {
+  font-size: 11px;
+}
+
+/* =========================================================
+   SCREEN PREVIEW
+   ========================================================= */
+
+@media screen {
+  .invoice-format-a4 .a4-invoice {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .invoice-format-thermal-80,
+  .invoice-format-thermal-58 {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    background: #f3f4f6;
+  }
+
+  .invoice-format-thermal-80 .thermal-invoice {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  .invoice-format-thermal-58 .thermal-invoice {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  }
+}
+
+
+/* ---------- Additions ---------- */
+.num { text-align: right !important; white-space: nowrap; }
+.a4-detail { font-size: 8px; color: #6b7280; margin-top: 2px; }
+.a4-payments { margin-top: 10px; min-height: 0; }
+.a4-tax-summary { margin-top: 16px; max-width: 360px; }
+
+/* The print copy is portalled to <body>; invisible on screen. */
+.invoice-print-root { display: none; }
+
+/* =========================================================
+   PRINT
+   Named pages give each format its own paper size.
+   Every body child except the portalled copy is removed,
+   so the invoice paginates normally (no absolute/visibility tricks).
+   ========================================================= */
+@page a4 { size: A4; margin: 10mm; }
+@page thermal80 { size: 80mm auto; margin: 0; }
+@page thermal58 { size: 58mm auto; margin: 0; }
+
+@media print {
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; }
+
+  body > *:not(.invoice-print-root) { display: none !important; }
+  .invoice-print-root { display: block !important; }
+
+  .invoice-print-root.invoice-format-a4 { page: a4; }
+  .invoice-print-root.invoice-format-thermal-80 { page: thermal80; width: 80mm; }
+  .invoice-print-root.invoice-format-thermal-58 { page: thermal58; width: 58mm; }
+
+  .a4-invoice, .thermal-invoice {
+    box-shadow: none !important; border: none !important; margin: 0 auto !important;
+    background: #fff !important; color: #000 !important;
+  }
+  .a4-invoice { width: 100% !important; max-width: none !important; min-height: 0 !important; padding: 0 !important; }
+  .thermal-invoice--80 { width: 80mm !important; max-width: 80mm !important; padding: 2mm !important; }
+  .thermal-invoice--58 { width: 58mm !important; max-width: 58mm !important; padding: 2mm !important; }
+
+  .a4-items-table { page-break-inside: auto; }
+  .a4-items-table thead { display: table-header-group; }
+  .a4-items-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .a4-invoice-header, .a4-invoice-meta, .a4-invoice-summary, .a4-invoice-footer, .a4-tax-summary { break-inside: avoid; }
+  .thermal-item { break-inside: avoid; }
+  .thermal-divider, .thermal-dotted-divider { border-color: #000 !important; }
+
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+/* =========================================================
+   INVOICE PRINT STYLES
+   A4 | THERMAL 80mm | THERMAL 58mm
+   ========================================================= */
+
+/* ---------- Common Invoice Styles ---------- */
+
+.invoice-document {
+  width: 100%;
+  color: #111827;
+}
+
+.invoice-print-area {
+  width: 100%;
+  background: #ffffff;
+  color: #111827;
+  box-sizing: border-box;
+}
+
+.invoice-print-area *,
+.invoice-print-area *::before,
+.invoice-print-area *::after {
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   A4 INVOICE
+   ========================================================= */
+
+.a4-invoice {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 270mm;
+  margin: 0 auto;
+  padding: 10mm;
+  background: #ffffff;
+  color: #111827;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  border: 1px solid #e5e7eb;
+}
+
+.a4-invoice p {
+  margin: 2px 0;
+}
+
+.a4-invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid #111827;
+}
+
+.a4-company-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1;
+}
+
+.a4-company-logo {
+  max-width: 75px;
+  max-height: 75px;
+  object-fit: contain;
+}
+
+.a4-company-details h1 {
+  margin: 0 0 5px;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.a4-invoice-heading {
+  min-width: 130px;
+  text-align: right;
+}
+
+.a4-invoice-heading h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.a4-invoice-heading span {
+  font-size: 9px;
+  color: #6b7280;
+}
+
+.a4-invoice-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.a4-invoice-meta h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.a4-customer-name {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.a4-invoice-info table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.a4-invoice-info th,
+.a4-invoice-info td {
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.a4-invoice-info th {
+  width: 42%;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.a4-items-section {
+  margin-top: 18px;
+  width: 100%;
+}
+
+.a4-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+
+.a4-items-table th {
+  background: #f3f4f6;
+  font-weight: 700;
+  text-align: left;
+  border: 1px solid #d1d5db;
+  padding: 8px 5px;
+}
+
+.a4-items-table td {
+  border: 1px solid #d1d5db;
+  padding: 8px 5px;
+  vertical-align: top;
+}
+
+.a4-items-table th:first-child,
+.a4-items-table td:first-child {
+  text-align: center;
+}
+
+.a4-invoice-summary {
+  display: grid;
+  grid-template-columns: 1fr 270px;
+  gap: 20px;
+  margin-top: 20px;
+  align-items: start;
+}
+
+.a4-amount-words {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  min-height: 75px;
+}
+
+.a4-amount-words p {
+  margin-top: 5px;
+}
+
+.a4-totals table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.a4-totals th,
+.a4-totals td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.a4-totals th {
+  text-align: left;
+  font-weight: 500;
+}
+
+.a4-totals td {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.a4-grand-total th,
+.a4-grand-total td {
+  font-size: 13px;
+  font-weight: 800;
+  border-top: 2px solid #111827;
+  border-bottom: 2px solid #111827;
+}
+
+.a4-invoice-notes {
+  margin-top: 18px;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+}
+
+.a4-invoice-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 35px;
+  padding-top: 15px;
+  border-top: 1px solid #d1d5db;
+}
+
+.a4-signature {
+  min-width: 180px;
+  text-align: center;
+}
+
+.a4-signature-space {
+  height: 45px;
+}
+
+/* =========================================================
+   THERMAL INVOICE COMMON STYLES
+   ========================================================= */
+
+.thermal-invoice {
+  width: 100%;
+  margin: 0 auto;
+  padding: 3mm;
+  background: #ffffff;
+  color: #000000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.thermal-invoice p {
+  margin: 2px 0;
+}
+
+.thermal-invoice--80 {
+  max-width: 80mm;
+  width: 80mm;
+}
+
+.thermal-invoice--58 {
+  max-width: 58mm;
+  width: 58mm;
+  font-size: 9px;
+}
+
+.thermal-header {
+  text-align: center;
+}
+
+.thermal-logo {
+  display: block;
+  max-width: 45mm;
+  max-height: 18mm;
+  margin: 0 auto 6px;
+  object-fit: contain;
+}
+
+.thermal-header h1 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.thermal-header h2 {
+  margin: 7px 0 2px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.thermal-header p {
+  margin: 2px 0;
+}
+
+.thermal-divider {
+  width: 100%;
+  border-top: 1px solid #000000;
+  margin: 8px 0;
+}
+
+.thermal-dotted-divider {
+  width: 100%;
+  border-top: 1px dashed #666666;
+  margin: 7px 0;
+}
+
+.thermal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 3px 0;
+}
+
+.thermal-row > :last-child {
+  text-align: right;
+}
+
+.thermal-details,
+.thermal-customer,
+.thermal-tax-summary,
+.thermal-totals,
+.thermal-payment,
+.thermal-amount-words,
+.thermal-notes {
+  margin: 6px 0;
+}
+
+.thermal-customer-name {
+  font-weight: 700;
+}
+
+.thermal-item {
+  margin: 8px 0;
+}
+
+.thermal-item-heading {
+  margin-bottom: 4px;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.thermal-item-total {
+  font-weight: 700;
+  margin-top: 5px;
+}
+
+.thermal-grand-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 0;
+  border-top: 2px solid #000000;
+  border-bottom: 2px solid #000000;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.thermal-footer {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.thermal-footer strong {
+  font-size: 12px;
+}
+
+.thermal-footer p {
+  margin: 3px 0;
+}
+
+/* Slightly smaller layout for 58mm paper */
+
+.thermal-invoice--58 .thermal-header h1 {
+  font-size: 12px;
+}
+
+.thermal-invoice--58 .thermal-header h2 {
+  font-size: 11px;
+}
+
+.thermal-invoice--58 .thermal-item-heading {
+  font-size: 9px;
+}
+
+.thermal-invoice--58 .thermal-grand-total {
+  font-size: 11px;
+}
+
+/* =========================================================
+   SCREEN PREVIEW
+   ========================================================= */
+
+@media screen {
+  .invoice-format-a4 .a4-invoice {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .invoice-format-thermal-80,
+  .invoice-format-thermal-58 {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    background: #f3f4f6;
+  }
+
+  .invoice-format-thermal-80 .thermal-invoice {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  .invoice-format-thermal-58 .thermal-invoice {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  }
+}
+
+
+/* ---------- Additions ---------- */
+.num { text-align: right !important; white-space: nowrap; }
+.a4-detail { font-size: 8px; color: #6b7280; margin-top: 2px; }
+.a4-payments { margin-top: 10px; min-height: 0; }
+.a4-tax-summary { margin-top: 16px; max-width: 360px; }
+
+/* The print copy is portalled to <body>; invisible on screen. */
+.invoice-print-root { display: none; }
+
+/* =========================================================
+   PRINT
+   Named pages give each format its own paper size.
+   Every body child except the portalled copy is removed,
+   so the invoice paginates normally (no absolute/visibility tricks).
+   ========================================================= */
+@page a4 { size: A4; margin: 10mm; }
+@page thermal80 { size: 80mm auto; margin: 0; }
+@page thermal58 { size: 58mm auto; margin: 0; }
+
+@media print {
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; }
+
+  body > *:not(.invoice-print-root) { display: none !important; }
+  .invoice-print-root { display: block !important; }
+
+  .invoice-print-root.invoice-format-a4 { page: a4; }
+  .invoice-print-root.invoice-format-thermal-80 { page: thermal80; width: 80mm; }
+  .invoice-print-root.invoice-format-thermal-58 { page: thermal58; width: 58mm; }
+
+  .a4-invoice, .thermal-invoice {
+    box-shadow: none !important; border: none !important; margin: 0 auto !important;
+    background: #fff !important; color: #000 !important;
+  }
+  .a4-invoice { width: 100% !important; max-width: none !important; min-height: 0 !important; padding: 0 !important; }
+  .thermal-invoice--80 { width: 80mm !important; max-width: 80mm !important; padding: 2mm !important; }
+  .thermal-invoice--58 { width: 58mm !important; max-width: 58mm !important; padding: 2mm !important; }
+
+  .a4-items-table { page-break-inside: auto; }
+  .a4-items-table thead { display: table-header-group; }
+  .a4-items-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .a4-invoice-header, .a4-invoice-meta, .a4-invoice-summary, .a4-invoice-footer, .a4-tax-summary { break-inside: avoid; }
+  .thermal-item { break-inside: avoid; }
+  .thermal-divider, .thermal-dotted-divider { border-color: #000 !important; }
+
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
