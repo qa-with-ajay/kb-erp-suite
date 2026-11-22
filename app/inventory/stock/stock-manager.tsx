@@ -64,6 +64,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [productId, setProductId] = useState("");
   const [variantId, setVariantId] = useState("");
   const [locationId, setLocationId] = useState("");
+  const [sourceLocationId, setSourceLocationId] = useState("");
+  const [destinationLocationId, setDestinationLocationId] = useState("");
   const [type, setType] = useState("INWARD");
   const [adjustmentDirection, setAdjustmentDirection] = useState("INCREASE");
   const [quantity, setQuantity] = useState("");
@@ -113,6 +115,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       .then(({ items }) => {
         setLocations(items);
         setLocationId((current) => current || items[0]?.id || "");
+        setSourceLocationId((current) => current || items[0]?.id || "");
+        setDestinationLocationId((current) => current || items.find((item) => item.id !== items[0]?.id)?.id || "");
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load stock locations.");
@@ -182,7 +186,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     event.preventDefault();
     const movementLabel = type === "ADJUSTMENT"
       ? `adjust stock ${adjustmentDirection.toLowerCase()}`
-      : `record ${type.toLowerCase().replaceAll("_", " ")}`;
+      : type === "TRANSFER" ? "transfer stock" : `record ${type.toLowerCase().replaceAll("_", " ")}`;
     if (!window.confirm(`Confirm you want to ${movementLabel} by ${quantity} for the selected product?`)) return;
     setSaving(true);
     setError("");
@@ -195,12 +199,12 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          locationId,
+          ...(type === "TRANSFER" ? { sourceLocationId, destinationLocationId } : { locationId }),
           productId,
           variantId: variantId || null,
           quantity,
           adjustmentDirection: type === "ADJUSTMENT" ? adjustmentDirection : undefined,
-          unitCost: type === "OUTWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE") ? undefined : unitCost,
+          unitCost: type === "OUTWARD" || type === "TRANSFER" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE") ? undefined : unitCost,
           reference,
           reason,
           idempotencyKey: key,
@@ -230,7 +234,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
 
       {canManage && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Stock Inward / Outward / Adjustment</h2>
+          <h2 className="text-lg font-semibold">Stock Transactions</h2>
           <p className="mt-1 text-sm text-gray-600">Quantities are entered in the product’s base unit. Every entry is recorded in the stock ledger.</p>
           <form onSubmit={submitMovement} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="sm:col-span-2 xl:col-span-4"><BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan product to select it for stock management" /></div>
@@ -240,15 +244,35 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                 <option value="INWARD">Stock inward</option>
                 <option value="OUTWARD">Stock outward</option>
                 <option value="ADJUSTMENT">Stock adjustment</option>
+                <option value="TRANSFER">Stock transfer</option>
               </select>
             </label>
-            <label className="text-sm font-medium">
-              Location
-              <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
-                <option value="">Select a location</option>
-                {locations.map((location) => <option key={location.id} value={location.id}>{location.name} ({location.code})</option>)}
-              </select>
-            </label>
+            {type === "TRANSFER" ? (
+              <>
+                <label className="text-sm font-medium">
+                  From location
+                  <select required value={sourceLocationId} onChange={(event) => { setSourceLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                    <option value="">Select source</option>
+                    {locations.map((location) => <option key={location.id} value={location.id}>{location.name} ({location.code})</option>)}
+                  </select>
+                </label>
+                <label className="text-sm font-medium">
+                  To location
+                  <select required value={destinationLocationId} onChange={(event) => { setDestinationLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                    <option value="">Select destination</option>
+                    {locations.filter((location) => location.id !== sourceLocationId).map((location) => <option key={location.id} value={location.id}>{location.name} ({location.code})</option>)}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <label className="text-sm font-medium">
+                Location
+                <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                  <option value="">Select a location</option>
+                  {locations.map((location) => <option key={location.id} value={location.id}>{location.name} ({location.code})</option>)}
+                </select>
+              </label>
+            )}
             <label className="text-sm font-medium">
               Search products
               <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Name or SKU" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
@@ -282,7 +306,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               Quantity
               <input required type="number" min="0.0001" step="0.0001" value={quantity} onChange={(event) => { setQuantity(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
-            {type !== "OUTWARD" && !(type === "ADJUSTMENT" && adjustmentDirection === "DECREASE") && (
+            {type !== "OUTWARD" && type !== "TRANSFER" && !(type === "ADJUSTMENT" && adjustmentDirection === "DECREASE") && (
               <label className="text-sm font-medium">
                 Unit cost
                 <input required type="number" min="0" step="0.0001" value={unitCost} onChange={(event) => { setUnitCost(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
@@ -297,7 +321,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               <input maxLength={500} required={type === "ADJUSTMENT"} value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} placeholder={type === "ADJUSTMENT" ? "Required for adjustments" : type === "INWARD" ? "Initial inventory, supplier receipt, etc." : "Optional note"} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
             <div className="flex items-end">
-              <button disabled={saving || !locations.length || !productId} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              <button disabled={saving || !locations.length || !productId || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Recording…" : "Record movement"}
               </button>
             </div>
@@ -369,9 +393,9 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                     <td className="py-3 pr-4">{new Date(movement.createdAt).toLocaleString("en-IN")}</td>
                     <td className="py-3 pr-4">{movement.type.replaceAll("_", " ")}</td>
                     <td className="py-3 pr-4"><span className="font-medium">{entry.product.name}</span><span className="ml-2 text-xs text-gray-500">{variantLabel(entry.variant)}</span></td>
-                    <td className="py-3 pr-4">{entry.location.name}</td>
+                    <td className="py-3 pr-4">{movement.type === "TRANSFER" ? `${movement.ledgerEntries.find((item) => Number(item.quantityDelta) < 0)?.location.name ?? "—"} → ${movement.ledgerEntries.find((item) => Number(item.quantityDelta) > 0)?.location.name ?? "—"}` : entry.location.name}</td>
                     <td className={`py-3 pr-4 font-medium ${Number(entry.quantityDelta) < 0 ? "text-red-700" : "text-emerald-800"}`}>
-                      {Number(entry.quantityDelta) > 0 ? "+" : ""}{formatQuantity(entry.quantityDelta)} {entry.product.baseUnit}
+                      {movement.type === "TRANSFER" ? `${formatQuantity(movement.ledgerEntries.find((item) => Number(item.quantityDelta) > 0)?.quantityDelta ?? "0")} ${entry.product.baseUnit} transferred` : `${Number(entry.quantityDelta) > 0 ? "+" : ""}${formatQuantity(entry.quantityDelta)} ${entry.product.baseUnit}`}
                     </td>
                     <td className="py-3 pr-4">{entry.unitCost}</td>
                     <td className="py-3 pr-4">{movement.reference || movement.reason || "—"}</td>
