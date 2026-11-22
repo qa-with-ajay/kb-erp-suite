@@ -91,7 +91,7 @@ export function InventoryImport() {
 
         {preview && <>
           <div className="border-t border-gray-100 pt-5">
-            <h2 className="font-semibold">3. Review validation</h2>
+            <h2 className="font-semibold">4. Review validation</h2>
             <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
               {[
                 ["Rows", preview.summary.totalRows], ["Valid", preview.summary.validRows],
