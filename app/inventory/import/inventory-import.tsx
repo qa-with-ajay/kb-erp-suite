@@ -5,13 +5,13 @@ import { useState } from "react";
 
 type PreviewRow = {
   rowNumber: number; sku: string; name: string; action: "CREATE" | "UPDATE";
-  openingQuantity: string; openingAlreadyRecorded: boolean;
+  openingQuantity: string; openingBlockedByHistory: boolean;
 };
 type Issue = { rowNumber: number; field: string; message: string };
 type Preview = {
   rows: PreviewRow[];
   issues: Issue[];
-  summary: { totalRows: number; validRows: number; invalidRows: number; newProducts: number; existingProducts: number; openingStockRows: number; openingStockAlreadyRecorded: number };
+  summary: { totalRows: number; validRows: number; invalidRows: number; newProducts: number; existingProducts: number; openingStockRows: number; openingStockBlockedByHistory: number };
 };
 type ImportResult = { totalRows: number; created: number; updated: number; openingStockCreated: number; openingStockSkipped: number };
 
@@ -83,11 +83,11 @@ export function InventoryImport() {
                 ["Invalid", preview.summary.invalidRows], ["New / existing", `${preview.summary.newProducts} / ${preview.summary.existingProducts}`],
               ].map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}
             </div>
-            <p className="mt-3 text-sm text-gray-600">Opening stock rows: {preview.summary.openingStockRows}. Already initialized and therefore skipped: {preview.summary.openingStockAlreadyRecorded}.</p>
+            <p className="mt-3 text-sm text-gray-600">Opening stock rows: {preview.summary.openingStockRows}. Already initialized and therefore skipped: {preview.summary.openingStockBlockedByHistory}.</p>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[38rem] text-left text-sm">
                 <thead className="border-b text-xs text-gray-500"><tr><th className="py-2">Row</th><th>SKU</th><th>Product</th><th>Action</th><th>Opening qty</th></tr></thead>
-                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action}</td><td>{row.openingQuantity}{row.openingAlreadyRecorded ? " (already recorded)" : ""}</td></tr>)}</tbody>
+                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action}</td><td>{row.openingQuantity}{row.openingBlockedByHistory ? " (existing stock history)" : ""}</td></tr>)}</tbody>
               </table>
               {preview.rows.length > 50 && <p className="mt-2 text-xs text-gray-500">Showing first 50 of {preview.rows.length} rows.</p>}
             </div>
