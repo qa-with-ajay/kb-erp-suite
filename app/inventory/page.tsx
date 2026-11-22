@@ -7,7 +7,7 @@ const sections = [
   { title: "Products", description: "Manage products, variants, and units.", href: "/inventory/products" },
   { title: "Categories", description: "Organize products by category.", href: "/inventory/categories" },
   { title: "Brands", description: "Maintain the product brand list.", href: "/inventory/brands" },
-  { title: "Stock", description: "Record stock movements and review balances and ledger history.", href: "/inventory/stock" },
+  { title: "Stock", description: "Record stock inward, outward and adjustments; review balances and stock ledger history.", href: "/inventory/stock" },
 ];
 
 export default async function InventoryPage() {
@@ -25,7 +25,7 @@ export default async function InventoryPage() {
         <BusinessUnitSwitcher />
       </header>
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {canManage && <Link href="/inventory/import" className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm transition hover:border-emerald-700"><h2 className="font-semibold text-emerald-950">Bulk Import</h2><p className="mt-2 text-sm text-emerald-800">Upload product catalog and opening stock from a CSV file.</p></Link>}
+        {canManage && <Link href="/inventory/import" className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm transition hover:border-emerald-700"><h2 className="font-semibold text-emerald-950">Bulk Import</h2><p className="mt-2 text-sm text-emerald-800">Upload product catalog and optionally record stock inward from a CSV file.</p></Link>}
         {sections.map((section) => (
           <Link key={section.href} href={section.href} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-emerald-700">
             <h2 className="font-semibold">{section.title}</h2>
