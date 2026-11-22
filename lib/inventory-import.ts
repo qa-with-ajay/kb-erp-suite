@@ -91,7 +91,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   const barcodeValues = parsed.map(({ record }) => record.barcode?.trim()).filter(Boolean);
 
   const [products, categories, brands, locations] = await Promise.all([
-    db.product.findMany({ where: { businessUnitId, sku: { in: skuValues } }, select: { id: true, sku: true, barcode: true, baseUnit: true, productType: true } }),
+    db.product.findMany({ where: { businessUnitId, OR: skuValues.map((sku: string) => ({ sku: { equals: sku, mode: "insensitive" } })) }, select: { id: true, sku: true, barcode: true, baseUnit: true, productType: true } }),
     db.category.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
     db.brand.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
     db.stockLocation.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
