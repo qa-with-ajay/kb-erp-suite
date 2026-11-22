@@ -16,6 +16,7 @@ const movementErrors: Record<MovementError, { message: string; status: number }>
   VARIANT_NOT_AVAILABLE: { message: "Select an active variant for this product.", status: 400 },
   OPENING_ALREADY_RECORDED: { message: "Opening stock can only be recorded before other stock movements.", status: 409 },
   INSUFFICIENT_STOCK: { message: "The movement would make stock negative.", status: 409 },
+  UNIT_COST_REQUIRED: { message: "Unit cost is required for stock inward and stock-increasing adjustments.", status: 400 },
 };
 
 function movementResponse(movementId: string, replayed: boolean) {
