@@ -42,8 +42,8 @@ const productFieldsSchema = z.object({
 
 const openingStockEntrySchema = z.object({
   locationId: z.string().uuid(),
-  quantity: z.string().trim().regex(/^\\d{1,10}(?:\\.\\d{1,4})?$/).refine((value) => Number(value) > 0, "Quantity must be greater than zero."),
-  unitCost: z.string().trim().regex(/^\\d{1,12}(?:\\.\\d{1,4})?$/, "Enter a non-negative unit cost with up to 4 decimal places."),
+  quantity: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,4})?$/).refine((value) => Number(value) > 0, "Quantity must be greater than zero."),
+  unitCost: z.string().trim().regex(/^\d{1,12}(?:\.\d{1,4})?$/, "Enter a non-negative unit cost with up to 4 decimal places."),
 });
 
 export const productInputSchema = productFieldsSchema.extend({
