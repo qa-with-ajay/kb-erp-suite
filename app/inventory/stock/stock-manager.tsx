@@ -59,6 +59,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [variants, setVariants] = useState<VariantOption[]>([]);
   const [balanceSearch, setBalanceSearch] = useState("");
+  const [balanceLocationId, setBalanceLocationId] = useState("");
   const [movementSearch, setMovementSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [productId, setProductId] = useState("");
@@ -81,10 +82,10 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [success, setSuccess] = useState("");
 
   const loadBalances = useCallback(async (signal?: AbortSignal) => {
-    const query = new URLSearchParams({ search: balanceSearch, page: String(balancePage), pageSize: String(pageSize) });
+    const query = new URLSearchParams({ search: balanceSearch, page: String(balancePage), pageSize: String(pageSize), ...(balanceLocationId ? { locationId: balanceLocationId } : {}) });
     const response = await fetch(`/api/inventory/stock?${query}`, { signal });
     setBalances(await readJson<PageResponse<Balance>>(response));
-  }, [balancePage, balanceSearch]);
+  }, [balanceLocationId, balancePage, balanceSearch]);
 
   const loadMovements = useCallback(async (signal?: AbortSignal) => {
     const query = new URLSearchParams({ search: movementSearch, page: String(movementPage), pageSize: String(pageSize) });
@@ -335,10 +336,19 @@ export function StockManager({ canManage }: { canManage: boolean }) {
             <h2 className="text-lg font-semibold">Current stock</h2>
             <p className="mt-1 text-sm text-gray-600">Standard inventory balances by product, variant and location.</p>
           </div>
-          <label className="text-sm font-medium">
-            Search
-            <input value={balanceSearch} onChange={(event) => { setBalanceSearch(event.target.value); setBalancePage(1); }} placeholder="Product or SKU" className="mt-1 block rounded-lg border border-gray-300 p-2.5" />
-          </label>
+          <div className="flex flex-wrap gap-3">
+            <label className="text-sm font-medium">
+              Location
+              <select value={balanceLocationId} onChange={(event) => { setBalanceLocationId(event.target.value); setBalancePage(1); }} className="mt-1 block rounded-lg border border-gray-300 bg-white p-2.5">
+                <option value="">All locations</option>
+                {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium">
+              Search
+              <input value={balanceSearch} onChange={(event) => { setBalanceSearch(event.target.value); setBalancePage(1); }} placeholder="Product or SKU" className="mt-1 block rounded-lg border border-gray-300 p-2.5" />
+            </label>
+          </div>
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[52rem] text-left text-sm">
