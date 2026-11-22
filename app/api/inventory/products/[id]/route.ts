@@ -39,7 +39,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   if (!uuidPattern.test(id)) return NextResponse.json({ error: "Invalid product ID." }, { status: 400 });
   const body = await readJsonBody(request);
   if (!body.success) return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
-  const raw = body.data as Record<string, unknown>;
+  const raw = body.data && typeof body.data === "object" && !Array.isArray(body.data) ? body.data as Record<string, unknown> : {};
   const stockEntryParsed = raw.stockEntry == null ? null : productStockEntrySchema.safeParse(raw.stockEntry);
   if (stockEntryParsed && !stockEntryParsed.success) return NextResponse.json({ error: "Invalid stock entry.", details: stockEntryParsed.error.flatten() }, { status: 400 });
   const parsed = productUpdateSchema.safeParse(raw);
