@@ -40,23 +40,25 @@ const productFieldsSchema = z.object({
   imageUrl: z.string().trim().max(500).nullable().optional(),
 });
 
-export const productInputSchema = productFieldsSchema.superRefine((value, context) => {
+const openingStockEntrySchema = z.object({
+  locationId: z.string().uuid(),
+  quantity: z.string().trim().regex(/^\\d{1,10}(?:\\.\\d{1,4})?$/).refine((value) => Number(value) > 0, "Quantity must be greater than zero."),
+  unitCost: z.string().trim().regex(/^\\d{1,12}(?:\\.\\d{1,4})?$/, "Enter a non-negative unit cost with up to 4 decimal places."),
+});
+
+export const productInputSchema = productFieldsSchema.extend({
+  openingStock: z.array(openingStockEntrySchema).max(100).optional().default([]),
+}).superRefine((value, context) => {
   if ((value.barcodeType ?? (value.barcode ? "MANUFACTURER" : "INTERNAL")) === "MANUFACTURER" && !value.barcode) {
     context.addIssue({ code: "custom", path: ["barcode"], message: "Enter or scan the manufacturer barcode." });
   }
-  if (value.productType === "PANEL" && value.baseUnit !== "SQFT") {
-    context.addIssue({ code: "custom", path: ["baseUnit"], message: "Panel products must use SQFT as their base unit." });
+  if (value.productType === "PANEL" && !["PCS", "SQFT"].includes(value.baseUnit)) {
+    context.addIssue({ code: "custom", path: ["baseUnit"], message: "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock." });
   }
-  openingStock: z
-  .array(
-    z.object({
-      locationId: z.string().uuid(),
-      quantity: z.coerce.number().positive(),
-      unitCost: z.coerce.number().min(0),
-    })
-  )
-  .optional()
-  .default([])
+  const locations = value.openingStock.map((entry) => entry.locationId);
+  if (new Set(locations).size !== locations.length) {
+    context.addIssue({ code: "custom", path: ["openingStock"], message: "Each stock location can be entered only once." });
+  }
 });
 
 export const productUpdateSchema = productFieldsSchema.partial().superRefine((value, context) => {
