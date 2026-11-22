@@ -132,7 +132,7 @@ export function ProductList({ canManage }: Props) {
             <option value="">All brands</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
           </select>
         </label>
-        {canManage && <Link href="/inventory/products/new" className="rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Add product</Link>}
+        {canManage && <div className="flex flex-wrap gap-2"><Link href="/inventory/import" className="rounded-lg border border-emerald-800 px-4 py-2.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">Bulk import</Link><Link href="/inventory/products/new" className="rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Add product</Link></div>}
       </div>
 
       {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
