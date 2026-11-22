@@ -24,6 +24,14 @@ export async function GET(_request: Request, { params }: RouteContext) {
       brand: { select: { id: true, name: true } },
       variants: { orderBy: { createdAt: "asc" } },
       unitConversions: { orderBy: { unit: "asc" } },
+      stockBalances: {
+        where: { stockKind: "STANDARD" },
+        include: {
+          location: { select: { id: true, name: true, code: true } },
+          variant: { select: { id: true, code: true, attributes: true } },
+        },
+        orderBy: [{ location: { name: "asc" } }, { updatedAt: "desc" }],
+      },
     },
   });
   if (!product) return NextResponse.json({ error: "Product not found." }, { status: 404 });
