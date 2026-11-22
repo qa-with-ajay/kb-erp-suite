@@ -93,9 +93,8 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   const skuValues = parsed.map(({ record }) => record.sku?.trim()).filter(Boolean);
   const barcodeValues = parsed.map(({ record }) => record.barcode?.trim()).filter(Boolean);
 
-  const [products, globalSkuMatches, categories, brands, locations] = await Promise.all([
+  const [products, categories, brands, locations] = await Promise.all([
     db.product.findMany({ where: { businessUnitId, OR: skuValues.map((sku: string) => ({ sku: { equals: sku, mode: "insensitive" } })) }, select: { id: true, sku: true, barcode: true, baseUnit: true, productType: true } }),
-    db.product.findMany({ where: { OR: skuValues.map((sku: string) => ({ sku: { equals: sku, mode: "insensitive" } })) }, select: { sku: true, businessUnitId: true } }),
     db.category.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
     db.brand.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
     db.stockLocation.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
@@ -166,8 +165,6 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     }
 
     const existing = sku ? productBySku.get(normalizedSku) : null;
-    const skuUsedInAnotherUnit = sku && globalSkuMatches.some((item: any) => item.sku.toLowerCase() === normalizedSku && item.businessUnitId !== businessUnitId);
-    if (skuUsedInAnotherUnit) addIssue(rowNumber, "sku", "SKU is already assigned in another business unit. SKUs must be unique across the business.");
     if (existing && !updateExisting) addIssue(rowNumber, "sku", "SKU already exists. Enable update existing products to update it.");
     if (existing && updateExisting && existing.baseUnit !== baseUnit) {
       const ledgerCount = await db.stockLedgerEntry.count({ where: { businessUnitId, productId: existing.id } });
