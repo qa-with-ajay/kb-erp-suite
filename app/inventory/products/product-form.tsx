@@ -86,12 +86,21 @@ export function ProductForm({ productId }: Props) {
   const [values, setValues] = useState<FormValues>(emptyValues);
   const [categories, setCategories] = useState<Option[]>([]);
   const [brands, setBrands] = useState<Option[]>([]);
+  const [stockLocations, setStockLocations] = useState<(Option & { code: string })[]>([]);
+  const [stockQuantity, setStockQuantity] = useState("");
+  const [stockUnitCost, setStockUnitCost] = useState("");
+  const [stockLocationId, setStockLocationId] = useState("");
+  const [stockReference, setStockReference] = useState("");
   const [loading, setLoading] = useState(Boolean(productId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    fetch("/api/inventory/stock/locations", { signal: controller.signal })
+      .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "Unable to load stock locations."); return body.items as (Option & { code: string })[]; })
+      .then((items) => { setStockLocations(items); setStockLocationId((current) => current || items[0]?.id || ""); })
+      .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load stock locations."); });
     const categoryRequest = fetch(
       "/api/inventory/categories?active=true&pageSize=100",
       { signal: controller.signal }
@@ -187,6 +196,11 @@ export function ProductForm({ productId }: Props) {
 
     setSaving(true);
     setError(null);
+    if ((stockQuantity || stockUnitCost) && (!stockQuantity || Number(stockQuantity) <= 0 || !stockUnitCost || !stockLocationId)) {
+      setError("To record stock inward, enter quantity, location and unit cost. Leave all stock fields empty to save without stock.");
+      setSaving(false);
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -198,6 +212,8 @@ export function ProductForm({ productId }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...values,
+            sku: values.sku.trim() || undefined,
+            stockEntry: stockQuantity ? { locationId: stockLocationId, quantity: stockQuantity, unitCost: stockUnitCost, reference: stockReference || null, idempotencyKey: crypto.randomUUID() } : undefined,
             description: values.description || null,
             barcode: values.barcode || null,
             barcodeType: values.barcodeType,
@@ -411,14 +427,16 @@ export function ProductForm({ productId }: Props) {
           />
         </label>
 
-        {!productId && (
-          <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 md:col-span-2">
-            <h2 className="font-semibold text-gray-900">Inventory & Stock Management</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              This product will be created with zero available stock. After saving, use Stock Management to record initial inventory or any later stock receipt through Stock Inward.
-            </p>
-          </section>
-        )}
+        <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 md:col-span-2">
+          <h2 className="font-semibold text-gray-900">Stock Entry (optional)</h2>
+          <p className="mt-1 text-sm text-gray-600">Add stock while creating or editing this product. This records a Stock Inward transaction using the same inventory ledger as Stock Management. Leave the fields empty to save product details only.</p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <label className="text-sm font-medium">Inward quantity ({values.baseUnit})<input type="number" min="0" step="0.0001" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} placeholder="e.g. 100" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
+            <label className="text-sm font-medium">Stock location<select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select location</option>{stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>{!stockLocations.length && <span className="mt-1 block text-xs text-amber-700">No active stock locations available. You can save the product and add stock later.</span>}</label>
+            <label className="text-sm font-medium">Unit cost<input type="number" min="0" step="0.0001" value={stockUnitCost} onChange={(event) => setStockUnitCost(event.target.value)} placeholder="Actual cost per base unit" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
+            <label className="text-sm font-medium">Reference / invoice number (optional)<input maxLength={100} value={stockReference} onChange={(event) => setStockReference(event.target.value)} placeholder="Supplier invoice or reference" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
+          </div>
+        </section>
 
         <label className="text-sm font-medium">
           Barcode source
