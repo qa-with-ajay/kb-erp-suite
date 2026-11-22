@@ -7,14 +7,6 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 
 type Option = { id: string; name: string };
-type LocationOption = { id: string; name: string };
-
-type OpeningStockEntry = {
-  locationId: string;
-  quantity: string;
-  unitCost: string;
-};
-
 type ProductData = {
   id: string;
   name: string;
@@ -98,16 +90,6 @@ export function ProductForm({ productId }: Props) {
   const [values, setValues] = useState<FormValues>(emptyValues);
   const [categories, setCategories] = useState<Option[]>([]);
   const [brands, setBrands] = useState<Option[]>([]);
-  const [locations, setLocations] = useState<LocationOption[]>([]);
-
-  const [openingStock, setOpeningStock] = useState<OpeningStockEntry[]>([
-    {
-      locationId: "",
-      quantity: "0",
-      unitCost: "0",
-    },
-  ]);
-
   const [loading, setLoading] = useState(Boolean(productId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,20 +118,6 @@ export function ProductForm({ productId }: Props) {
       return body.items as Option[];
     });
 
-    // Assumes the locations API returns { items: [{ id, name }] }.
-    const locationRequest = fetch(
-      "/api/inventory/locations?active=true&pageSize=100",
-      { signal: controller.signal }
-    ).then(async (response) => {
-      const body = await response.json();
-
-      if (!response.ok) {
-        throw new Error(body.error ?? "Unable to load stock locations.");
-      }
-
-      return body.items as LocationOption[];
-    });
-
     const productRequest = productId
       ? fetch(`/api/inventory/products/${productId}`, {
         signal: controller.signal,
@@ -167,13 +135,11 @@ export function ProductForm({ productId }: Props) {
     Promise.all([
       categoryRequest,
       brandRequest,
-      locationRequest,
       productRequest,
     ])
       .then(([categoryItems, brandItems, product]) => {
         setCategories(categoryItems);
         setBrands(brandItems);
-        setLocations(locationItems);
 
         if (product) {
           setValues({
@@ -194,14 +160,6 @@ export function ProductForm({ productId }: Props) {
             categoryId: product.categoryId ?? "",
             brandId: product.brandId ?? "",
           });
-        } else if (locationItems.length === 1) {
-          setOpeningStock([
-            {
-              locationId: locationItems[0].id,
-              quantity: "0",
-              unitCost: "0",
-            },
-          ]);
         }
       })
       .catch((cause: unknown) => {
@@ -252,15 +210,6 @@ export function ProductForm({ productId }: Props) {
             categoryId: values.categoryId || null,
             brandId: values.brandId || null,
 
-            ...(productId
-              ? {}
-              : {
-                openingStock: positiveEntries.map((entry) => ({
-                  locationId: entry.locationId,
-                  quantity: entry.quantity,
-                  unitCost: entry.unitCost,
-                })),
-              }),
           }),
         }
       );
@@ -484,114 +433,6 @@ export function ProductForm({ productId }: Props) {
             className="mt-1 w-full rounded-lg border border-gray-300 p-2.5"
           />
         </label>
-
-        {!productId && (
-          <section className="space-y-4 rounded-xl border border-gray-200 p-4 md:col-span-2">
-            <div>
-              <h2 className="font-semibold text-gray-900">
-                Inventory & Opening Stock
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Enter the initial stock available at each location.
-                You can also save the product with zero stock.
-              </p>
-            </div>
-
-            {openingStock.map((entry, index) => (
-              <div
-                key={index}
-                className="grid gap-3 rounded-lg bg-gray-50 p-3 md:grid-cols-4"
-              >
-                <label className="text-sm font-medium">
-                  Stock location
-                  <select
-                    required={Number(entry.quantity) > 0}
-                    value={entry.locationId}
-                    onChange={(event) =>
-                      updateOpeningStock(
-                        index,
-                        "locationId",
-                        event.target.value
-                      )
-                    }
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
-                  >
-                    <option value="">Select location</option>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="text-sm font-medium">
-                  Opening quantity ({values.baseUnit})
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={entry.quantity}
-                    onChange={(event) =>
-                      updateOpeningStock(
-                        index,
-                        "quantity",
-                        event.target.value
-                      )
-                    }
-                    className="mt-1 w-full rounded-lg border border-gray-300 p-2.5"
-                  />
-                </label>
-
-                <label className="text-sm font-medium">
-                  Unit cost (₹)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={entry.unitCost}
-                    onChange={(event) =>
-                      updateOpeningStock(
-                        index,
-                        "unitCost",
-                        event.target.value
-                      )
-                    }
-                    className="mt-1 w-full rounded-lg border border-gray-300 p-2.5"
-                  />
-                </label>
-
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    disabled={openingStock.length === 1}
-                    onClick={() => removeOpeningStockLocation(index)}
-                    className="rounded-lg border border-red-200 px-3 py-2.5 text-sm text-red-700 disabled:opacity-40"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={addOpeningStockLocation}
-              className="rounded-lg border border-emerald-800 px-4 py-2 text-sm font-medium text-emerald-900"
-            >
-              + Add another location
-            </button>
-
-            <div className="flex justify-between border-t pt-3 text-sm">
-              <span className="font-medium text-gray-600">
-                Total opening stock
-              </span>
-              <span className="font-bold text-gray-900">
-                {openingStockTotal} {values.baseUnit}
-              </span>
-            </div>
-          </section>
-        )}
 
         <label className="text-sm font-medium">
           Barcode source
