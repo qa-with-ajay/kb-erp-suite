@@ -83,7 +83,7 @@ export function InventoryImport() {
                 ["Invalid", preview.summary.invalidRows], ["New / existing", `${preview.summary.newProducts} / ${preview.summary.existingProducts}`],
               ].map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}
             </div>
-            <p className="mt-3 text-sm text-gray-600">Opening stock rows: {preview.summary.openingStockRows}. Already initialized and therefore skipped: {preview.summary.openingStockBlockedByHistory}.</p>
+            <p className="mt-3 text-sm text-gray-600">Opening stock rows: {preview.summary.openingStockRows}. Blocked by existing stock history and therefore skipped: {preview.summary.openingStockBlockedByHistory}.</p>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[38rem] text-left text-sm">
                 <thead className="border-b text-xs text-gray-500"><tr><th className="py-2">Row</th><th>SKU</th><th>Product</th><th>Action</th><th>Opening qty</th></tr></thead>
