@@ -90,6 +90,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   const rows: ValidatedImportRow[] = [];
   const seenSkus = new Map<string, { rowNumber: number; fingerprint: string }>();
   const seenBarcodes = new Map<string, { rowNumber: number; sku: string }>();
+  const seenInwardReferences = new Map<string, number>();
   const skuValues = parsed.map(({ record }) => record.sku?.trim()).filter(Boolean);
   const barcodeValues = parsed.map(({ record }) => record.barcode?.trim()).filter(Boolean);
 
@@ -185,6 +186,10 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       inwardLocationId = locationNames.get(inwardLocation.toLowerCase()) ?? null;
       if (!inwardLocationId) addIssue(rowNumber, "inwardLocation", "Stock location was not found in this business unit.");
       if (inwardReference && inwardLocationId) {
+        const inwardReferenceKey = `${sku.toLowerCase()}:${inwardLocationId}:${inwardReference.trim().toLowerCase()}`;
+        const priorFileRow = seenInwardReferences.get(inwardReferenceKey);
+        if (priorFileRow) addIssue(rowNumber, "inwardReference", `This SKU, location and inward reference are already used on row ${priorFileRow} in this file. Use a separate reference for another receipt.`);
+        else seenInwardReferences.set(inwardReferenceKey, rowNumber);
         const idempotencyKey = createHash("sha256").update(`${businessUnitId}:INWARD:${inwardReference.trim().toLowerCase()}:${sku.toLowerCase()}:${inwardLocationId}`).digest("hex");
         const prior = await db.stockMovement.findUnique({
           where: { businessUnitId_idempotencyKey: { businessUnitId, idempotencyKey } },
