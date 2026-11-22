@@ -172,8 +172,8 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       const conversionCount = await db.productUnitConversion.count({ where: { businessUnitId, productId: existing.id } });
       if (ledgerCount || conversionCount) addIssue(rowNumber, "baseUnit", "Base unit cannot change after stock ledger entries or unit conversions exist.");
     }
-    if (existing && existing.productType !== productType && productType === "PANEL" && baseUnit !== "SQFT") {
-      addIssue(rowNumber, "productType", "Panel products must use SQFT as their base unit.");
+    if (existing && existing.productType !== productType && productType === "PANEL" && !["PCS", "SQFT"].includes(baseUnit)) {
+      addIssue(rowNumber, "productType", "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock.");
     }
     if (barcode) {
       const duplicateBarcode = await db.product.findFirst({ where: { businessUnitId, barcode, ...(existing ? { id: { not: existing.id } } : {}) }, select: { id: true } });
