@@ -5,21 +5,20 @@ import { useState } from "react";
 
 type PreviewRow = {
   rowNumber: number; sku: string; name: string; action: "CREATE" | "UPDATE";
-  openingQuantity: string; openingBlockedByHistory: boolean;
   inwardQuantity: string; inwardMovementAlreadyExists: boolean;
 };
 type Issue = { rowNumber: number; field: string; message: string };
 type Preview = {
   rows: PreviewRow[];
   issues: Issue[];
-  summary: { totalRows: number; validRows: number; invalidRows: number; newProducts: number; existingProducts: number; openingStockRows: number; openingStockBlockedByHistory: number; inwardStockRows: number; inwardStockAlreadyImported: number };
+  summary: { totalRows: number; validRows: number; invalidRows: number; newProducts: number; existingProducts: number; inwardStockRows: number; inwardStockAlreadyImported: number };
 };
-type ImportResult = { totalRows: number; stockMode: "PRODUCTS_ONLY" | "OPENING" | "INWARD"; created: number; updated: number; openingStockCreated: number; openingStockSkipped: number; inwardStockCreated: number; inwardStockReplayed: number };
+type ImportResult = { totalRows: number; stockMode: "PRODUCTS_ONLY" | "INWARD"; created: number; updated: number; inwardStockCreated: number; inwardStockReplayed: number };
 
 export function InventoryImport() {
   const [file, setFile] = useState<File | null>(null);
   const [updateExisting, setUpdateExisting] = useState(false);
-  const [stockMode, setStockMode] = useState<"PRODUCTS_ONLY" | "OPENING" | "INWARD">("PRODUCTS_ONLY");
+  const [stockMode, setStockMode] = useState<"PRODUCTS_ONLY" | "INWARD">("PRODUCTS_ONLY");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,7 +54,7 @@ export function InventoryImport() {
       <header className="mb-6">
         <Link href="/inventory/products" className="text-sm text-emerald-800 hover:underline">← Back to products</Link>
         <h1 className="mt-3 text-2xl font-bold text-gray-900">Bulk inventory import</h1>
-        <p className="mt-1 text-sm text-gray-600">Upload a CSV to create products, update matching SKUs and optionally record opening stock.</p>
+        <p className="mt-1 text-sm text-gray-600">Upload a CSV to create or update products and optionally record stock inward.</p>
       </header>
 
       <section className="max-w-5xl space-y-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -69,11 +68,10 @@ export function InventoryImport() {
           <label className="mt-3 block max-w-xl text-sm font-medium">Stock handling
             <select value={stockMode} onChange={(event) => { setStockMode(event.target.value as typeof stockMode); setPreview(null); setResult(null); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
               <option value="PRODUCTS_ONLY">Product master only — do not change stock</option>
-              <option value="OPENING">Product + opening stock — initial ERP setup</option>
               <option value="INWARD">Product + stock inward — newly received goods</option>
             </select>
           </label>
-          <p className="mt-2 text-xs text-gray-500">{stockMode === "PRODUCTS_ONLY" ? "Creates or updates product details only. Stock balances remain unchanged." : stockMode === "OPENING" ? "Use only for initial stock already physically available when setting up ERP. Opening stock is not added twice." : "Use for new receipts. Fill inward quantity, location, unit cost and a unique supplier invoice/reference in the CSV."}</p>
+          <p className="mt-2 text-xs text-gray-500">{stockMode === "PRODUCTS_ONLY" ? "Creates or updates product details only. Stock balances remain unchanged." : "Use for initial inventory or any later receipt. Enter quantity, location, unit cost and a unique inward reference."}</p>
         </div>
 
         <div className="border-t border-gray-100 pt-5">
@@ -82,7 +80,7 @@ export function InventoryImport() {
           {file && <p className="mt-2 text-xs text-gray-500">Selected: {file.name} · {(file.size / 1024).toFixed(1)} KB</p>}
           <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
             <input type="checkbox" checked={updateExisting} onChange={(event) => { setUpdateExisting(event.target.checked); setPreview(null); }} className="mt-0.5" />
-            <span><strong>Update existing products matching SKU</strong><span className="block text-xs text-gray-500">Off by default. When enabled, product details are updated; existing opening stock is never added again.</span></span>
+            <span><strong>Update existing products matching SKU</strong><span className="block text-xs text-gray-500">Off by default. When enabled, product details are updated; stock is changed only when you select Stock Inward.</span></span>
           </label>
           <button type="button" disabled={!file || loading} onClick={() => submit("preview")} className="mt-4 rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Please wait…" : "Validate and preview"}</button>
         </div>
@@ -98,12 +96,11 @@ export function InventoryImport() {
                 ["Invalid", preview.summary.invalidRows], ["New / existing", `${preview.summary.newProducts} / ${preview.summary.existingProducts}`],
               ].map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}
             </div>
-            {stockMode === "OPENING" && <p className="mt-3 text-sm text-gray-600">Opening stock rows: {preview.summary.openingStockRows}. Blocked by existing stock history and therefore skipped: {preview.summary.openingStockBlockedByHistory}.</p>}
             {stockMode === "INWARD" && <p className="mt-3 text-sm text-gray-600">Inward stock rows: {preview.summary.inwardStockRows}. Matching references already recorded: {preview.summary.inwardStockAlreadyImported} (will be replay-safe).</p>}
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[38rem] text-left text-sm">
-                <thead className="border-b text-xs text-gray-500"><tr><th className="py-2">Row</th><th>SKU</th><th>Product</th><th>Action</th><th>{stockMode === "INWARD" ? "Inward qty" : stockMode === "OPENING" ? "Opening qty" : "Stock"}</th></tr></thead>
-                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action}</td><td>{stockMode === "INWARD" ? `${row.inwardQuantity}${row.inwardMovementAlreadyExists ? " (already recorded)" : ""}` : stockMode === "OPENING" ? `${row.openingQuantity}${row.openingBlockedByHistory ? " (existing stock history)" : ""}` : "unchanged"}</td></tr>)}</tbody>
+                <thead className="border-b text-xs text-gray-500"><tr><th className="py-2">Row</th><th>SKU</th><th>Product</th><th>Action</th><th>{stockMode === "INWARD" ? "Inward qty" : "Stock"}</th></tr></thead>
+                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action}</td><td>{stockMode === "INWARD" ? `${row.inwardQuantity}${row.inwardMovementAlreadyExists ? " (already recorded)" : ""}` : "unchanged"}</td></tr>)}</tbody>
               </table>
               {preview.rows.length > 50 && <p className="mt-2 text-xs text-gray-500">Showing first 50 of {preview.rows.length} rows.</p>}
             </div>
@@ -119,7 +116,7 @@ export function InventoryImport() {
         {result && <div className="border-t border-gray-100 pt-5">
           <h2 className="font-semibold text-emerald-900">Import completed</h2>
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[[ "Created", result.created ], [ "Updated", result.updated ], ...(result.stockMode === "OPENING" ? [[ "Opening stock movements", result.openingStockCreated ], [ "Opening stock skipped", result.openingStockSkipped ]] : []), ...(result.stockMode === "INWARD" ? [[ "Inward movements", result.inwardStockCreated ], [ "Inward replays", result.inwardStockReplayed ]] : [])].map(([label, value]) => <div key={label} className="rounded-lg bg-emerald-50 p-3"><p className="text-xs text-gray-600">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}
+            {[[ "Created", result.created ], [ "Updated", result.updated ], ...(result.stockMode === "INWARD" ? [[ "Inward movements", result.inwardStockCreated ], [ "Inward replays", result.inwardStockReplayed ]] : [])].map(([label, value]) => <div key={label} className="rounded-lg bg-emerald-50 p-3"><p className="text-xs text-gray-600">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}
           </div>
           <button type="button" onClick={() => { setFile(null); setResult(null); setPreview(null); }} className="mt-4 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">Import another file</button>
         </div>}
