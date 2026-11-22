@@ -25,11 +25,10 @@ const quantitySchema = z.string().trim().regex(/^\d{1,10}(?:\.\d{1,4})?$/, "Ente
 
 const productFieldsSchema = z.object({
   name: z.string().trim().min(1).max(160),
-  sku: z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9._/-]+$/, "Use letters, numbers, dot, dash, slash, or underscore for SKU."),
+  sku: z.string().trim().max(80).regex(/^[A-Za-z0-9._/-]+$/, "Use letters, numbers, dot, dash, slash, or underscore for SKU.").optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   productType: z.enum(productTypes),
   baseUnit: z.enum(measurementUnits),
-  purchasePrice: moneySchema,
   sellingPrice: moneySchema,
   gstPercentage: z.string().trim().regex(/^(?:\d{1,2})(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/).default("0"),
   minimumStock: quantitySchema.default("0"),
