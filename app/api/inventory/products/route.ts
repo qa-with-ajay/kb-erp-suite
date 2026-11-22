@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       });
       if (stockEntryParsed?.success) {
         const inward = await createStockMovement(tx, businessUnit.id, session.user.id, {
-          type: "INWARD", productId: created.id, locationId: stockEntryParsed.data.locationId,
+          type: "INWARD", productId: created.id, variantId: stockEntryParsed.data.variantId || null, locationId: stockEntryParsed.data.locationId,
           quantity: stockEntryParsed.data.quantity, unitCost: stockEntryParsed.data.unitCost,
           reference: stockEntryParsed.data.reference || null,
           reason: "Initial stock inward recorded from product form.",
