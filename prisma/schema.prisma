@@ -283,6 +283,7 @@ model Product {
   stockBalances         StockBalance[]
   stockLedger           StockLedgerEntry[]
 
+  @@unique([sku])
   @@unique([businessUnitId, sku])
   @@unique([businessUnitId, barcode])
   @@unique([businessUnitId, id])
