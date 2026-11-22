@@ -26,7 +26,8 @@ export type StockMovementResult =
         | "VARIANT_REQUIRED"
         | "VARIANT_NOT_AVAILABLE"
         | "OPENING_ALREADY_RECORDED"
-        | "INSUFFICIENT_STOCK";
+        | "INSUFFICIENT_STOCK"
+        | "UNIT_COST_REQUIRED";
     };
 
 function getQuantityDelta(input: StockMovementInput) {
@@ -66,6 +67,10 @@ export async function createStockMovement(
   actorId: string,
   input: StockMovementInput,
 ): Promise<StockMovementResult> {
+  if ((input.type === "INWARD" || (input.type === "ADJUSTMENT" && input.adjustmentDirection === "INCREASE")) && input.unitCost === undefined) {
+    return { kind: "error", error: "UNIT_COST_REQUIRED" };
+  }
+
   const prior = await tx.stockMovement.findUnique({
     where: {
       businessUnitId_idempotencyKey: { businessUnitId, idempotencyKey: input.idempotencyKey },
