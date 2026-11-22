@@ -64,7 +64,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [productId, setProductId] = useState("");
   const [variantId, setVariantId] = useState("");
   const [locationId, setLocationId] = useState("");
-  const [type, setType] = useState("OPENING");
+  const [type, setType] = useState("INWARD");
   const [adjustmentDirection, setAdjustmentDirection] = useState("INCREASE");
   const [quantity, setQuantity] = useState("");
   const [unitCost, setUnitCost] = useState("");
@@ -207,7 +207,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         }),
       });
       await readJson<{ movementId: string; replayed: boolean }>(response);
-      setSuccess("Stock movement recorded.");
+      setSuccess("Stock transaction recorded.");
       setQuantity("");
       setReference("");
       setReason("");
@@ -230,14 +230,13 @@ export function StockManager({ canManage }: { canManage: boolean }) {
 
       {canManage && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Record stock movement</h2>
+          <h2 className="text-lg font-semibold">Stock Inward / Outward / Adjustment</h2>
           <p className="mt-1 text-sm text-gray-600">Quantities are entered in the product’s base unit. Every entry is recorded in the stock ledger.</p>
           <form onSubmit={submitMovement} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="sm:col-span-2 xl:col-span-4"><BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan product to select it for this stock movement" /></div>
+            <div className="sm:col-span-2 xl:col-span-4"><BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan product to select it for stock management" /></div>
             <label className="text-sm font-medium">
               Movement type
               <select value={type} onChange={(event) => { setType(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
-                <option value="OPENING">Opening stock</option>
                 <option value="INWARD">Stock inward</option>
                 <option value="OUTWARD">Stock outward</option>
                 <option value="ADJUSTMENT">Stock adjustment</option>
@@ -295,7 +294,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
             </label>
             <label className="text-sm font-medium sm:col-span-2">
               Reason {type === "ADJUSTMENT" && <span className="text-red-700">*</span>}
-              <input maxLength={500} required={type === "ADJUSTMENT"} value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} placeholder={type === "ADJUSTMENT" ? "Required for adjustments" : "Optional note"} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
+              <input maxLength={500} required={type === "ADJUSTMENT"} value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} placeholder={type === "ADJUSTMENT" ? "Required for adjustments" : type === "INWARD" ? "Initial inventory, supplier receipt, etc." : "Optional note"} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
             <div className="flex items-end">
               <button disabled={saving || !locations.length || !productId} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
