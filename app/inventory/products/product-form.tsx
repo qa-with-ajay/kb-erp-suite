@@ -24,6 +24,7 @@ type ProductData = {
   brandId: string | null;
   isActive: boolean;
   variants?: { id: string; code: string | null; attributes: Record<string, string>; isActive: boolean }[];
+  stockBalances?: { id: string; quantity: string; location: { id: string; name: string; code: string }; variant: { id: string; code: string | null; attributes: Record<string, string> } | null }[];
 };
 type FormValues = Omit<
   ProductData,
@@ -93,6 +94,7 @@ export function ProductForm({ productId }: Props) {
   const [stockLocationId, setStockLocationId] = useState("");
   const [stockReference, setStockReference] = useState("");
   const [productVariants, setProductVariants] = useState<NonNullable<ProductData["variants"]>>([]);
+  const [currentStockBalances, setCurrentStockBalances] = useState<NonNullable<ProductData["stockBalances"]>>([]);
   const [stockVariantId, setStockVariantId] = useState("");
   const [loading, setLoading] = useState(Boolean(productId));
   const [saving, setSaving] = useState(false);
@@ -150,6 +152,7 @@ export function ProductForm({ productId }: Props) {
         setBrands(brandItems);
 
         if (product) {
+          setCurrentStockBalances(product.stockBalances ?? []);
           const activeVariants = (product.variants ?? []).filter((variant) => variant.isActive);
           setProductVariants(activeVariants);
           setStockVariantId(activeVariants.length === 1 ? activeVariants[0].id : "");
@@ -435,7 +438,26 @@ export function ProductForm({ productId }: Props) {
 
         <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 md:col-span-2">
           <h2 className="font-semibold text-gray-900">Stock Entry (optional)</h2>
-          <p className="mt-1 text-sm text-gray-600">Add stock while creating or editing this product. This records a Stock Inward transaction using the same inventory ledger as Stock Management. Leave the fields empty to save product details only.</p>
+          <p className="mt-1 text-sm text-gray-600">Record an optional Stock Inward while creating or editing this product. Current stock is shown above for reference and cannot be edited here. Leave the entry fields empty to save product details only.</p>
+          {productId && (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+              <h3 className="text-sm font-semibold text-gray-800">Current available stock (read-only)</h3>
+              {currentStockBalances.length ? (
+                <div className="mt-2 space-y-2">
+                  {currentStockBalances.map((balance) => (
+                    <div key={balance.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="text-gray-600">{balance.location.name}{balance.variant ? ` · ${balance.variant.code || Object.entries(balance.variant.attributes).map(([key, value]) => `${key}: ${value}`).join(", ")}` : ""}</span>
+                      <span className="font-semibold tabular-nums">{balance.quantity} {values.baseUnit}</span>
+                    </div>
+                  ))}
+                  <div className="border-t border-gray-100 pt-2 text-sm font-semibold">
+                    Total available: {currentStockBalances.reduce((total, balance) => total + Number(balance.quantity), 0).toLocaleString("en-IN", { maximumFractionDigits: 4 })} {values.baseUnit}
+                  </div>
+                </div>
+              ) : <p className="mt-1 text-sm text-gray-500">No stock recorded for this product yet.</p>}
+              <p className="mt-2 text-xs text-gray-500">This balance is informational. Use the Stock Entry below to add stock; existing stock cannot be edited here.</p>
+            </div>
+          )}
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className="text-sm font-medium">Inward quantity ({values.baseUnit})<input type="number" min="0" step="0.0001" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} placeholder="e.g. 100" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
             <label className="text-sm font-medium">Stock location<select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select location</option>{stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>{!stockLocations.length && <span className="mt-1 block text-xs text-amber-700">No active stock locations available. You can save the product and add stock later.</span>}</label>
