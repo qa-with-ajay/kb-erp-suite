@@ -9,17 +9,21 @@ const unitCost = z.string()
   .trim()
   .regex(/^\d{1,10}(?:\.\d{1,4})?$/, "Enter a non-negative unit cost with up to 4 decimal places.");
 
-export const stockMovementInputSchema = z.object({
-  type: z.enum(movementTypes),
-  locationId: z.string().uuid(),
+const commonMovementFields = {
   productId: z.string().uuid(),
   variantId: z.string().uuid().nullable().optional(),
   quantity: positiveQuantity,
-  adjustmentDirection: z.enum(["INCREASE", "DECREASE"]).optional(),
-  unitCost: unitCost.optional(),
   reference: z.string().trim().max(100).nullable().optional(),
   reason: z.string().trim().max(500).nullable().optional(),
   idempotencyKey: z.string().uuid(),
+};
+
+const regularMovementSchema = z.object({
+  ...commonMovementFields,
+  type: z.enum(movementTypes),
+  locationId: z.string().uuid(),
+  adjustmentDirection: z.enum(["INCREASE", "DECREASE"]).optional(),
+  unitCost: unitCost.optional(),
 }).superRefine((value, context) => {
   const costRequired = value.type === "INWARD" ||
     (value.type === "ADJUSTMENT" && value.adjustmentDirection === "INCREASE");
@@ -37,6 +41,23 @@ export const stockMovementInputSchema = z.object({
   }
 });
 
+const transferMovementSchema = z.object({
+  ...commonMovementFields,
+  type: z.literal("TRANSFER"),
+  sourceLocationId: z.string().uuid(),
+  destinationLocationId: z.string().uuid(),
+}).superRefine((value, context) => {
+  if (value.sourceLocationId === value.destinationLocationId) {
+    context.addIssue({ code: "custom", path: ["destinationLocationId"], message: "Choose a different destination location." });
+  }
+});
+
+export const stockMovementInputSchema = z.discriminatedUnion("type", [
+  regularMovementSchema.extend({ type: z.literal("INWARD") }),
+  regularMovementSchema.extend({ type: z.literal("OUTWARD"), unitCost: z.never().optional() }),
+  regularMovementSchema.extend({ type: z.literal("ADJUSTMENT") }),
+  transferMovementSchema,
+]);
 
 export const productStockEntrySchema = z.object({
   locationId: z.string().uuid(),
