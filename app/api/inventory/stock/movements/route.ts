@@ -17,6 +17,7 @@ const movementErrors: Record<MovementError, { message: string; status: number }>
   OPENING_ALREADY_RECORDED: { message: "Opening stock can only be recorded before other stock movements.", status: 409 },
   INSUFFICIENT_STOCK: { message: "The movement would make stock negative.", status: 409 },
   UNIT_COST_REQUIRED: { message: "Unit cost is required for stock inward and stock-increasing adjustments.", status: 400 },
+  INVALID_TRANSFER_LOCATIONS: { message: "Source and destination locations must be different.", status: 400 },
 };
 
 function movementResponse(movementId: string, replayed: boolean) {
