@@ -14,7 +14,6 @@ type ProductData = {
   description: string | null;
   productType: "STANDARD" | "PANEL";
   baseUnit: string;
-  purchasePrice: string;
   sellingPrice: string;
   gstPercentage: string;
   minimumStock: string;
@@ -29,7 +28,6 @@ type FormValues = Omit<
   ProductData,
   | "id"
   | "isActive"
-  | "purchasePrice"
   | "sellingPrice"
   | "gstPercentage"
   | "minimumStock"
@@ -41,7 +39,6 @@ type FormValues = Omit<
   | "brandId"
 > & {
   description: string;
-  purchasePrice: string;
   sellingPrice: string;
   gstPercentage: string;
   minimumStock: string;
@@ -58,7 +55,6 @@ const emptyValues: FormValues = {
   description: "",
   productType: "STANDARD",
   baseUnit: "PCS",
-  purchasePrice: "0",
   sellingPrice: "0",
   gstPercentage: "0",
   minimumStock: "0",
@@ -148,7 +144,6 @@ export function ProductForm({ productId }: Props) {
             description: product.description ?? "",
             productType: product.productType,
             baseUnit: product.baseUnit,
-            purchasePrice: product.purchasePrice,
             sellingPrice: product.sellingPrice,
             gstPercentage: product.gstPercentage,
             minimumStock: product.minimumStock,
