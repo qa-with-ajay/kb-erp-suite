@@ -327,8 +327,8 @@ export function ProductForm({ productId }: Props) {
               : {
                 openingStock: positiveEntries.map((entry) => ({
                   locationId: entry.locationId,
-                  quantity: Number(entry.quantity),
-                  unitCost: Number(entry.unitCost),
+                  quantity: entry.quantity,
+                  unitCost: entry.unitCost,
                 })),
               }),
           }),
@@ -456,11 +456,10 @@ export function ProductForm({ productId }: Props) {
           Base unit
           <select
             value={values.baseUnit}
-            disabled={values.productType === "PANEL"}
             onChange={(event) => update("baseUnit", event.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5 disabled:bg-gray-100"
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
           >
-            {units.map((unit) => (
+            {units.filter((unit) => values.productType !== "PANEL" || unit === "PCS" || unit === "SQFT").map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
               </option>
@@ -468,7 +467,7 @@ export function ProductForm({ productId }: Props) {
           </select>
           {values.productType === "PANEL" && (
             <span className="mt-1 block text-xs text-gray-500">
-              Panel inventory uses SQFT as its base unit.
+              Use PCS for selling whole sheets, or SQFT for cut-to-size stock. The normal sales screen sells full PCS units.
             </span>
           )}
         </label>
