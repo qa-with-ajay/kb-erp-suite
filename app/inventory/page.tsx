@@ -13,6 +13,7 @@ const sections = [
 export default async function InventoryPage() {
   const access = await getInventoryAccess("inventory.read");
   if (!access.ok) redirect(access.status === 401 ? "/login" : "/dashboard");
+  const canManage = (await getInventoryAccess("inventory.manage")).ok;
 
   return (
     <main className="min-h-screen p-5 md:p-10">
@@ -24,7 +25,7 @@ export default async function InventoryPage() {
         <BusinessUnitSwitcher />
       </header>
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {(await getInventoryAccess("inventory.manage")).ok && <Link href="/inventory/import" className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm transition hover:border-emerald-700"><h2 className="font-semibold text-emerald-950">Bulk Import</h2><p className="mt-2 text-sm text-emerald-800">Upload product catalog and opening stock from a CSV file.</p></Link>}\n        {sections.map((section) => (
+        {canManage && <Link href="/inventory/import" className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm transition hover:border-emerald-700"><h2 className="font-semibold text-emerald-950">Bulk Import</h2><p className="mt-2 text-sm text-emerald-800">Upload product catalog and opening stock from a CSV file.</p></Link>}\n        {sections.map((section) => (
           <Link key={section.href} href={section.href} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-emerald-700">
             <h2 className="font-semibold">{section.title}</h2>
             <p className="mt-2 text-sm text-gray-600">{section.description}</p>
