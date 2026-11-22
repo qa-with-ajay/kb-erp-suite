@@ -9,7 +9,8 @@ async function readUpload(request: Request) {
   const form = await request.formData();
   const file = form.get("file");
   const updateExisting = form.get("updateExisting") === "true";
-  const stockMode = form.get("stockMode") || "PRODUCTS_ONLY";
+  const rawStockMode = form.get("stockMode");
+  const stockMode = typeof rawStockMode === "string" ? rawStockMode : "PRODUCTS_ONLY";
   if (!["PRODUCTS_ONLY", "OPENING", "INWARD"].includes(stockMode)) throw new Error("Choose a valid stock import mode.");
   if (!(file instanceof File)) throw new Error("Choose a CSV file to upload.");
   if (!file.name.toLowerCase().endsWith(".csv") || file.type && !["text/csv", "application/vnd.ms-excel", "application/octet-stream"].includes(file.type)) {
