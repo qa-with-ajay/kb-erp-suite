@@ -102,7 +102,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       });
       if (stockEntryParsed?.success) {
         const inward = await createStockMovement(tx, businessUnit.id, session.user.id, {
-          type: "INWARD", productId: updated.id, locationId: stockEntryParsed.data.locationId,
+          type: "INWARD", productId: updated.id, variantId: stockEntryParsed.data.variantId || null, locationId: stockEntryParsed.data.locationId,
           quantity: stockEntryParsed.data.quantity, unitCost: stockEntryParsed.data.unitCost,
           reference: stockEntryParsed.data.reference || null,
           reason: "Stock inward recorded from product form.", idempotencyKey: stockEntryParsed.data.idempotencyKey,
