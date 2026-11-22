@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getInventoryAccess } from "@/lib/inventory-auth";
 import { productUpdateSchema, readJsonBody } from "@/lib/catalog-validation";
+import { productStockEntrySchema } from "@/lib/stock-validation";
+import { createStockMovement } from "@/lib/stock-service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -37,7 +39,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   if (!uuidPattern.test(id)) return NextResponse.json({ error: "Invalid product ID." }, { status: 400 });
   const body = await readJsonBody(request);
   if (!body.success) return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
-  const parsed = productUpdateSchema.safeParse(body.data);
+  const raw = body.data as Record<string, unknown>;
+  const stockEntryParsed = raw.stockEntry == null ? null : productStockEntrySchema.safeParse(raw.stockEntry);
+  if (stockEntryParsed && !stockEntryParsed.success) return NextResponse.json({ error: "Invalid stock entry.", details: stockEntryParsed.error.flatten() }, { status: 400 });
+  const parsed = productUpdateSchema.safeParse(raw);
   if (!parsed.success || Object.keys(parsed.data ?? {}).length === 0) {
     return NextResponse.json({ error: "Invalid product data.", details: parsed.success ? undefined : parsed.error.flatten() }, { status: 400 });
   }
@@ -94,6 +99,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
           ...("imageUrl" in parsed.data ? { imageUrl: parsed.data.imageUrl || null } : {}),
         },
       });
+      if (stockEntryParsed?.success) {
+        const inward = await createStockMovement(tx, businessUnit.id, session.user.id, {
+          type: "INWARD", productId: updated.id, locationId: stockEntryParsed.data.locationId,
+          quantity: stockEntryParsed.data.quantity, unitCost: stockEntryParsed.data.unitCost,
+          reference: stockEntryParsed.data.reference || null,
+          reason: "Stock inward recorded from product form.", idempotencyKey: stockEntryParsed.data.idempotencyKey,
+        });
+        if (inward.kind === "error") throw new Error("STOCK_INWARD_" + inward.error);
+      }
       await tx.auditLog.create({
         data: {
           userId: session.user.id,
@@ -117,6 +131,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
     return NextResponse.json(result.product);
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("STOCK_INWARD_")) return NextResponse.json({ error: "Product update was rolled back because stock inward failed: " + error.message.slice(13).replaceAll("_", " ").toLowerCase() }, { status: 400 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "SKU or barcode is already assigned to another product." }, { status: 409 });
     }
