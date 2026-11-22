@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-const movementTypes = ["INWARD", "OUTWARD", "ADJUSTMENT"] as const;
 const positiveQuantity = z.string()
   .trim()
   .regex(/^\d{1,14}(?:\.\d{1,4})?$/, "Enter a positive quantity with up to 4 decimal places.")
@@ -18,30 +17,32 @@ const commonMovementFields = {
   idempotencyKey: z.string().uuid(),
 };
 
-const regularMovementSchema = z.object({
+const inwardSchema = z.object({
   ...commonMovementFields,
-  type: z.enum(movementTypes),
+  type: z.literal("INWARD"),
   locationId: z.string().uuid(),
-  adjustmentDirection: z.enum(["INCREASE", "DECREASE"]).optional(),
+  unitCost,
+});
+const outwardSchema = z.object({
+  ...commonMovementFields,
+  type: z.literal("OUTWARD"),
+  locationId: z.string().uuid(),
+});
+const adjustmentSchema = z.object({
+  ...commonMovementFields,
+  type: z.literal("ADJUSTMENT"),
+  locationId: z.string().uuid(),
+  adjustmentDirection: z.enum(["INCREASE", "DECREASE"]),
   unitCost: unitCost.optional(),
 }).superRefine((value, context) => {
-  const costRequired = value.type === "INWARD" ||
-    (value.type === "ADJUSTMENT" && value.adjustmentDirection === "INCREASE");
-  if (costRequired && value.unitCost === undefined) {
+  if (value.adjustmentDirection === "INCREASE" && value.unitCost === undefined) {
     context.addIssue({ code: "custom", path: ["unitCost"], message: "Unit cost is required for stock increases." });
   }
-  if (value.type === "ADJUSTMENT" && !value.adjustmentDirection) {
-    context.addIssue({ code: "custom", path: ["adjustmentDirection"], message: "Choose whether the adjustment increases or decreases stock." });
-  }
-  if (value.type !== "ADJUSTMENT" && value.adjustmentDirection !== undefined) {
-    context.addIssue({ code: "custom", path: ["adjustmentDirection"], message: "Adjustment direction is only valid for an adjustment." });
-  }
-  if (value.type === "ADJUSTMENT" && !value.reason?.trim()) {
+  if (!value.reason?.trim()) {
     context.addIssue({ code: "custom", path: ["reason"], message: "A reason is required for stock adjustments." });
   }
 });
-
-const transferMovementSchema = z.object({
+const transferSchema = z.object({
   ...commonMovementFields,
   type: z.literal("TRANSFER"),
   sourceLocationId: z.string().uuid(),
@@ -53,10 +54,7 @@ const transferMovementSchema = z.object({
 });
 
 export const stockMovementInputSchema = z.discriminatedUnion("type", [
-  regularMovementSchema.extend({ type: z.literal("INWARD") }),
-  regularMovementSchema.extend({ type: z.literal("OUTWARD"), unitCost: z.never().optional() }),
-  regularMovementSchema.extend({ type: z.literal("ADJUSTMENT") }),
-  transferMovementSchema,
+  inwardSchema, outwardSchema, adjustmentSchema, transferSchema,
 ]);
 
 export const productStockEntrySchema = z.object({
