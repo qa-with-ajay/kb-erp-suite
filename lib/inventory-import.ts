@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { createStockMovement } from "@/lib/stock-service";
 
 export const MAX_IMPORT_ROWS = 500;
 export const MAX_IMPORT_BYTES = 1_000_000;
@@ -201,21 +202,21 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
     let categoryId: string | null = null;
     let brandId: string | null = null;
     if (row.category) {
-      const category = await tx.category.upsert({
-        where: { businessUnitId_name: { businessUnitId, name: row.category } },
-        create: { businessUnitId, name: row.category },
-        update: { isActive: true },
-        select: { id: true },
+      const existingCategory = await tx.category.findFirst({
+        where: { businessUnitId, name: { equals: row.category, mode: "insensitive" } },
+        select: { id: true, isActive: true },
       });
+      if (existingCategory && !existingCategory.isActive) throw new Error(`Category "${row.category}" is inactive. Activate it before importing.`);
+      const category = existingCategory ?? await tx.category.create({ data: { businessUnitId, name: row.category }, select: { id: true } });
       categoryId = category.id;
     }
     if (row.brand) {
-      const brand = await tx.brand.upsert({
-        where: { businessUnitId_name: { businessUnitId, name: row.brand } },
-        create: { businessUnitId, name: row.brand },
-        update: { isActive: true },
-        select: { id: true },
+      const existingBrand = await tx.brand.findFirst({
+        where: { businessUnitId, name: { equals: row.brand, mode: "insensitive" } },
+        select: { id: true, isActive: true },
       });
+      if (existingBrand && !existingBrand.isActive) throw new Error(`Brand "${row.brand}" is inactive. Activate it before importing.`);
+      const brand = existingBrand ?? await tx.brand.create({ data: { businessUnitId, name: row.brand }, select: { id: true } });
       brandId = brand.id;
     }
 
@@ -254,7 +255,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       if (row.openingAlreadyRecorded) {
         openingStockSkipped += 1;
       } else {
-        const result = await (await import("@/lib/stock-service")).createStockMovement(tx, businessUnitId, actorId, {
+        const result = await createStockMovement(tx, businessUnitId, actorId, {
           type: "OPENING",
           locationId: row.openingLocationId,
           productId: productId!,
