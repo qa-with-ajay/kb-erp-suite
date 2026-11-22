@@ -294,14 +294,9 @@ export function ProductForm({ productId }: Props) {
         </label>
 
         <label className="text-sm font-medium">
-          SKU / product code
-          <input
-            required
-            maxLength={80}
-            value={values.sku}
-            onChange={(event) => update("sku", event.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 p-2.5"
-          />
+          SKU / product code (optional)
+          <input maxLength={80} value={values.sku} onChange={(event) => update("sku", event.target.value)} placeholder="Generated automatically if left blank" className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
+          <span className="mt-1 block text-xs text-gray-500">Leave blank to generate a unique KB SKU from the selected category. You can also enter your own code.</span>
         </label>
 
         <label className="text-sm font-medium">
@@ -376,19 +371,6 @@ export function ProductForm({ productId }: Props) {
               </option>
             ))}
           </select>
-        </label>
-
-        <label className="text-sm font-medium">
-          Purchase price
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            required
-            value={values.purchasePrice}
-            onChange={(event) => update("purchasePrice", event.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 p-2.5"
-          />
         </label>
 
         <label className="text-sm font-medium">
