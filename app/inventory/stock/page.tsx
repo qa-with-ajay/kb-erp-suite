@@ -13,7 +13,7 @@ export default async function StockPage() {
       <header className="mb-6">
         <Breadcrumbs items={[{ label: "Inventory", href: "/inventory" }, { label: "Stock management" }]} />
         <h1 className="text-2xl font-bold">Stock management</h1>
-        <p className="mt-1 text-sm text-gray-600">Opening stock, inward, outward and adjustments for the active business unit.</p>
+        <p className="mt-1 text-sm text-gray-600">Record stock inward, outward and adjustments; review current balances and the stock ledger.</p>
       </header>
       <StockManager canManage={canManage} />
     </main>
