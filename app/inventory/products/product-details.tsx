@@ -39,7 +39,13 @@ type Product = {
   brand: { id: string; name: string } | null;
   variants: Variant[];
   unitConversions: Conversion[];
-  stockBalances: { id: string; quantity: string; averageCost: string; location: { id: string; name: string; code: string }; variant: Variant | null }[];
+  stockBalances: {
+    id: string;
+    quantity: string;
+    averageCost: string;
+    location: { id: string; name: string; code: string };
+    variant: { id: string; code: string | null; attributes: Record<string, string> } | null;
+  }[];
 };
 type AttributeRow = { key: string; value: string };
 const units = ["PCS", "SQFT", "BOX", "RFT", "ROLL", "METER", "KG", "LITRE", "BUNDLE", "SET"];
