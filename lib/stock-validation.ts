@@ -70,6 +70,7 @@ export const stockListSchema = z.object({
   search: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  locationId: z.string().uuid().optional(),
 });
 
 export function parseStockList(searchParams: URLSearchParams) {
@@ -77,5 +78,6 @@ export function parseStockList(searchParams: URLSearchParams) {
     search: searchParams.get("search") ?? "",
     page: searchParams.get("page") ?? "1",
     pageSize: searchParams.get("pageSize") ?? "20",
+    ...(searchParams.get("locationId") ? { locationId: searchParams.get("locationId") } : {}),
   });
 }
