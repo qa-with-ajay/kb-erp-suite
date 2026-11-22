@@ -33,7 +33,7 @@ export type InventoryImportRow = {
 
 export type ImportIssue = { rowNumber: number; field: string; message: string };
 export type ValidatedImportRow = InventoryImportRow & {
-  action: "CREATE" | "UPDATE";
+  action: "CREATE" | "UPDATE" | "STOCK_ONLY";
   existingProductId: string | null;
   inwardLocationId: string | null;
   inwardMovementAlreadyExists: boolean;
@@ -88,7 +88,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   const parsed = parseInventoryCsv(text);
   const issues: ImportIssue[] = [];
   const rows: ValidatedImportRow[] = [];
-  const seenSkus = new Map<string, number>();
+  const seenSkus = new Map<string, { rowNumber: number; fingerprint: string }>();
   const seenBarcodes = new Map<string, number>();
   const skuValues = parsed.map(({ record }) => record.sku?.trim()).filter(Boolean);
   const barcodeValues = parsed.map(({ record }) => record.barcode?.trim()).filter(Boolean);
@@ -127,8 +127,17 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
 
     if (!skuPattern.test(sku)) addIssue(rowNumber, "sku", "SKU is required; use up to 80 letters, numbers, dot, dash, slash or underscore.");
     const normalizedSku = sku.toLowerCase();
-    if (sku && seenSkus.has(normalizedSku)) addIssue(rowNumber, "sku", `Duplicate SKU in file (also row ${seenSkus.get(normalizedSku)}).`);
-    if (sku) seenSkus.set(normalizedSku, rowNumber);
+    const productFingerprint = JSON.stringify({
+      name: name.toLowerCase(), description, productType, baseUnit, sellingPrice, gstPercentage,
+      minimumStock, category: category?.toLowerCase() ?? null, brand: brand?.toLowerCase() ?? null,
+      barcode: barcode?.toLowerCase() ?? null, barcodeType,
+    });
+    const priorSkuRow = sku ? seenSkus.get(normalizedSku) : undefined;
+    const stockOnlyDuplicate = Boolean(priorSkuRow);
+    if (priorSkuRow && (stockMode !== "INWARD" || priorSkuRow.fingerprint !== productFingerprint || Number(inwardQuantity) <= 0)) {
+      addIssue(rowNumber, "sku", `Duplicate SKU in file (also row ${priorSkuRow.rowNumber}). Duplicate SKU rows are allowed only for identical product details with separate stock inward rows.`);
+    }
+    if (sku && !priorSkuRow) seenSkus.set(normalizedSku, { rowNumber, fingerprint: productFingerprint });
     if (!name || name.length > 160) addIssue(rowNumber, "name", "Product name is required and must be at most 160 characters.");
     if (description && description.length > 2000) addIssue(rowNumber, "description", "Description must be at most 2,000 characters.");
     if (!["STANDARD", "PANEL"].includes(productType)) addIssue(rowNumber, "productType", "Use STANDARD or PANEL.");
@@ -191,7 +200,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       gstPercentage, minimumStock, category, brand, barcode,
       barcodeType: barcodeType as InventoryImportRow["barcodeType"],
       inwardQuantity, inwardUnitCost, inwardLocation, inwardReference,
-      action: existing ? "UPDATE" : "CREATE",
+      action: stockOnlyDuplicate ? "STOCK_ONLY" : existing ? "UPDATE" : "CREATE",
       existingProductId: existing?.id ?? null,
       inwardLocationId, inwardMovementAlreadyExists,
     });
@@ -250,15 +259,17 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       barcodeType: row.barcodeType,
       ...(row.barcodeType === "MANUFACTURER" ? { barcode: row.barcode } : {}),
     };
-    let productId = row.existingProductId;
+    let productId = row.existingProductId ?? productIdsBySku.get(row.sku.toLowerCase()) ?? null;
     if (productId) {
       const current = await tx.product.findFirst({ where: { id: productId, businessUnitId }, select: { barcode: true, barcodeType: true } });
       if (!current) throw new Error(`Product with SKU ${row.sku} changed during import. Preview the file again.`);
-      await tx.product.update({ where: { id: productId }, data: {
-        ...fields,
-        barcode: row.barcodeType === "MANUFACTURER" ? row.barcode : (current.barcodeType === "INTERNAL" ? current.barcode : `KB${randomUUID().replace(/-/g, "").toUpperCase()}`),
-      }});
-      updated += 1;
+      if (row.action === "UPDATE") {
+        await tx.product.update({ where: { id: productId }, data: {
+          ...fields,
+          barcode: row.barcodeType === "MANUFACTURER" ? row.barcode : (current.barcodeType === "INTERNAL" ? current.barcode : `KB${randomUUID().replace(/-/g, "").toUpperCase()}`),
+        }});
+        updated += 1;
+      }
     } else {
       const id = randomUUID();
       const barcode = row.barcodeType === "INTERNAL" ? `KB${id.replace(/-/g, "").toUpperCase()}` : row.barcode;
@@ -266,6 +277,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       productId = product.id;
       created += 1;
     }
+    productIdsBySku.set(row.sku.toLowerCase(), productId);
 
     if (stockMode === "INWARD" && Number(row.inwardQuantity) > 0 && row.inwardLocationId && row.inwardReference) {
       const idempotencyKey = createHash("sha256").update(`${businessUnitId}:INWARD:${row.inwardReference.trim().toLowerCase()}:${row.sku.toLowerCase()}:${row.inwardLocationId}`).digest("hex");
