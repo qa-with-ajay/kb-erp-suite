@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const movementTypes = ["OPENING", "INWARD", "OUTWARD", "ADJUSTMENT"] as const;
+const movementTypes = ["INWARD", "OUTWARD", "ADJUSTMENT"] as const;
 const positiveQuantity = z.string()
   .trim()
   .regex(/^\d{1,14}(?:\.\d{1,4})?$/, "Enter a positive quantity with up to 4 decimal places.")
@@ -21,7 +21,7 @@ export const stockMovementInputSchema = z.object({
   reason: z.string().trim().max(500).nullable().optional(),
   idempotencyKey: z.string().uuid(),
 }).superRefine((value, context) => {
-  const costRequired = value.type === "OPENING" || value.type === "INWARD" ||
+  const costRequired = value.type === "INWARD" ||
     (value.type === "ADJUSTMENT" && value.adjustmentDirection === "INCREASE");
   if (costRequired && value.unitCost === undefined) {
     context.addIssue({ code: "custom", path: ["unitCost"], message: "Unit cost is required for stock increases." });
