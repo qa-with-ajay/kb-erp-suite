@@ -6,7 +6,7 @@ export const MAX_IMPORT_ROWS = 500;
 export const MAX_IMPORT_BYTES = 1_000_000;
 
 export const IMPORT_HEADERS = [
-  "sku", "name", "productType", "baseUnit", "purchasePrice", "sellingPrice",
+  "sku", "name", "description", "productType", "baseUnit", "purchasePrice", "sellingPrice",
   "gstPercentage", "minimumStock", "category", "brand", "barcode",
   "barcodeType", "openingQuantity", "openingUnitCost", "openingLocation",
 ] as const;
@@ -15,6 +15,7 @@ export type InventoryImportRow = {
   rowNumber: number;
   sku: string;
   name: string;
+  description: string | null;
   productType: "STANDARD" | "PANEL";
   baseUnit: "PCS" | "SQFT" | "BOX" | "RFT" | "ROLL" | "METER" | "KG" | "LITRE" | "BUNDLE" | "SET";
   purchasePrice: string;
@@ -105,6 +106,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   for (const { rowNumber, record } of parsed) {
     const sku = (record.sku ?? "").trim();
     const name = (record.name ?? "").trim();
+    const description = (record.description ?? "").trim() || null;
     const productType = (record.producttype || "STANDARD").trim().toUpperCase();
     const baseUnit = (record.baseunit || "PCS").trim().toUpperCase();
     const purchasePrice = (record.purchaseprice ?? "").trim();
@@ -124,6 +126,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (sku && seenSkus.has(normalizedSku)) addIssue(rowNumber, "sku", `Duplicate SKU in file (also row ${seenSkus.get(normalizedSku)}).`);
     if (sku) seenSkus.set(normalizedSku, rowNumber);
     if (!name || name.length > 160) addIssue(rowNumber, "name", "Product name is required and must be at most 160 characters.");
+    if (description && description.length > 2000) addIssue(rowNumber, "description", "Description must be at most 2,000 characters.");
     if (!["STANDARD", "PANEL"].includes(productType)) addIssue(rowNumber, "productType", "Use STANDARD or PANEL.");
     if (!allowedUnits.has(baseUnit)) addIssue(rowNumber, "baseUnit", "Unsupported unit of measurement.");
     if (productType === "PANEL" && baseUnit !== "SQFT") addIssue(rowNumber, "baseUnit", "Panel products must use SQFT as their base unit.");
@@ -172,7 +175,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     }
 
     rows.push({
-      rowNumber, sku, name, productType: productType as InventoryImportRow["productType"],
+      rowNumber, sku, name, description, productType: productType as InventoryImportRow["productType"],
       baseUnit: baseUnit as InventoryImportRow["baseUnit"], purchasePrice, sellingPrice,
       gstPercentage, minimumStock, category, brand, barcode,
       barcodeType: barcodeType as InventoryImportRow["barcodeType"],
@@ -223,6 +226,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
     const fields = {
       name: row.name,
       sku: row.sku,
+      description: row.description,
       productType: row.productType,
       baseUnit: row.baseUnit,
       purchasePrice: new Prisma.Decimal(row.purchasePrice),
