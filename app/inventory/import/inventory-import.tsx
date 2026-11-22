@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 type PreviewRow = {
-  rowNumber: number; sku: string; name: string; action: "CREATE" | "UPDATE";
+  rowNumber: number; sku: string; name: string; action: "CREATE" | "UPDATE" | "STOCK_ONLY";
   inwardQuantity: string; inwardMovementAlreadyExists: boolean;
 };
 type Issue = { rowNumber: number; field: string; message: string };
@@ -54,7 +54,7 @@ export function InventoryImport() {
       <header className="mb-6">
         <Link href="/inventory/products" className="text-sm text-emerald-800 hover:underline">← Back to products</Link>
         <h1 className="mt-3 text-2xl font-bold text-gray-900">Bulk inventory import</h1>
-        <p className="mt-1 text-sm text-gray-600">Upload a CSV to create or update products and optionally record stock inward.</p>
+        <p className="mt-1 text-sm text-gray-600">Upload a CSV to create or update products and record stock inward at one or more locations. Repeat the same SKU on multiple rows to receive stock into different locations; product details must match.</p>
       </header>
 
       <section className="max-w-5xl space-y-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -71,7 +71,7 @@ export function InventoryImport() {
               <option value="INWARD">Product + stock inward — newly received goods</option>
             </select>
           </label>
-          <p className="mt-2 text-xs text-gray-500">{stockMode === "PRODUCTS_ONLY" ? "Creates or updates product details only. Stock balances remain unchanged." : "Use for initial inventory or any later receipt. Enter quantity, location, unit cost and a unique inward reference."}</p>
+          <p className="mt-2 text-xs text-gray-500">{stockMode === "PRODUCTS_ONLY" ? "Creates or updates product details only. Stock balances remain unchanged." : "Use for initial inventory or later receipts. Enter quantity, location, unit cost and a unique inward reference. Repeat a SKU on separate rows for different locations; product details must be identical."}</p>
         </div>
 
         <div className="border-t border-gray-100 pt-5">
@@ -99,8 +99,8 @@ export function InventoryImport() {
             {stockMode === "INWARD" && <p className="mt-3 text-sm text-gray-600">Inward stock rows: {preview.summary.inwardStockRows}. Matching references already recorded: {preview.summary.inwardStockAlreadyImported} (will be replay-safe).</p>}
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[38rem] text-left text-sm">
-                <thead className="border-b text-xs text-gray-500"><tr><th className="py-2">Row</th><th>SKU</th><th>Product</th><th>Action</th><th>{stockMode === "INWARD" ? "Inward qty" : "Stock"}</th></tr></thead>
-                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action}</td><td>{stockMode === "INWARD" ? `${row.inwardQuantity}${row.inwardMovementAlreadyExists ? " (already recorded)" : ""}` : "unchanged"}</td></tr>)}</tbody>
+                <thead className="border-b text-xs text-gray-500"><tr><th className="py-2">Row</th><th>SKU</th><th>Product</th><th>Action</th><th>Stock / location</th></tr></thead>
+                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action === "STOCK_ONLY" ? "Additional stock row" : row.action}</td><td>{stockMode === "INWARD" ? `${row.inwardQuantity} · ${row.inwardMovementAlreadyExists ? "already recorded" : "inward"}` : "unchanged"}</td></tr>)}</tbody>
               </table>
               {preview.rows.length > 50 && <p className="mt-2 text-xs text-gray-500">Showing first 50 of {preview.rows.length} rows.</p>}
             </div>
@@ -108,7 +108,7 @@ export function InventoryImport() {
               <h3 className="font-semibold text-red-900">Please correct these errors ({preview.issues.length})</h3>
               <ul className="mt-2 max-h-56 list-disc space-y-1 overflow-auto pl-5 text-sm text-red-800">{preview.issues.map((issue, index) => <li key={index}>Row {issue.rowNumber} · {issue.field}: {issue.message}</li>)}</ul>
             </div>}
-            <button type="button" disabled={!canCommit || loading} onClick={() => submit("commit")} className="mt-4 rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Confirm and import {preview.summary.validRows} products</button>
+            <button type="button" disabled={!canCommit || loading} onClick={() => submit("commit")} className="mt-4 rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Confirm and import {preview.summary.validRows} rows</button>
             {!canCommit && <p className="mt-2 text-xs text-gray-500">Import is enabled only when every row passes validation.</p>}
           </div>
         </>}
