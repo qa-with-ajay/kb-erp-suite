@@ -103,7 +103,7 @@ export async function POST(request: Request) {
           productId: created.id,
           quantity: entry.quantity,
           unitCost: entry.unitCost,
-          reference: `PRODUCT-CREATE:${created.sku}:${entry.locationId}`,
+          reference: `PRODUCT-CREATE:${created.id}:${entry.locationId}`,
           reason: "Opening stock recorded when product was created.",
           idempotencyKey: randomUUID(),
         });
