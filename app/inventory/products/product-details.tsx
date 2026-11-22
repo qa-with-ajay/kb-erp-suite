@@ -28,7 +28,6 @@ type Product = {
   description: string | null;
   productType: "STANDARD" | "PANEL";
   baseUnit: string;
-  purchasePrice: string;
   sellingPrice: string;
   gstPercentage: string;
   minimumStock: string;
@@ -261,7 +260,6 @@ export function ProductDetails({ productId, canManage }: Props) {
       <section className="grid gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
         <p><span className="block text-xs text-gray-500">Category</span>{product.category?.name ?? "—"}</p>
         <p><span className="block text-xs text-gray-500">Brand</span>{product.brand?.name ?? "—"}</p>
-        <p><span className="block text-xs text-gray-500">Purchase price</span>{product.purchasePrice}</p>
         <p><span className="block text-xs text-gray-500">Selling price / GST</span>{product.sellingPrice} / {product.gstPercentage}%</p>
         <p><span className="block text-xs text-gray-500">Minimum stock</span>{product.minimumStock} {product.baseUnit}</p>
         <p><span className="block text-xs text-gray-500">Status</span>{product.isActive ? "Active" : "Inactive"}</p>
