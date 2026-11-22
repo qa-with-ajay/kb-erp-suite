@@ -6,7 +6,7 @@ export const MAX_IMPORT_ROWS = 500;
 export const MAX_IMPORT_BYTES = 1_000_000;
 
 export const IMPORT_HEADERS = [
-  "sku", "name", "description", "productType", "baseUnit", "purchasePrice", "sellingPrice",
+  "sku", "name", "description", "productType", "baseUnit", "sellingPrice",
   "gstPercentage", "minimumStock", "category", "brand", "barcode",
   "barcodeType", "inwardQuantity", "inwardUnitCost", "inwardLocation", "inwardReference",
 ] as const;
@@ -18,7 +18,6 @@ export type InventoryImportRow = {
   description: string | null;
   productType: "STANDARD" | "PANEL";
   baseUnit: "PCS" | "SQFT" | "BOX" | "RFT" | "ROLL" | "METER" | "KG" | "LITRE" | "BUNDLE" | "SET";
-  purchasePrice: string;
   sellingPrice: string;
   gstPercentage: string;
   minimumStock: string;
@@ -64,7 +63,7 @@ export function parseInventoryCsv(text: string) {
   const headers = parseCsvLine(lines[0]).map((header) => header.trim());
   const normalized = headers.map((header) => header.toLowerCase());
   if (new Set(normalized).size !== normalized.length) throw new Error("CSV contains duplicate column headers.");
-  const missing = ["sku", "name", "producttype", "baseunit", "purchaseprice", "sellingprice"]
+  const missing = ["sku", "name", "producttype", "baseunit", "sellingprice"]
     .filter((header) => !normalized.includes(header));
   if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}.`);
   if (lines.length - 1 > MAX_IMPORT_ROWS) throw new Error(`A maximum of ${MAX_IMPORT_ROWS} product rows is allowed per import.`);
@@ -112,7 +111,6 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     const description = (record.description ?? "").trim() || null;
     const productType = (record.producttype || "STANDARD").trim().toUpperCase();
     const baseUnit = (record.baseunit || "PCS").trim().toUpperCase();
-    const purchasePrice = (record.purchaseprice ?? "").trim();
     const sellingPrice = (record.sellingprice ?? "").trim();
     const gstPercentage = (record.gstpercentage || "0").trim();
     const minimumStock = (record.minimumstock || "0").trim();
@@ -121,7 +119,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     const barcode = (record.barcode || "").trim() || null;
     const barcodeType = (record.barcodetype || (barcode ? "MANUFACTURER" : "INTERNAL")).trim().toUpperCase();
     const inwardQuantity = (record.inwardquantity || "0").trim();
-    const inwardUnitCost = (record.inwardunitcost || purchasePrice || "0").trim();
+    const inwardUnitCost = (record.inwardunitcost || "").trim();
     const inwardLocation = (record.inwardlocation || "").trim() || null;
     const inwardReference = (record.inwardreference || "").trim() || null;
 
@@ -134,12 +132,11 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (!["STANDARD", "PANEL"].includes(productType)) addIssue(rowNumber, "productType", "Use STANDARD or PANEL.");
     if (!allowedUnits.has(baseUnit)) addIssue(rowNumber, "baseUnit", "Unsupported unit of measurement.");
     if (productType === "PANEL" && !["PCS", "SQFT"].includes(baseUnit)) addIssue(rowNumber, "baseUnit", "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock.");
-    if (!money.test(purchasePrice)) addIssue(rowNumber, "purchasePrice", "Enter a non-negative price with up to 2 decimal places.");
     if (!money.test(sellingPrice)) addIssue(rowNumber, "sellingPrice", "Enter a non-negative price with up to 2 decimal places.");
     if (!/^\d{1,2}(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/.test(gstPercentage) || Number(gstPercentage) > 100) addIssue(rowNumber, "gstPercentage", "GST must be between 0 and 100.");
     if (!quantity.test(minimumStock)) addIssue(rowNumber, "minimumStock", "Enter a non-negative quantity with up to 4 decimal places.");
     if (!quantity.test(inwardQuantity)) addIssue(rowNumber, "inwardQuantity", "Enter a non-negative inward quantity with up to 4 decimal places.");
-    if (!money.test(inwardUnitCost)) addIssue(rowNumber, "inwardUnitCost", "Enter a non-negative inward unit cost.");
+    if (stockMode === "INWARD" && Number(inwardQuantity) > 0 && !money.test(inwardUnitCost)) addIssue(rowNumber, "inwardUnitCost", "Enter a non-negative inward unit cost.");
     if (stockMode === "INWARD" && Number(inwardQuantity) > 0) {
       if (!inwardLocation) addIssue(rowNumber, "inwardLocation", "Select a stock location when inward quantity is greater than zero.");
       if (!inwardReference) addIssue(rowNumber, "inwardReference", "A stock inward reference is required for duplicate-import protection (for example, supplier invoice number).");
@@ -186,7 +183,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
 
     rows.push({
       rowNumber, sku, name, description, productType: productType as InventoryImportRow["productType"],
-      baseUnit: baseUnit as InventoryImportRow["baseUnit"], purchasePrice, sellingPrice,
+      baseUnit: baseUnit as InventoryImportRow["baseUnit"], sellingPrice,
       gstPercentage, minimumStock, category, brand, barcode,
       barcodeType: barcodeType as InventoryImportRow["barcodeType"],
       inwardQuantity, inwardUnitCost, inwardLocation, inwardReference,
@@ -241,7 +238,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       description: row.description,
       productType: row.productType,
       baseUnit: row.baseUnit,
-      purchasePrice: new Prisma.Decimal(row.purchasePrice),
+      purchasePrice: new Prisma.Decimal(0),
       sellingPrice: new Prisma.Decimal(row.sellingPrice),
       gstPercentage: new Prisma.Decimal(row.gstPercentage),
       minimumStock: new Prisma.Decimal(row.minimumStock),
