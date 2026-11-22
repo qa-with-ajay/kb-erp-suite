@@ -8,8 +8,7 @@ export const MAX_IMPORT_BYTES = 1_000_000;
 export const IMPORT_HEADERS = [
   "sku", "name", "description", "productType", "baseUnit", "purchasePrice", "sellingPrice",
   "gstPercentage", "minimumStock", "category", "brand", "barcode",
-  "barcodeType", "openingQuantity", "openingUnitCost", "openingLocation",
-  "inwardQuantity", "inwardUnitCost", "inwardLocation", "inwardReference",
+  "barcodeType", "inwardQuantity", "inwardUnitCost", "inwardLocation", "inwardReference",
 ] as const;
 
 export type InventoryImportRow = {
@@ -27,9 +26,6 @@ export type InventoryImportRow = {
   brand: string | null;
   barcode: string | null;
   barcodeType: "INTERNAL" | "MANUFACTURER";
-  openingQuantity: string;
-  openingUnitCost: string;
-  openingLocation: string | null;
   inwardQuantity: string;
   inwardUnitCost: string;
   inwardLocation: string | null;
@@ -40,8 +36,6 @@ export type ImportIssue = { rowNumber: number; field: string; message: string };
 export type ValidatedImportRow = InventoryImportRow & {
   action: "CREATE" | "UPDATE";
   existingProductId: string | null;
-  openingLocationId: string | null;
-  openingBlockedByHistory: boolean;
   inwardLocationId: string | null;
   inwardMovementAlreadyExists: boolean;
 };
@@ -88,9 +82,9 @@ const money = /^\d{1,12}(?:\.\d{1,2})?$/;
 const quantity = /^\d{1,10}(?:\.\d{1,4})?$/;
 const skuPattern = /^[A-Za-z0-9._/-]{1,80}$/;
 
-export type InventoryStockMode = "PRODUCTS_ONLY" | "OPENING" | "INWARD";
+export type InventoryStockMode = "PRODUCTS_ONLY" | "INWARD";
 
-export async function validateInventoryImport(db: any, businessUnitId: string, text: string, updateExisting: boolean, stockMode: InventoryStockMode = "OPENING") {
+export async function validateInventoryImport(db: any, businessUnitId: string, text: string, updateExisting: boolean, stockMode: InventoryStockMode = "PRODUCTS_ONLY") {
   const parsed = parseInventoryCsv(text);
   const issues: ImportIssue[] = [];
   const rows: ValidatedImportRow[] = [];
@@ -126,9 +120,6 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     const brand = (record.brand || "").trim() || null;
     const barcode = (record.barcode || "").trim() || null;
     const barcodeType = (record.barcodetype || (barcode ? "MANUFACTURER" : "INTERNAL")).trim().toUpperCase();
-    const openingQuantity = (record.openingquantity || "0").trim();
-    const openingUnitCost = (record.openingunitcost || purchasePrice || "0").trim();
-    const openingLocation = (record.openinglocation || "").trim() || null;
     const inwardQuantity = (record.inwardquantity || "0").trim();
     const inwardUnitCost = (record.inwardunitcost || purchasePrice || "0").trim();
     const inwardLocation = (record.inwardlocation || "").trim() || null;
@@ -147,11 +138,8 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (!money.test(sellingPrice)) addIssue(rowNumber, "sellingPrice", "Enter a non-negative price with up to 2 decimal places.");
     if (!/^\d{1,2}(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/.test(gstPercentage) || Number(gstPercentage) > 100) addIssue(rowNumber, "gstPercentage", "GST must be between 0 and 100.");
     if (!quantity.test(minimumStock)) addIssue(rowNumber, "minimumStock", "Enter a non-negative quantity with up to 4 decimal places.");
-    if (!quantity.test(openingQuantity)) addIssue(rowNumber, "openingQuantity", "Enter a non-negative opening quantity with up to 4 decimal places.");
-    if (!money.test(openingUnitCost)) addIssue(rowNumber, "openingUnitCost", "Enter a non-negative opening unit cost.");
     if (!quantity.test(inwardQuantity)) addIssue(rowNumber, "inwardQuantity", "Enter a non-negative inward quantity with up to 4 decimal places.");
     if (!money.test(inwardUnitCost)) addIssue(rowNumber, "inwardUnitCost", "Enter a non-negative inward unit cost.");
-    if (stockMode === "OPENING" && Number(openingQuantity) > 0 && !openingLocation) addIssue(rowNumber, "openingLocation", "Select a stock location when opening quantity is greater than zero.");
     if (stockMode === "INWARD" && Number(inwardQuantity) > 0) {
       if (!inwardLocation) addIssue(rowNumber, "inwardLocation", "Select a stock location when inward quantity is greater than zero.");
       if (!inwardReference) addIssue(rowNumber, "inwardReference", "A stock inward reference is required for duplicate-import protection (for example, supplier invoice number).");
@@ -181,20 +169,6 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       if (duplicateBarcode) addIssue(rowNumber, "barcode", "Barcode is already assigned to another product in this business unit.");
     }
 
-    let openingLocationId: string | null = null;
-    let openingBlockedByHistory = false;
-    if (stockMode === "OPENING" && Number(openingQuantity) > 0) {
-      if (!openingLocation) addIssue(rowNumber, "openingLocation", "Select a stock location when opening quantity is greater than zero.");
-      else {
-        openingLocationId = locationNames.get(openingLocation.toLowerCase()) ?? null;
-        if (!openingLocationId) addIssue(rowNumber, "openingLocation", "Stock location was not found in this business unit.");
-        else if (existing) {
-          const count = await db.stockLedgerEntry.count({ where: { businessUnitId, productId: existing.id, locationId: openingLocationId, variantId: null, stockKind: "STANDARD" } });
-          openingBlockedByHistory = count > 0;
-        }
-      }
-    }
-
     let inwardLocationId: string | null = null;
     let inwardMovementAlreadyExists = false;
     if (stockMode === "INWARD" && Number(inwardQuantity) > 0 && inwardLocation) {
@@ -215,10 +189,9 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       baseUnit: baseUnit as InventoryImportRow["baseUnit"], purchasePrice, sellingPrice,
       gstPercentage, minimumStock, category, brand, barcode,
       barcodeType: barcodeType as InventoryImportRow["barcodeType"],
-      openingQuantity, openingUnitCost, openingLocation,
       inwardQuantity, inwardUnitCost, inwardLocation, inwardReference,
       action: existing ? "UPDATE" : "CREATE",
-      existingProductId: existing?.id ?? null, openingLocationId, openingBlockedByHistory,
+      existingProductId: existing?.id ?? null,
       inwardLocationId, inwardMovementAlreadyExists,
     });
   }
@@ -229,18 +202,14 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     invalidRows: new Set(issues.map((issue) => issue.rowNumber)).size,
     newProducts: rows.filter((row) => row.action === "CREATE").length,
     existingProducts: rows.filter((row) => row.action === "UPDATE").length,
-    openingStockRows: stockMode === "OPENING" ? rows.filter((row) => Number(row.openingQuantity) > 0).length : 0,
-    openingStockBlockedByHistory: rows.filter((row) => row.openingBlockedByHistory).length,
     inwardStockRows: stockMode === "INWARD" ? rows.filter((row) => Number(row.inwardQuantity) > 0).length : 0,
     inwardStockAlreadyImported: rows.filter((row) => row.inwardMovementAlreadyExists).length,
   }};
 }
 
-export async function applyInventoryImport(tx: Prisma.TransactionClient, businessUnitId: string, actorId: string, rows: ValidatedImportRow[], stockMode: InventoryStockMode = "OPENING") {
+export async function applyInventoryImport(tx: Prisma.TransactionClient, businessUnitId: string, actorId: string, rows: ValidatedImportRow[], stockMode: InventoryStockMode = "PRODUCTS_ONLY") {
   let created = 0;
   let updated = 0;
-  let openingStockCreated = 0;
-  let openingStockSkipped = 0;
   let inwardStockCreated = 0;
   let inwardStockReplayed = 0;
 
@@ -298,26 +267,6 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       created += 1;
     }
 
-    if (stockMode === "OPENING" && Number(row.openingQuantity) > 0 && row.openingLocationId) {
-      if (row.openingBlockedByHistory) {
-        openingStockSkipped += 1;
-      } else {
-        const result = await createStockMovement(tx, businessUnitId, actorId, {
-          type: "OPENING",
-          locationId: row.openingLocationId,
-          productId: productId!,
-          quantity: row.openingQuantity,
-          unitCost: row.openingUnitCost,
-          reference: `BULK-IMPORT:${row.sku}`,
-          reason: "Opening stock created during bulk inventory import.",
-          idempotencyKey: createHash("sha256").update(`${businessUnitId}:OPENING:${row.sku}:${row.openingLocationId}`).digest("hex"),
-        });
-        if (result.kind === "error") throw new Error(`Opening stock failed for SKU ${row.sku}: ${result.error}.`);
-        if (result.kind === "created") openingStockCreated += 1;
-        else openingStockSkipped += 1;
-      }
-    }
-
     if (stockMode === "INWARD" && Number(row.inwardQuantity) > 0 && row.inwardLocationId && row.inwardReference) {
       const idempotencyKey = createHash("sha256").update(`${businessUnitId}:INWARD:${row.inwardReference.trim().toLowerCase()}:${row.sku.toLowerCase()}:${row.inwardLocationId}`).digest("hex");
       const result = await createStockMovement(tx, businessUnitId, actorId, {
@@ -345,8 +294,8 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
   await tx.auditLog.create({
     data: {
       userId: actorId, businessUnitId, action: "IMPORT", entity: "InventoryImport",
-      details: { totalRows: rows.length, stockMode, created, updated, openingStockCreated, openingStockSkipped, inwardStockCreated, inwardStockReplayed },
+      details: { totalRows: rows.length, stockMode, created, updated, inwardStockCreated, inwardStockReplayed },
     },
   });
-  return { totalRows: rows.length, stockMode, created, updated, openingStockCreated, openingStockSkipped, inwardStockCreated, inwardStockReplayed };
+  return { totalRows: rows.length, stockMode, created, updated, inwardStockCreated, inwardStockReplayed };
 }
