@@ -96,10 +96,10 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     db.brand.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
     db.stockLocation.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
   ]);
-  const productBySku = new Map(products.map((item: any) => [item.sku.toLowerCase(), item]));
-  const categoryNames = new Map(categories.map((item: any) => [item.name.toLowerCase(), item.id]));
-  const brandNames = new Map(brands.map((item: any) => [item.name.toLowerCase(), item.id]));
-  const locationNames = new Map(locations.map((item: any) => [item.name.toLowerCase(), item.id]));
+  const productBySku = new Map<string, any>(products.map((item: any) => [item.sku.toLowerCase(), item] as [string, any]));
+  const categoryNames = new Map<string, string>(categories.map((item: any) => [item.name.toLowerCase(), item.id] as [string, string]));
+  const brandNames = new Map<string, string>(brands.map((item: any) => [item.name.toLowerCase(), item.id] as [string, string]));
+  const locationNames = new Map<string, string>(locations.map((item: any) => [item.name.toLowerCase(), item.id] as [string, string]));
 
   const addIssue = (rowNumber: number, field: string, message: string) => issues.push({ rowNumber, field, message });
 
