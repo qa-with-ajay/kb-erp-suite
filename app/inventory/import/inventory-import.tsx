@@ -5,7 +5,7 @@ import { useState } from "react";
 
 type PreviewRow = {
   rowNumber: number; sku: string; name: string; action: "CREATE" | "UPDATE" | "STOCK_ONLY";
-  inwardQuantity: string; inwardMovementAlreadyExists: boolean;
+  inwardQuantity: string; inwardLocation: string | null; inwardMovementAlreadyExists: boolean;
 };
 type Issue = { rowNumber: number; field: string; message: string };
 type Preview = {
@@ -100,7 +100,7 @@ export function InventoryImport() {
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[38rem] text-left text-sm">
                 <thead className="border-b text-xs text-gray-500"><tr><th className="py-2">Row</th><th>SKU</th><th>Product</th><th>Action</th><th>Stock / location</th></tr></thead>
-                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action === "STOCK_ONLY" ? "Additional stock row" : row.action}</td><td>{stockMode === "INWARD" ? `${row.inwardQuantity} · ${row.inwardMovementAlreadyExists ? "already recorded" : "inward"}` : "unchanged"}</td></tr>)}</tbody>
+                <tbody>{preview.rows.slice(0, 50).map((row) => <tr key={row.rowNumber} className="border-b border-gray-100"><td className="py-2">{row.rowNumber}</td><td>{row.sku}</td><td>{row.name}</td><td>{row.action === "STOCK_ONLY" ? "Additional stock row" : row.action}</td><td>{stockMode === "INWARD" ? `${row.inwardQuantity} · ${row.inwardLocation ?? "location missing"} · ${row.inwardMovementAlreadyExists ? "already recorded" : "inward"}` : "unchanged"}</td></tr>)}</tbody>
               </table>
               {preview.rows.length > 50 && <p className="mt-2 text-xs text-gray-500">Showing first 50 of {preview.rows.length} rows.</p>}
             </div>
