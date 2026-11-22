@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   try {
     const product = await prisma.$transaction(async (tx) => {
       const productFields = parsed.data;
-      const sku = parsed.data.sku || await generateProductSku(tx, businessUnit.id, parsed.data.categoryId || null);
+      const sku = parsed.data.sku?.trim().toUpperCase() || await generateProductSku(tx, businessUnit.id, parsed.data.categoryId || null);
       if (parsed.data.categoryId) {
         const category = await tx.category.findFirst({
           where: { id: parsed.data.categoryId, businessUnitId: businessUnit.id, isActive: true },
