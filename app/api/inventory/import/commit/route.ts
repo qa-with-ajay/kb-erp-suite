@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const file = form.get("file");
     const updateExisting = form.get("updateExisting") === "true";
-    const stockMode = form.get("stockMode") || "PRODUCTS_ONLY";
+    const rawStockMode = form.get("stockMode");
+    const stockMode = typeof rawStockMode === "string" ? rawStockMode : "PRODUCTS_ONLY";
     if (!["PRODUCTS_ONLY", "OPENING", "INWARD"].includes(stockMode)) return NextResponse.json({ error: "Choose a valid stock import mode." }, { status: 400 });
     if (!(file instanceof File)) return NextResponse.json({ error: "Choose a CSV file to import." }, { status: 400 });
     if (!file.name.toLowerCase().endsWith(".csv")) return NextResponse.json({ error: "Only CSV files are supported." }, { status: 400 });
