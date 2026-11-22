@@ -78,6 +78,7 @@ export function parseInventoryCsv(text: string) {
 
 const allowedUnits = new Set(["PCS", "SQFT", "BOX", "RFT", "ROLL", "METER", "KG", "LITRE", "BUNDLE", "SET"]);
 const money = /^\d{1,12}(?:\.\d{1,2})?$/;
+const unitCostPattern = /^\d{1,10}(?:\.\d{1,4})?$/;
 const quantity = /^\d{1,10}(?:\.\d{1,4})?$/;
 const skuPattern = /^[A-Za-z0-9._/-]{1,80}$/;
 
@@ -137,7 +138,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (!/^\d{1,2}(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/.test(gstPercentage) || Number(gstPercentage) > 100) addIssue(rowNumber, "gstPercentage", "GST must be between 0 and 100.");
     if (!quantity.test(minimumStock)) addIssue(rowNumber, "minimumStock", "Enter a non-negative quantity with up to 4 decimal places.");
     if (!quantity.test(inwardQuantity)) addIssue(rowNumber, "inwardQuantity", "Enter a non-negative inward quantity with up to 4 decimal places.");
-    if (stockMode === "INWARD" && Number(inwardQuantity) > 0 && !money.test(inwardUnitCost)) addIssue(rowNumber, "inwardUnitCost", "Enter a non-negative inward unit cost.");
+    if (stockMode === "INWARD" && Number(inwardQuantity) > 0 && !unitCostPattern.test(inwardUnitCost)) addIssue(rowNumber, "inwardUnitCost", "Enter a non-negative inward unit cost.");
     if (stockMode === "INWARD" && Number(inwardQuantity) > 0) {
       if (!inwardLocation) addIssue(rowNumber, "inwardLocation", "Select a stock location when inward quantity is greater than zero.");
       if (!inwardReference) addIssue(rowNumber, "inwardReference", "A stock inward reference is required for duplicate-import protection (for example, supplier invoice number).");
