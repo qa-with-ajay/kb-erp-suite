@@ -11,7 +11,7 @@ async function readUpload(request: Request) {
   const updateExisting = form.get("updateExisting") === "true";
   const rawStockMode = form.get("stockMode");
   const stockMode = typeof rawStockMode === "string" ? rawStockMode : "PRODUCTS_ONLY";
-  if (!["PRODUCTS_ONLY", "OPENING", "INWARD"].includes(stockMode)) throw new Error("Choose a valid stock import mode.");
+  if (!["PRODUCTS_ONLY", "INWARD"].includes(stockMode)) throw new Error("Choose a valid stock import mode.");
   if (!(file instanceof File)) throw new Error("Choose a CSV file to upload.");
   if (!file.name.toLowerCase().endsWith(".csv") || file.type && !["text/csv", "application/vnd.ms-excel", "application/octet-stream"].includes(file.type)) {
     throw new Error("Only CSV files are supported in this release.");
