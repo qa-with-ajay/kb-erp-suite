@@ -155,6 +155,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (stockMode === "INWARD" && Number(inwardQuantity) > 0) {
       if (!inwardLocation) addIssue(rowNumber, "inwardLocation", "Select a stock location when inward quantity is greater than zero.");
       if (!inwardReference) addIssue(rowNumber, "inwardReference", "A stock inward reference is required for duplicate-import protection (for example, supplier invoice number).");
+      if (inwardReference && inwardReference.length > 100) addIssue(rowNumber, "inwardReference", "Inward reference must be at most 100 characters.");
     }
     if (!["INTERNAL", "MANUFACTURER"].includes(barcodeType)) addIssue(rowNumber, "barcodeType", "Use INTERNAL or MANUFACTURER.");
     if (barcodeType === "MANUFACTURER" && !barcode) addIssue(rowNumber, "barcode", "Manufacturer barcode is required.");
@@ -199,9 +200,10 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (stockMode === "INWARD" && Number(inwardQuantity) > 0 && inwardLocation) {
       inwardLocationId = locationNames.get(inwardLocation.toLowerCase()) ?? null;
       if (!inwardLocationId) addIssue(rowNumber, "inwardLocation", "Stock location was not found in this business unit.");
-      if (inwardReference && existing && inwardLocationId) {
-        const prior = await db.stockMovement.findFirst({
-          where: { businessUnitId, reference: inwardReference, type: "INWARD", ledgerEntries: { some: { productId: existing.id, locationId: inwardLocationId, stockKind: "STANDARD" } } },
+      if (inwardReference && inwardLocationId) {
+        const idempotencyKey = createHash("sha256").update(`${businessUnitId}:INWARD:${inwardReference.trim().toLowerCase()}:${sku.toLowerCase()}:${inwardLocationId}`).digest("hex");
+        const prior = await db.stockMovement.findUnique({
+          where: { businessUnitId_idempotencyKey: { businessUnitId, idempotencyKey } },
           select: { id: true },
         });
         inwardMovementAlreadyExists = Boolean(prior);
