@@ -238,7 +238,6 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       description: row.description,
       productType: row.productType,
       baseUnit: row.baseUnit,
-      purchasePrice: new Prisma.Decimal(0),
       sellingPrice: new Prisma.Decimal(row.sellingPrice),
       gstPercentage: new Prisma.Decimal(row.gstPercentage),
       minimumStock: new Prisma.Decimal(row.minimumStock),
@@ -259,7 +258,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
     } else {
       const id = randomUUID();
       const barcode = row.barcodeType === "INTERNAL" ? `KB${id.replace(/-/g, "").toUpperCase()}` : row.barcode;
-      const product = await tx.product.create({ data: { id, businessUnitId, ...fields, barcode } });
+      const product = await tx.product.create({ data: { id, businessUnitId, ...fields, purchasePrice: new Prisma.Decimal(0), barcode } });
       productId = product.id;
       created += 1;
     }
