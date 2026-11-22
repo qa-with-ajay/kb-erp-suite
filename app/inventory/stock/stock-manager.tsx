@@ -251,7 +251,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               <>
                 <label className="text-sm font-medium">
                   From location
-                  <select required value={sourceLocationId} onChange={(event) => { setSourceLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                  <select required value={sourceLocationId} onChange={(event) => { const nextSource = event.target.value; setSourceLocationId(nextSource); if (nextSource === destinationLocationId) setDestinationLocationId(locations.find((item) => item.id !== nextSource)?.id ?? ""); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
                     <option value="">Select source</option>
                     {locations.map((location) => <option key={location.id} value={location.id}>{location.name} ({location.code})</option>)}
                   </select>
