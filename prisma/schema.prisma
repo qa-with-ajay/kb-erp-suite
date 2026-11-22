@@ -906,7 +906,6 @@ enum UserRole {
 enum LegacyBusinessUnit {
   KB_INTERIORS
   KB_ELECTRICALS
-  KB_FURNITURE
   KB_KITCHEN_BATH
   KB_TOOLS
   KB_TECH
