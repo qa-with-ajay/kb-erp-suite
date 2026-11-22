@@ -434,6 +434,15 @@ export function ProductForm({ productId }: Props) {
           />
         </label>
 
+        {!productId && (
+          <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 md:col-span-2">
+            <h2 className="font-semibold text-gray-900">Inventory & Stock Management</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              This product will be created with zero available stock. After saving, use Stock Management to record initial inventory or any later stock receipt through Stock Inward.
+            </p>
+          </section>
+        )}
+
         <label className="text-sm font-medium">
           Barcode source
           <select
