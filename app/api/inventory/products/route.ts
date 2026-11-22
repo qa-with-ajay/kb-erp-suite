@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { getInventoryAccess } from "@/lib/inventory-auth";
 import { parseProductList, productInputSchema, readJsonBody } from "@/lib/catalog-validation";
 import { createStockMovement } from "@/lib/stock-service";
+import { productStockEntrySchema } from "@/lib/stock-validation";
+import { generateProductSku } from "@/lib/sku";
 
 export async function GET(request: Request) {
   const access = await getInventoryAccess("inventory.read");
@@ -58,12 +60,16 @@ export async function POST(request: Request) {
 
   const body = await readJsonBody(request);
   if (!body.success) return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
-  const parsed = productInputSchema.safeParse(body.data);
+  const raw = body.data as Record<string, unknown>;
+  const stockEntryParsed = raw.stockEntry == null ? null : productStockEntrySchema.safeParse(raw.stockEntry);
+  if (stockEntryParsed && !stockEntryParsed.success) return NextResponse.json({ error: "Invalid stock entry.", details: stockEntryParsed.error.flatten() }, { status: 400 });
+  const parsed = productInputSchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "Invalid product data.", details: parsed.error.flatten() }, { status: 400 });
 
   try {
     const product = await prisma.$transaction(async (tx) => {
       const productFields = parsed.data;
+      const sku = parsed.data.sku || await generateProductSku(tx, businessUnit.id, parsed.data.categoryId || null);
       if (parsed.data.categoryId) {
         const category = await tx.category.findFirst({
           where: { id: parsed.data.categoryId, businessUnitId: businessUnit.id, isActive: true },
@@ -88,6 +94,8 @@ export async function POST(request: Request) {
           id: productId,
           businessUnitId: businessUnit.id,
           ...productFields,
+          sku,
+          purchasePrice: new Prisma.Decimal(0),
           barcode,
           barcodeType,
           description: parsed.data.description || null,
@@ -96,6 +104,16 @@ export async function POST(request: Request) {
           imageUrl: parsed.data.imageUrl || null,
         },
       });
+      if (stockEntryParsed?.success) {
+        const inward = await createStockMovement(tx, businessUnit.id, session.user.id, {
+          type: "INWARD", productId: created.id, locationId: stockEntryParsed.data.locationId,
+          quantity: stockEntryParsed.data.quantity, unitCost: stockEntryParsed.data.unitCost,
+          reference: stockEntryParsed.data.reference || null,
+          reason: "Initial stock inward recorded from product form.",
+          idempotencyKey: stockEntryParsed.data.idempotencyKey,
+        });
+        if (inward.kind === "error") throw new Error("STOCK_INWARD_" + inward.error);
+      }
       await tx.auditLog.create({
         data: {
           userId: session.user.id,
@@ -110,6 +128,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("STOCK_INWARD_")) return NextResponse.json({ error: "Product could not be saved because stock inward failed: " + error.message.slice(13).replaceAll("_", " ").toLowerCase() }, { status: 400 });
     if (error instanceof Error && error.message === "CATEGORY_NOT_AVAILABLE") {
       return NextResponse.json({ error: "Select an active category." }, { status: 400 });
     }
