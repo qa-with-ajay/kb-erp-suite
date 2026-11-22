@@ -16,10 +16,10 @@ export async function generateProductSku(
     : null;
   const prefix = `KB-${categoryPrefix(category?.name ?? null)}-`;
 
-  // Serialize SKU allocation for this business unit and prefix.
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${businessUnitId}), hashtext(${prefix}))`;
+  // Serialize SKU allocation globally for this prefix across all business units.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}))`;
   const existing = await tx.product.findMany({
-    where: { businessUnitId, sku: { startsWith: prefix } },
+    where: { sku: { startsWith: prefix } },
     select: { sku: true },
   });
   const maxNumber = existing.reduce((max, product) => {
