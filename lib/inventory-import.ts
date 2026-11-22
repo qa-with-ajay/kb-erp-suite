@@ -106,7 +106,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   const addIssue = (rowNumber: number, field: string, message: string) => issues.push({ rowNumber, field, message });
 
   for (const { rowNumber, record } of parsed) {
-    const sku = (record.sku ?? "").trim();
+    const sku = (record.sku ?? "").trim().toUpperCase();
     const name = (record.name ?? "").trim();
     const description = (record.description ?? "").trim() || null;
     const productType = (record.producttype || "STANDARD").trim().toUpperCase();
