@@ -37,6 +37,15 @@ export const stockMovementInputSchema = z.object({
   }
 });
 
+
+export const productStockEntrySchema = z.object({
+  locationId: z.string().uuid(),
+  quantity: positiveQuantity,
+  unitCost,
+  reference: z.string().trim().max(100).nullable().optional(),
+  idempotencyKey: z.string().uuid(),
+});
+
 export const stockListSchema = z.object({
   search: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).default(1),
