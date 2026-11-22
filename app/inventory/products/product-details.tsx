@@ -39,6 +39,7 @@ type Product = {
   brand: { id: string; name: string } | null;
   variants: Variant[];
   unitConversions: Conversion[];
+  stockBalances: { id: string; quantity: string; averageCost: string; location: { id: string; name: string; code: string }; variant: Variant | null }[];
 };
 type AttributeRow = { key: string; value: string };
 const units = ["PCS", "SQFT", "BOX", "RFT", "ROLL", "METER", "KG", "LITRE", "BUNDLE", "SET"];
@@ -270,6 +271,40 @@ export function ProductDetails({ productId, canManage }: Props) {
         </div>
         <p><span className="block text-xs text-gray-500">Image reference</span>{product.imageUrl ?? "—"}</p>
         {product.description && <p className="sm:col-span-2 lg:col-span-4"><span className="block text-xs text-gray-500">Description</span>{product.description}</p>}
+      </section>
+
+      <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">Available stock</h2>
+            <p className="mt-1 text-sm text-gray-600">Live balance from Stock Management, grouped by location and variant.</p>
+          </div>
+          <Link href="/inventory/stock" className="text-sm font-medium text-emerald-900 hover:underline">Open Stock Management</Link>
+        </div>
+        {product.stockBalances.length ? (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Total available</span>
+                <span className="mt-1 block text-xl font-semibold tabular-nums">{product.stockBalances.reduce((total, balance) => total + Number(balance.quantity), 0).toLocaleString("en-IN", { maximumFractionDigits: 4 })} {product.baseUnit}</span>
+              </div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[28rem] text-left text-sm">
+                <thead className="border-b border-gray-200 text-gray-500"><tr><th className="py-2 pr-3">Location</th><th className="py-2 pr-3">Variant</th><th className="py-2 text-right">Available quantity</th></tr></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {product.stockBalances.map((balance) => (
+                    <tr key={balance.id}>
+                      <td className="py-3 pr-3">{balance.location.name} ({balance.location.code})</td>
+                      <td className="py-3 pr-3">{balance.variant ? [balance.variant.code, Object.entries(balance.variant.attributes).map(([key, value]) => `${key}: ${value}`).join(", ")].filter(Boolean).join(" · ") : "—"}</td>
+                      <td className="py-3 text-right font-medium tabular-nums">{Number(balance.quantity).toLocaleString("en-IN", { maximumFractionDigits: 4 })} {product.baseUnit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : <p className="mt-4 text-sm text-gray-500">No stock has been received for this product yet.</p>}
       </section>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
