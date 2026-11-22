@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getInventoryAccess } from "@/lib/inventory-auth";
 import { parseProductList, productInputSchema, readJsonBody } from "@/lib/catalog-validation";
+import { createStockMovement } from "@/lib/stock-service";
 
 export async function GET(request: Request) {
   const access = await getInventoryAccess("inventory.read");
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
 
   try {
     const product = await prisma.$transaction(async (tx) => {
+      const { openingStock, ...productFields } = parsed.data;
       if (parsed.data.categoryId) {
         const category = await tx.category.findFirst({
           where: { id: parsed.data.categoryId, businessUnitId: businessUnit.id, isActive: true },
@@ -85,7 +87,7 @@ export async function POST(request: Request) {
         data: {
           id: productId,
           businessUnitId: businessUnit.id,
-          ...parsed.data,
+          ...productFields,
           barcode,
           barcodeType,
           description: parsed.data.description || null,
@@ -94,6 +96,21 @@ export async function POST(request: Request) {
           imageUrl: parsed.data.imageUrl || null,
         },
       });
+      for (const entry of openingStock) {
+        const movement = await createStockMovement(tx, businessUnit.id, session.user.id, {
+          type: "OPENING",
+          locationId: entry.locationId,
+          productId: created.id,
+          quantity: entry.quantity,
+          unitCost: entry.unitCost,
+          reference: `PRODUCT-CREATE:${created.sku}:${entry.locationId}`,
+          reason: "Opening stock recorded when product was created.",
+          idempotencyKey: randomUUID(),
+        });
+        if (movement.kind === "error") {
+          throw new Error(`OPENING_STOCK_${movement.error}`);
+        }
+      }
       await tx.auditLog.create({
         data: {
           userId: session.user.id,
@@ -101,13 +118,22 @@ export async function POST(request: Request) {
           action: "CREATE",
           entity: "Product",
           entityId: created.id,
-          details: { name: created.name, sku: created.sku },
+          details: { name: created.name, sku: created.sku, openingStockLocations: openingStock.length },
         },
       });
       return created;
     });
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("OPENING_STOCK_")) {
+      const reason = error.message.replace("OPENING_STOCK_", "");
+      const message = reason === "LOCATION_NOT_AVAILABLE"
+        ? "Opening stock could not be recorded because the selected location is unavailable."
+        : reason === "PRODUCT_NOT_AVAILABLE"
+          ? "Opening stock could not be recorded for the new product."
+          : "Opening stock could not be recorded. No product was saved; review the location and stock details.";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
     if (error instanceof Error && error.message === "CATEGORY_NOT_AVAILABLE") {
       return NextResponse.json({ error: "Select an active category." }, { status: 400 });
     }
