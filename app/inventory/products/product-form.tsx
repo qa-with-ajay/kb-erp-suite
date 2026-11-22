@@ -23,6 +23,7 @@ type ProductData = {
   categoryId: string | null;
   brandId: string | null;
   isActive: boolean;
+  variants?: { id: string; code: string | null; attributes: Record<string, string>; isActive: boolean }[];
 };
 type FormValues = Omit<
   ProductData,
@@ -91,6 +92,8 @@ export function ProductForm({ productId }: Props) {
   const [stockUnitCost, setStockUnitCost] = useState("");
   const [stockLocationId, setStockLocationId] = useState("");
   const [stockReference, setStockReference] = useState("");
+  const [productVariants, setProductVariants] = useState<NonNullable<ProductData["variants"]>>([]);
+  const [stockVariantId, setStockVariantId] = useState("");
   const [loading, setLoading] = useState(Boolean(productId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +150,9 @@ export function ProductForm({ productId }: Props) {
         setBrands(brandItems);
 
         if (product) {
+          const activeVariants = (product.variants ?? []).filter((variant) => variant.isActive);
+          setProductVariants(activeVariants);
+          setStockVariantId(activeVariants.length === 1 ? activeVariants[0].id : "");
           setValues({
             name: product.name,
             sku: product.sku,
@@ -196,7 +202,7 @@ export function ProductForm({ productId }: Props) {
 
     setSaving(true);
     setError(null);
-    if ((stockQuantity || stockUnitCost) && (!stockQuantity || Number(stockQuantity) <= 0 || !stockUnitCost || !stockLocationId)) {
+    if ((stockQuantity || stockUnitCost) && (!stockQuantity || Number(stockQuantity) <= 0 || !stockUnitCost || !stockLocationId || (productVariants.length > 0 && !stockVariantId))) {
       setError("To record stock inward, enter quantity, location and unit cost. Leave all stock fields empty to save without stock.");
       setSaving(false);
       return;
@@ -213,7 +219,7 @@ export function ProductForm({ productId }: Props) {
           body: JSON.stringify({
             ...values,
             sku: values.sku.trim() || undefined,
-            stockEntry: stockQuantity ? { locationId: stockLocationId, quantity: stockQuantity, unitCost: stockUnitCost, reference: stockReference || null, idempotencyKey: crypto.randomUUID() } : undefined,
+            stockEntry: stockQuantity ? { locationId: stockLocationId, variantId: stockVariantId || null, quantity: stockQuantity, unitCost: stockUnitCost, reference: stockReference || null, idempotencyKey: crypto.randomUUID() } : undefined,
             description: values.description || null,
             barcode: values.barcode || null,
             barcodeType: values.barcodeType,
@@ -433,6 +439,7 @@ export function ProductForm({ productId }: Props) {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className="text-sm font-medium">Inward quantity ({values.baseUnit})<input type="number" min="0" step="0.0001" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} placeholder="e.g. 100" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
             <label className="text-sm font-medium">Stock location<select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select location</option>{stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>{!stockLocations.length && <span className="mt-1 block text-xs text-amber-700">No active stock locations available. You can save the product and add stock later.</span>}</label>
+            {productVariants.length > 0 && <label className="text-sm font-medium">Product variant<select value={stockVariantId} onChange={(event) => setStockVariantId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select variant</option>{productVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.code || Object.entries(variant.attributes).map(([key, value]) => key + ": " + value).join(", ")}</option>)}</select></label>}
             <label className="text-sm font-medium">Unit cost<input type="number" min="0" step="0.0001" value={stockUnitCost} onChange={(event) => setStockUnitCost(event.target.value)} placeholder="Actual cost per base unit" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
             <label className="text-sm font-medium">Reference / invoice number (optional)<input maxLength={100} value={stockReference} onChange={(event) => setStockReference(event.target.value)} placeholder="Supplier invoice or reference" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
           </div>
