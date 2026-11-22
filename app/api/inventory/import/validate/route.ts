@@ -18,7 +18,7 @@ async function readUpload(request: Request) {
   }
   if (file.size === 0 || file.size > MAX_IMPORT_BYTES) throw new Error("CSV file must be between 1 byte and 1 MB.");
   const text = await file.text();
-  return { text, updateExisting, stockMode: stockMode as "PRODUCTS_ONLY" | "OPENING" | "INWARD" };
+  return { text, updateExisting, stockMode: stockMode as "PRODUCTS_ONLY" | "INWARD" };
 }
 
 export async function POST(request: Request) {
