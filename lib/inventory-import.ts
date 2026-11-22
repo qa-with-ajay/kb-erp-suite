@@ -36,7 +36,7 @@ export type ValidatedImportRow = InventoryImportRow & {
   action: "CREATE" | "UPDATE";
   existingProductId: string | null;
   openingLocationId: string | null;
-  openingAlreadyRecorded: boolean;
+  openingBlockedByHistory: boolean;
 };
 
 function parseCsvLine(line: string): string[] {
@@ -161,7 +161,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     }
 
     let openingLocationId: string | null = null;
-    let openingAlreadyRecorded = false;
+    let openingBlockedByHistory = false;
     if (Number(openingQuantity) > 0) {
       if (!openingLocation) addIssue(rowNumber, "openingLocation", "Select a stock location when opening quantity is greater than zero.");
       else {
@@ -169,7 +169,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
         if (!openingLocationId) addIssue(rowNumber, "openingLocation", "Stock location was not found in this business unit.");
         else if (existing) {
           const count = await db.stockLedgerEntry.count({ where: { businessUnitId, productId: existing.id, locationId: openingLocationId, variantId: null, stockKind: "STANDARD" } });
-          openingAlreadyRecorded = count > 0;
+          openingBlockedByHistory = count > 0;
         }
       }
     }
@@ -180,7 +180,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       gstPercentage, minimumStock, category, brand, barcode,
       barcodeType: barcodeType as InventoryImportRow["barcodeType"],
       openingQuantity, openingUnitCost, openingLocation, action: existing ? "UPDATE" : "CREATE",
-      existingProductId: existing?.id ?? null, openingLocationId, openingAlreadyRecorded,
+      existingProductId: existing?.id ?? null, openingLocationId, openingBlockedByHistory,
     });
   }
 
@@ -191,7 +191,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     newProducts: rows.filter((row) => row.action === "CREATE").length,
     existingProducts: rows.filter((row) => row.action === "UPDATE").length,
     openingStockRows: rows.filter((row) => Number(row.openingQuantity) > 0).length,
-    openingStockAlreadyRecorded: rows.filter((row) => row.openingAlreadyRecorded).length,
+    openingStockBlockedByHistory: rows.filter((row) => row.openingBlockedByHistory).length,
   }};
 }
 
@@ -256,7 +256,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
     }
 
     if (Number(row.openingQuantity) > 0 && row.openingLocationId) {
-      if (row.openingAlreadyRecorded) {
+      if (row.openingBlockedByHistory) {
         openingStockSkipped += 1;
       } else {
         const result = await createStockMovement(tx, businessUnitId, actorId, {
