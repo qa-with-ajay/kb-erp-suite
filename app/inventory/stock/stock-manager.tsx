@@ -165,12 +165,12 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   async function handleBarcodeScan(code: string) {
     try {
       const response = await fetch(`/api/inventory/scan?code=${encodeURIComponent(code)}${locationId ? `&locationId=${encodeURIComponent(locationId)}` : ""}`);
-      const body = await readJson<{ product: ProductOption & { purchasePrice?: string }; matchedVariantId: string | null }>(response);
+      const body = await readJson<{ product: ProductOption; matchedVariantId: string | null }>(response);
       setProducts((current) => current.some((item) => item.id === body.product.id) ? current : [body.product, ...current]);
       setProductId(body.product.id);
       setVariantId(body.matchedVariantId ?? "");
       setQuantity((current) => current || "1");
-      setUnitCost((current) => current || body.product.purchasePrice || "0");
+      setUnitCost("");
       invalidateRequestKey();
       setError("");
     } catch (cause) {
