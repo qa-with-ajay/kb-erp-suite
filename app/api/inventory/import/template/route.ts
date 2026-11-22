@@ -5,7 +5,7 @@ import { IMPORT_HEADERS } from "@/lib/inventory-import";
 export async function GET() {
   const access = await getInventoryAccess("inventory.manage");
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
-  const headers = IMPORT_HEADERS.filter((header) => !header.startsWith("opening"));
+  const headers = IMPORT_HEADERS;
   const csv = [
     headers.join(","),
     "KB-001,Sample PVC Panel,,PANEL,PCS,450.00,650.00,18,10,Wall Panels,Sample Brand,,INTERNAL,100,450.00,Main Store,SUP-INV-001",
