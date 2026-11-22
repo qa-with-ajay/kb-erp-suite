@@ -91,6 +91,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         where: { id },
         data: {
           ...parsed.data,
+          ...(parsed.data.sku ? { sku: parsed.data.sku.trim().toUpperCase() } : {}),
           barcodeType: nextBarcodeType,
           barcode: nextBarcodeType === "INTERNAL" ? (generatedBarcode ?? current.barcode) : (parsed.data.barcode ?? current.barcode),
           ...("description" in parsed.data ? { description: parsed.data.description || null } : {}),
