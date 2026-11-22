@@ -170,7 +170,7 @@ export function ProductForm({ productId }: Props) {
       locationRequest,
       productRequest,
     ])
-      .then(([categoryItems, brandItems, locationItems, product]) => {
+      .then(([categoryItems, brandItems, product]) => {
         setCategories(categoryItems);
         setBrands(brandItems);
         setLocations(locationItems);
@@ -229,40 +229,6 @@ export function ProductForm({ productId }: Props) {
     setValues((current) => ({ ...current, [key]: value }));
   }
 
-  function updateOpeningStock(
-    index: number,
-    key: keyof OpeningStockEntry,
-    value: string
-  ) {
-    setOpeningStock((current) =>
-      current.map((entry, i) =>
-        i === index ? { ...entry, [key]: value } : entry
-      )
-    );
-  }
-
-  function addOpeningStockLocation() {
-    setOpeningStock((current) => [
-      ...current,
-      {
-        locationId: "",
-        quantity: "0",
-        unitCost: values.purchasePrice || "0",
-      },
-    ]);
-  }
-
-  function removeOpeningStockLocation(index: number) {
-    setOpeningStock((current) =>
-      current.filter((_, i) => i !== index)
-    );
-  }
-
-  const openingStockTotal = openingStock.reduce(
-    (total, entry) => total + (Number(entry.quantity) || 0),
-    0
-  );
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -270,42 +236,6 @@ export function ProductForm({ productId }: Props) {
     setError(null);
 
     try {
-      const positiveEntries = openingStock.filter(
-        (entry) => Number(entry.quantity) > 0
-      );
-
-      if (!productId) {
-        const selectedLocations = positiveEntries.map(
-          (entry) => entry.locationId
-        );
-
-        if (positiveEntries.some((entry) => !entry.locationId)) {
-          throw new Error(
-            "Please select a stock location for every positive opening quantity."
-          );
-        }
-
-        if (
-          new Set(selectedLocations).size !== selectedLocations.length
-        ) {
-          throw new Error(
-            "Each stock location can be entered only once."
-          );
-        }
-
-        if (
-          positiveEntries.some(
-            (entry) =>
-              !Number.isFinite(Number(entry.quantity)) ||
-              Number(entry.quantity) < 0 ||
-              !Number.isFinite(Number(entry.unitCost)) ||
-              Number(entry.unitCost) < 0
-          )
-        ) {
-          throw new Error("Please enter valid opening stock quantities and costs.");
-        }
-      }
-
       const response = await fetch(
         productId
           ? `/api/inventory/products/${productId}`
