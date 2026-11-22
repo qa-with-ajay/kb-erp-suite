@@ -89,7 +89,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   const issues: ImportIssue[] = [];
   const rows: ValidatedImportRow[] = [];
   const seenSkus = new Map<string, { rowNumber: number; fingerprint: string }>();
-  const seenBarcodes = new Map<string, number>();
+  const seenBarcodes = new Map<string, { rowNumber: number; sku: string }>();
   const skuValues = parsed.map(({ record }) => record.sku?.trim()).filter(Boolean);
   const barcodeValues = parsed.map(({ record }) => record.barcode?.trim()).filter(Boolean);
 
@@ -158,8 +158,11 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (barcode && barcode.length > 100) addIssue(rowNumber, "barcode", "Barcode must be at most 100 characters.");
     if (barcode) {
       const normalizedBarcode = barcode.toLowerCase();
-      if (seenBarcodes.has(normalizedBarcode)) addIssue(rowNumber, "barcode", `Duplicate barcode in file (also row ${seenBarcodes.get(normalizedBarcode)}).`);
-      seenBarcodes.set(normalizedBarcode, rowNumber);
+      const priorBarcode = seenBarcodes.get(normalizedBarcode);
+      if (priorBarcode && !(stockMode === "INWARD" && priorBarcode.sku === normalizedSku && stockOnlyDuplicate)) {
+        addIssue(rowNumber, "barcode", `Duplicate barcode in file (also row ${priorBarcode.rowNumber}).`);
+      }
+      if (!priorBarcode) seenBarcodes.set(normalizedBarcode, { rowNumber, sku: normalizedSku });
     }
 
     const existing = sku ? productBySku.get(normalizedSku) : null;
@@ -297,9 +300,9 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
     }
     await tx.auditLog.create({
       data: {
-        userId: actorId, businessUnitId, action: row.action === "CREATE" ? "CREATE" : "UPDATE",
-        entity: "Product", entityId: productId!,
-        details: { source: "BULK_IMPORT", sku: row.sku, rowNumber: row.rowNumber },
+        userId: actorId, businessUnitId, action: row.action === "CREATE" ? "CREATE" : row.action === "STOCK_ONLY" ? "STOCK_INWARD" : "UPDATE",
+        entity: row.action === "STOCK_ONLY" ? "StockImportRow" : "Product", entityId: productId!,
+        details: { source: "BULK_IMPORT", sku: row.sku, rowNumber: row.rowNumber, action: row.action },
       },
     });
   }
