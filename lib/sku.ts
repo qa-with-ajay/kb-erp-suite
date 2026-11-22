@@ -18,12 +18,14 @@ export async function generateProductSku(
 
   // Serialize SKU allocation for this business unit and prefix.
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${businessUnitId}), hashtext(${prefix}))`;
-  const latest = await tx.product.findFirst({
+  const existing = await tx.product.findMany({
     where: { businessUnitId, sku: { startsWith: prefix } },
-    orderBy: { sku: "desc" },
     select: { sku: true },
   });
-  const match = latest?.sku.match(/-(\\d+)$/);
-  const nextNumber = (match ? Number(match[1]) : 0) + 1;
+  const maxNumber = existing.reduce((max, product) => {
+    const match = product.sku.match(/-(\d+)$/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  const nextNumber = maxNumber + 1;
   return `${prefix}${String(nextNumber).padStart(4, "0")}`;
 }
