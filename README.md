@@ -38,6 +38,18 @@ Then sign in with those credentials. Do not share the admin password. The script
 ## Optional demo data (development only)
 After applying migrations and creating an administrator, run `npm run db:seed:demo` to add sample catalog items, customers, suppliers, opening stock, purchase orders/receipts, and sales across all five business units. The seed is safe to rerun, uses clearly labeled demo records, and refuses to run when `NODE_ENV=production`. It does not delete existing data.
 
+## Password recovery email (local and production)
+
+KB-ERP password recovery uses Resend for transactional email. Local development can send real reset emails; the reset URL uses `AUTH_URL` (keep it as `http://localhost:3000` locally). Configure these values in `.env`:
+
+```env
+AUTH_URL="http://localhost:3000"
+RESEND_API_KEY="re_your_resend_api_key"
+RESEND_FROM_EMAIL="KB-ERP <no-reply@your-verified-domain.com>"
+```
+
+Create a Resend account, verify the sender domain, and use the API key in your local environment. Restart `npm run dev` after changing `.env`. Request a reset from `/forgot-password`; the link is emailed to the account's registered email address and expires after 15 minutes. Reset tokens are stored as SHA-256 hashes, are single-use, and are rate-limited. After a successful reset, the password is bcrypt-hashed and existing sessions are invalidated. Do not commit real API keys or email credentials.
+
 ## LAN access
 Run the app on the shop computer with `npm run dev` (the dev script binds to `0.0.0.0`). Find the shop computer's LAN IPv4 address using `ipconfig`, then open `http://SHOP-PC-IP:3000` from another device on the same Wi-Fi. Allow Node.js through Windows Firewall only on the Private network. For daily business use, Phase 1 should be hardened and run with `npm run build && npm start`; do not expose port 3000 or PostgreSQL to the public internet.
 
