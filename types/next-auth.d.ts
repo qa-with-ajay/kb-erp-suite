@@ -22,5 +22,6 @@ declare module "next-auth/jwt" {
     role?: UserRole;
     selectedRoleCode?: string;
     userDisabled?: boolean;
+    passwordVersion?: number;
   }
 }
