@@ -39,7 +39,7 @@ const authConfig = {
 
       if (!protectedRoute) return true;
 
-      return Boolean(auth?.user);
+      return Boolean(auth?.user?.id);
     },
   },
   providers: [],
