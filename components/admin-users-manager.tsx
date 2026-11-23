@@ -20,6 +20,7 @@ export function AdminUsersManager() {
   const [data, setData] = useState<Payload>({ users: [], roles: [], businessUnits: [] });
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [canEditAccess, setCanEditAccess] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +53,7 @@ export function AdminUsersManager() {
 
   function resetForm() {
     setEditingId(null);
+    setCanEditAccess(true);
     setForm(emptyForm);
     setError("");
     setNotice("");
@@ -59,7 +61,9 @@ export function AdminUsersManager() {
 
   function editUser(user: ManagedUser) {
     const assignment = user.assignments[0];
+    const roleCodes = new Set(user.assignments.map((item) => item.roleCode));
     setEditingId(user.id);
+    setCanEditAccess(roleCodes.size <= 1);
     setForm({
       name: user.name,
       email: user.email,
@@ -89,9 +93,12 @@ export function AdminUsersManager() {
     try {
       const payload = {
         name: form.name,
-        roleCode: form.roleCode,
-        businessUnitIds: selectedRole?.scope === "GROUP" ? [] : form.businessUnitIds,
+        ...(canEditAccess ? {
+          roleCode: form.roleCode,
+          businessUnitIds: selectedRole?.scope === "GROUP" ? [] : form.businessUnitIds,
+        } : {}),
         ...(!editingId ? { email: form.email, password: form.password } : {}),
+        ...(editingId && form.password ? { password: form.password } : {}),
       };
       const response = await fetch(editingId ? `/api/admin/users/${editingId}` : "/api/admin/users", {
         method: editingId ? "PATCH" : "POST",
@@ -103,6 +110,7 @@ export function AdminUsersManager() {
       setNotice(editingId ? "User details and access assignments updated." : "User account created successfully.");
       setForm(emptyForm);
       setEditingId(null);
+      setCanEditAccess(true);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to save user.");
@@ -150,20 +158,35 @@ export function AdminUsersManager() {
               <span>Email address</span>
               <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
             </label>}
-            {!editingId && <label className="admin-users__field">
-              <span>Temporary password</span>
-              <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} autoComplete="new-password" required />
-              <small>At least 12 characters. Share it securely with the user.</small>
-            </label>}
-            <label className="admin-users__field">
-              <span>Role</span>
-              <select value={form.roleCode} onChange={(event) => setForm({ ...form, roleCode: event.target.value, businessUnitIds: [] })} required>
-                {data.roles.map((role) => <option key={role.code} value={role.code}>{roleLabel(role)}</option>)}
-              </select>
-            </label>
+            {!editingId ? (
+              <label className="admin-users__field">
+                <span>Temporary password</span>
+                <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} autoComplete="new-password" required />
+                <small>At least 12 characters. Share it securely with the user.</small>
+              </label>
+            ) : (
+              <label className="admin-users__field">
+                <span>Set a new password (optional)</span>
+                <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} autoComplete="new-password" />
+                <small>Leave blank to keep the current password. New passwords must be at least 12 characters.</small>
+              </label>
+            )}
+            {canEditAccess ? (
+              <label className="admin-users__field">
+                <span>Role</span>
+                <select value={form.roleCode} onChange={(event) => setForm({ ...form, roleCode: event.target.value, businessUnitIds: [] })} required>
+                  {data.roles.map((role) => <option key={role.code} value={role.code}>{roleLabel(role)}</option>)}
+                </select>
+              </label>
+            ) : (
+              <div className="admin-users__global-notice">
+                <strong>Multiple role assignments detected</strong>
+                <span>Role editing is disabled here to protect the user's separate access assignments. You can update the profile or reset the password without changing access.</span>
+              </div>
+            )}
           </div>
 
-          {selectedRole?.scope === "BUSINESS_UNIT" ? (
+          {canEditAccess && selectedRole?.scope === "BUSINESS_UNIT" ? (
             <fieldset className="admin-users__unit-picker">
               <legend>Assign business unit(s)</legend>
               <p>{selectedRole?.code === "UNIT_MANAGER" ? "A Unit Manager must be assigned to exactly one business unit." : "A user can only access the business units selected here."}</p>
@@ -176,7 +199,7 @@ export function AdminUsersManager() {
                 ))}
               </div>
             </fieldset>
-          ) : (
+          ) : canEditAccess ? (
             <div className="admin-users__global-notice">
               <strong>Organization-wide access</strong>
               <span>This role can work across all active business units. No individual unit assignment is required.</span>
