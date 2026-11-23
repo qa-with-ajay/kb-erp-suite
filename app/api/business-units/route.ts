@@ -13,5 +13,15 @@ export async function GET() {
     ? savedUnitId
     : (units.find(({ code }) => code === "KB_INTERIORS") ?? units[0])?.id ?? null;
 
-  return NextResponse.json({ items: units, activeBusinessUnitId });
+  const response = NextResponse.json({ items: units, activeBusinessUnitId });
+  if (activeBusinessUnitId && activeBusinessUnitId !== savedUnitId) {
+    response.cookies.set(ACTIVE_BUSINESS_UNIT_COOKIE, activeBusinessUnitId, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
+  return response;
 }
