@@ -60,6 +60,7 @@ export function ProductDetails({ productId, canManage }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [statusChangeTarget, setStatusChangeTarget] = useState<{ type: "product" } | { type: "variant"; variant: Variant } | null>(null);
   const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
   const [variantCode, setVariantCode] = useState("");
   const [variantBarcode, setVariantBarcode] = useState("");
@@ -163,27 +164,10 @@ export function ProductDetails({ productId, canManage }: Props) {
     }
   }
 
-  async function toggleVariant(variant: Variant) {
-    const action = variant.isActive ? "deactivate" : "activate";
-    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} this variant?`)) return;
-    setPending(true);
+  function requestVariantStatusChange(variant: Variant) {
     setError(null);
     setNotice(null);
-    try {
-      const response = await fetch(`/api/inventory/products/${productId}/variants/${variant.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !variant.isActive }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? `Unable to ${action} variant.`);
-      await loadProduct();
-      setNotice(`Variant ${action}d.`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : `Unable to ${action} variant.`);
-    } finally {
-      setPending(false);
-    }
+    setStatusChangeTarget({ type: "variant", variant });
   }
 
   async function saveUnit(event: FormEvent<HTMLFormElement>) {
@@ -215,24 +199,40 @@ export function ProductDetails({ productId, canManage }: Props) {
     }
   }
 
-  async function toggleProduct() {
+  function requestProductStatusChange() {
     if (!product) return;
-    const action = product.isActive ? "deactivate" : "activate";
-    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} ${product.name}?`)) return;
+    setError(null);
+    setNotice(null);
+    setStatusChangeTarget({ type: "product" });
+  }
+
+  async function confirmStatusChange() {
+    if (!product || !statusChangeTarget || pending) return;
+    const target = statusChangeTarget;
+    const isActive = target.type === "product" ? product.isActive : target.variant.isActive;
+    const action = isActive ? "deactivate" : "activate";
+    const endpoint = target.type === "product"
+      ? \`/api/inventory/products/\${product.id}\`
+      : \`/api/inventory/products/\${productId}/variants/\${target.variant.id}\`;
     setPending(true);
     setError(null);
+    setNotice(null);
     try {
-      const response = await fetch(`/api/inventory/products/${product.id}`, {
+      const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !product.isActive }),
+        body: JSON.stringify({ isActive: !isActive }),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? `Unable to ${action} product.`);
+      if (!response.ok) {
+        throw new Error(body.error ?? \`Unable to \${action} \${target.type}.\`);
+      }
       await loadProduct();
-      setNotice(`Product ${action}d.`);
+      setStatusChangeTarget(null);
+      setNotice(target.type === "product" ? \`Product \${action}d.\` : \`Variant \${action}d.\`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : `Unable to ${action} product.`);
+      setStatusChangeTarget(null);
+      setError(cause instanceof Error ? cause.message : \`Unable to \${action} \${target.type}.\`);
     } finally {
       setPending(false);
     }
@@ -263,6 +263,46 @@ export function ProductDetails({ productId, canManage }: Props) {
 
   return (
     <main className="min-h-screen p-5 md:p-10">
+      {statusChangeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="status-confirmation-title"
+            aria-describedby="status-confirmation-description"
+            className="w-full max-w-md rounded-xl bg-white p-5 text-sm text-gray-900 shadow-2xl"
+          >
+            <h2 id="status-confirmation-title" className="text-lg font-semibold">
+              Confirm {statusChangeTarget.type === "product"
+                ? product.isActive ? "product deactivation" : "product activation"
+                : statusChangeTarget.variant.isActive ? "variant deactivation" : "variant activation"}
+            </h2>
+            <p id="status-confirmation-description" className="mt-2 text-gray-600">
+              {statusChangeTarget.type === "product"
+                ? <>Are you sure you want to {product.isActive ? "deactivate" : "activate"} <span className="font-medium text-gray-900">{product.name}</span>?</>
+                : <>Are you sure you want to {statusChangeTarget.variant.isActive ? "deactivate" : "activate"} this variant{statusChangeTarget.variant.code ? <> (<span className="font-medium text-gray-900">{statusChangeTarget.variant.code}</span>)</> : ""}?</>}
+            </p>
+            <div className="mt-5 flex justify-end gap-2 border-t border-gray-100 pt-4">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setStatusChangeTarget(null)}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={confirmStatusChange}
+                className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                {pending ? "Updating…" : "Confirm"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Breadcrumbs items={[{ label: "Products", href: "/inventory/products" }, { label: product.name }]} />
@@ -272,7 +312,7 @@ export function ProductDetails({ productId, canManage }: Props) {
         {canManage && (
           <div className="flex gap-2">
             <Link href={`/inventory/products/${product.id}/edit`} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Edit product</Link>
-            <button disabled={pending} onClick={toggleProduct} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-50">{product.isActive ? "Deactivate" : "Activate"}</button>
+            <button disabled={pending} onClick={requestProductStatusChange} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-50">{product.isActive ? "Deactivate" : "Activate"}</button>
           </div>
         )}
       </header>
@@ -358,7 +398,7 @@ export function ProductDetails({ productId, canManage }: Props) {
                     <td className="py-3 pr-3">{variant.code ?? "—"}</td>
                     <td className="py-3 pr-3">{Object.entries(variant.attributes).map(([key, value]) => `${key}: ${value}`).join(", ")}</td>
                     <td className="py-3 pr-3">{variant.isActive ? "Active" : "Inactive"}</td>
-                    {canManage && <td className="py-3 text-right"><button disabled={pending} onClick={() => editVariant(variant)} className="mr-3 font-medium text-emerald-900 hover:underline">Edit</button><button disabled={pending} onClick={() => toggleVariant(variant)} className="font-medium text-gray-600 hover:underline">{variant.isActive ? "Deactivate" : "Activate"}</button></td>}
+                    {canManage && <td className="py-3 text-right"><button disabled={pending} onClick={() => editVariant(variant)} className="mr-3 font-medium text-emerald-900 hover:underline">Edit</button><button disabled={pending} onClick={() => requestVariantStatusChange(variant)} className="font-medium text-gray-600 hover:underline">{variant.isActive ? "Deactivate" : "Activate"}</button></td>}
                   </tr>
                 ))}
               </tbody>
