@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BarcodeLabel } from "@/components/barcode-label";
 
@@ -61,6 +61,11 @@ export function ProductDetails({ productId, canManage }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [statusChangeTarget, setStatusChangeTarget] = useState<{ type: "product" } | { type: "variant"; variant: Variant } | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const statusTriggerRef = useRef<HTMLElement | null>(null);
+  const pendingRef = useRef(false);
+  pendingRef.current = pending;
   const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
   const [variantCode, setVariantCode] = useState("");
   const [variantBarcode, setVariantBarcode] = useState("");
@@ -165,6 +170,7 @@ export function ProductDetails({ productId, canManage }: Props) {
   }
 
   function requestVariantStatusChange(variant: Variant) {
+    statusTriggerRef.current = document.activeElement as HTMLElement | null;
     setError(null);
     setNotice(null);
     setStatusChangeTarget({ type: "variant", variant });
@@ -201,10 +207,37 @@ export function ProductDetails({ productId, canManage }: Props) {
 
   function requestProductStatusChange() {
     if (!product) return;
+    statusTriggerRef.current = document.activeElement as HTMLElement | null;
     setError(null);
     setNotice(null);
     setStatusChangeTarget({ type: "product" });
   }
+
+  useEffect(() => {
+    if (!statusChangeTarget) return;
+    const previousFocus = statusTriggerRef.current;
+    const focusable = () => dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    cancelButtonRef.current?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !pendingRef.current) {
+        event.preventDefault();
+        setStatusChangeTarget(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = Array.from(focusable() ?? []);
+      if (!elements.length) { event.preventDefault(); return; }
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      window.requestAnimationFrame(() => previousFocus?.isConnected && previousFocus.focus());
+    };
+  }, [statusChangeTarget]);
 
   async function confirmStatusChange() {
     if (!product || !statusChangeTarget || pending) return;
@@ -266,6 +299,8 @@ export function ProductDetails({ productId, canManage }: Props) {
       {statusChangeTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
           <section
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="status-confirmation-title"
@@ -284,6 +319,7 @@ export function ProductDetails({ productId, canManage }: Props) {
             </p>
             <div className="mt-5 flex justify-end gap-2 border-t border-gray-100 pt-4">
               <button
+                ref={cancelButtonRef}
                 type="button"
                 disabled={pending}
                 onClick={() => setStatusChangeTarget(null)}
