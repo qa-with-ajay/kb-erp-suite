@@ -40,15 +40,24 @@ After applying migrations and creating an administrator, run `npm run db:seed:de
 
 ## Password recovery email (local and production)
 
-KB-ERP password recovery uses Resend for transactional email. Local development can send real reset emails; the reset URL uses `AUTH_URL` (keep it as `http://localhost:3000` locally). Configure these values in `.env`:
+KB-ERP sends password recovery emails through Gmail SMTP. Local development can send real emails; the reset URL uses `AUTH_URL` (keep it as `http://localhost:3000` locally).
+
+1. Use the Gmail account that should send KB-ERP emails.
+2. Enable 2-Step Verification on that Google Account.
+3. Create a Google App Password at https://myaccount.google.com/apppasswords. Name it `KB-ERP`.
+4. Copy the generated 16-character App Password. Do not use your normal Gmail password.
+5. Add these values to your local `.env` file:
 
 ```env
 AUTH_URL="http://localhost:3000"
-RESEND_API_KEY="re_your_resend_api_key"
-RESEND_FROM_EMAIL="KB-ERP <no-reply@your-verified-domain.com>"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER="your-email@gmail.com"
+SMTP_PASSWORD="your-16-character-google-app-password"
+EMAIL_FROM="KB-ERP <your-email@gmail.com>"
 ```
 
-Create a Resend account, verify the sender domain, and use the API key in your local environment. Restart `npm run dev` after changing `.env`. Request a reset from `/forgot-password`; the link is emailed to the account's registered email address and expires after 15 minutes. Reset tokens are stored as SHA-256 hashes, are single-use, and are rate-limited. After a successful reset, the password is bcrypt-hashed and existing sessions are invalidated. Do not commit real API keys or email credentials.
+Remove any spaces when pasting the App Password. Keep the credentials private and never commit `.env` to GitHub. Restart `npm run dev` after changing environment variables. Request a reset from `/forgot-password`; the link is emailed to the account's registered email address and expires after 15 minutes. Reset tokens are stored as SHA-256 hashes and are single-use and rate-limited. After a successful reset, the password is bcrypt-hashed and existing sessions are invalidated. Gmail may restrict sending volume; use a dedicated transactional email provider for higher-volume production use.
 
 ## LAN access
 Run the app on the shop computer with `npm run dev` (the dev script binds to `0.0.0.0`). Find the shop computer's LAN IPv4 address using `ipconfig`, then open `http://SHOP-PC-IP:3000` from another device on the same Wi-Fi. Allow Node.js through Windows Firewall only on the Private network. For daily business use, Phase 1 should be hardened and run with `npm run build && npm start`; do not expose port 3000 or PostgreSQL to the public internet.
