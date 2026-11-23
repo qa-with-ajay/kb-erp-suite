@@ -17,25 +17,53 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   if (!uuidPattern.test(id)) return NextResponse.json({ error: "Invalid product ID." }, { status: 400 });
 
-  const product = await prisma.product.findUnique({
-    where: { id, businessUnitId: businessUnit.id },
-    include: {
-      category: { select: { id: true, name: true } },
-      brand: { select: { id: true, name: true } },
-      variants: { orderBy: { createdAt: "asc" } },
-      unitConversions: { orderBy: { unit: "asc" } },
-      stockBalances: {
-        where: { stockKind: "STANDARD" },
-        include: {
-          location: { select: { id: true, name: true, code: true } },
-          variant: { select: { id: true, code: true, attributes: true } },
+  const [product, stockLocations] = await Promise.all([
+    prisma.product.findUnique({
+      where: { id, businessUnitId: businessUnit.id },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        description: true,
+        productType: true,
+        baseUnit: true,
+        sellingPrice: true,
+        gstPercentage: true,
+        minimumStock: true,
+        barcode: true,
+        barcodeType: true,
+        imageUrl: true,
+        isActive: true,
+        category: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+        variants: {
+          select: { id: true, code: true, barcode: true, attributes: true, isActive: true },
+          orderBy: { createdAt: "asc" },
         },
-        orderBy: [{ location: { name: "asc" } }, { updatedAt: "desc" }],
+        unitConversions: {
+          select: { id: true, unit: true, conversionFactor: true, isPurchaseUnit: true, isSalesUnit: true, precision: true, roundingMode: true },
+          orderBy: { unit: "asc" },
+        },
+        stockBalances: {
+          where: { stockKind: "STANDARD" },
+          select: {
+            id: true,
+            quantity: true,
+            location: { select: { id: true, name: true, code: true } },
+            variant: { select: { id: true, code: true, attributes: true } },
+          },
+          orderBy: [{ location: { name: "asc" } }, { updatedAt: "desc" }],
+        },
       },
-    },
-  });
+    }),
+    prisma.stockLocation.findMany({
+      where: { businessUnitId: businessUnit.id, isActive: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
   if (!product) return NextResponse.json({ error: "Product not found." }, { status: 404 });
-  return NextResponse.json(product);
+  return NextResponse.json({ ...product, stockLocations });
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {
