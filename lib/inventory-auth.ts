@@ -41,13 +41,14 @@ export async function getBusinessUnitAccess(permission: string): Promise<Invento
   const session = await getInventorySession();
   if (!session) return { ok: false, status: 401, error: "Authentication required." };
 
+  const selectedRoleCode = session.user.selectedRoleCode;
   const [groupRoles, unitRoles] = await Promise.all([
     prisma.userGroupRole.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, ...(selectedRoleCode ? { role: { code: selectedRoleCode } } : {}) },
       include: { role: { include: { permissions: { include: { permission: true } } } } },
     }),
     prisma.userBusinessUnitRole.findMany({
-      where: { userId: session.user.id, businessUnit: { isActive: true } },
+      where: { userId: session.user.id, businessUnit: { isActive: true }, ...(selectedRoleCode ? { role: { code: selectedRoleCode } } : {}) },
       include: {
         businessUnit: { select: { id: true, code: true, name: true } },
         role: { include: { permissions: { include: { permission: true } } } },
@@ -103,13 +104,14 @@ export async function getBusinessUnitPermissionCodes() {
   const session = await getInventorySession();
   if (!session) return new Set<string>();
 
+  const selectedRoleCode = session.user.selectedRoleCode;
   const [groupRoles, unitRoles, selectedUnitId] = await Promise.all([
     prisma.userGroupRole.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, ...(selectedRoleCode ? { role: { code: selectedRoleCode } } : {}) },
       include: { role: { include: { permissions: { include: { permission: true } } } } },
     }),
     prisma.userBusinessUnitRole.findMany({
-      where: { userId: session.user.id, businessUnit: { isActive: true } },
+      where: { userId: session.user.id, businessUnit: { isActive: true }, ...(selectedRoleCode ? { role: { code: selectedRoleCode } } : {}) },
       include: {
         businessUnit: { select: { id: true, code: true } },
         role: { include: { permissions: { include: { permission: true } } } },
@@ -156,6 +158,20 @@ export async function getInventoryAccess(permission: InventoryPermission) {
 }
 
 export async function hasGroupPermission(userId: string, permissionCode: string) {
+  const session = await auth();
+  if (session?.user?.id === userId && session.user.selectedRoleCode) {
+    const selectedRole = await prisma.role.findFirst({
+      where: {
+        code: session.user.selectedRoleCode,
+        isActive: true,
+        scope: "GROUP",
+        permissions: { some: { permission: { code: permissionCode } } },
+        groupUsers: { some: { userId } },
+      },
+      select: { id: true },
+    });
+    return Boolean(selectedRole);
+  }
   const assignment = await prisma.userGroupRole.findFirst({
     where: {
       userId,
