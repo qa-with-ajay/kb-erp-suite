@@ -61,13 +61,22 @@ export async function POST(request: Request) {
   const body = await readJsonBody(request);
   if (!body.success) return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   const raw = body.data && typeof body.data === "object" && !Array.isArray(body.data) ? body.data as Record<string, unknown> : {};
+  const requestId = raw.requestId === undefined ? null : typeof raw.requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw.requestId) ? raw.requestId : undefined;
+  if (requestId === undefined) return NextResponse.json({ error: "Invalid product creation request ID." }, { status: 400 });
   const stockEntryParsed = raw.stockEntry == null ? null : productStockEntrySchema.safeParse(raw.stockEntry);
   if (stockEntryParsed && !stockEntryParsed.success) return NextResponse.json({ error: "Invalid stock entry.", details: stockEntryParsed.error.flatten() }, { status: 400 });
+  if (requestId && stockEntryParsed?.success && stockEntryParsed.data.idempotencyKey !== requestId) {
+    return NextResponse.json({ error: "Product and initial stock request IDs must match." }, { status: 400 });
+  }
   const parsed = productInputSchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "Invalid product data.", details: parsed.error.flatten() }, { status: 400 });
 
   try {
     const product = await prisma.$transaction(async (tx) => {
+      if (requestId) {
+        const existing = await tx.product.findFirst({ where: { id: requestId, businessUnitId: businessUnit.id } });
+        if (existing) return existing;
+      }
       const productFields = parsed.data;
       const sku = parsed.data.sku?.trim().toUpperCase() || await generateProductSku(tx, businessUnit.id, parsed.data.categoryId || null);
       if (parsed.data.categoryId) {
@@ -85,7 +94,7 @@ export async function POST(request: Request) {
         if (!brand) throw new Error("BRAND_NOT_AVAILABLE");
       }
       const barcodeType = parsed.data.barcodeType ?? (parsed.data.barcode ? "MANUFACTURER" : "INTERNAL");
-      const productId = randomUUID();
+      const productId = requestId ?? randomUUID();
       const barcode = barcodeType === "INTERNAL"
         ? `KB${productId.replace(/-/g, "").toUpperCase()}`
         : parsed.data.barcode;
@@ -136,6 +145,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Select an active brand." }, { status: 400 });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (requestId) {
+        const existing = await prisma.product.findFirst({ where: { id: requestId, businessUnitId: businessUnit.id } });
+        if (existing) return NextResponse.json(existing, { status: 200 });
+      }
       return NextResponse.json({ error: "SKU or barcode is already assigned to another product." }, { status: 409 });
     }
     throw error;
