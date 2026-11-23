@@ -1,9 +1,22 @@
 "use client";
 
-import JsBarcode from "jsbarcode";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Props = { value: string; title?: string };
+
+type JsBarcodeRenderer = (
+  element: SVGSVGElement,
+  value: string,
+  options: {
+    format: "CODE128";
+    width: number;
+    height: number;
+    displayValue: boolean;
+    margin: number;
+    lineColor: string;
+    background: string;
+  }
+) => void;
 
 export function BarcodeLabel({ value, title }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -12,38 +25,67 @@ export function BarcodeLabel({ value, title }: Props) {
 
   useEffect(() => {
     const svg = svgRef.current;
+    let cancelled = false;
+
     if (!svg) return;
 
     svg.replaceChildren();
 
-    if (!normalizedValue) {
-      setError("Barcode value is empty.");
-      return;
-    }
-    if (normalizedValue.length > 80) {
-      setError("Code 128 supports up to 80 characters.");
-      return;
-    }
-    if (!/^[\x20-\x7E]+$/.test(normalizedValue)) {
-      setError("Code 128 requires printable ASCII characters. Check the barcode value.");
-      return;
-    }
+    const render = async () => {
+      if (!normalizedValue) {
+        setError("Barcode value is empty.");
+        return;
+      }
+      if (normalizedValue.length > 80) {
+        setError("Code 128 supports up to 80 characters.");
+        return;
+      }
+      if (!/^[\\x20-\\x7E]+$/.test(normalizedValue)) {
+        setError("Code 128 requires printable ASCII characters. Check the barcode value.");
+        return;
+      }
 
-    try {
-      JsBarcode(svg, normalizedValue, {
-        format: "CODE128",
-        width: 2,
-        height: 80,
-        displayValue: false,
-        margin: 10,
-        lineColor: "#000000",
-        background: "#ffffff",
-      });
-      setError(null);
-    } catch (cause) {
-      console.error("Code 128 barcode rendering failed:", cause);
-      setError("Barcode could not be encoded. Check the value and try again.");
-    }
+      try {
+        // Load the CommonJS package at runtime to avoid an undefined static
+        // default import in the Next.js/Webpack client bundle.
+        const barcodeModule = await import("jsbarcode");
+        const renderBarcode = (
+          barcodeModule.default ??
+          (barcodeModule as unknown as { default?: JsBarcodeRenderer } & JsBarcodeRenderer)
+        ) as JsBarcodeRenderer;
+
+        if (cancelled) return;
+
+        if (typeof renderBarcode !== "function") {
+          throw new Error("The jsbarcode module did not expose a renderer function.");
+        }
+
+        renderBarcode(svg, normalizedValue, {
+          format: "CODE128",
+          width: 2,
+          height: 80,
+          displayValue: false,
+          margin: 10,
+          lineColor: "#000000",
+          background: "#ffffff",
+        });
+        setError(null);
+      } catch (cause) {
+        if (cancelled) return;
+        console.error("Code 128 barcode rendering failed:", cause);
+        setError(
+          cause instanceof Error
+            ? `Barcode renderer error: ${cause.message}`
+            : "Barcode renderer failed unexpectedly."
+        );
+      }
+    };
+
+    void render();
+
+    return () => {
+      cancelled = true;
+    };
   }, [normalizedValue]);
 
   return (
