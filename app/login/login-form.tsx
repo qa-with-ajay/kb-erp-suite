@@ -30,6 +30,7 @@ export function LoginForm({ roles }: { roles: LoginRole[] }) {
         <input name="password" type="password" required autoComplete="current-password" className="mt-1 w-full rounded-lg border border-gray-300 p-3" />
       </label>
       {state.error && <p role="alert" className="text-sm text-red-700">{state.error}</p>}
+      <div className="text-right text-sm"><a href="/forgot-password" className="font-semibold text-emerald-800 hover:underline">Forgot password?</a></div>
       <button disabled={pending} className="w-full rounded-lg bg-emerald-900 p-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60">
         {pending ? "Signing in..." : "Sign in"}
       </button>
