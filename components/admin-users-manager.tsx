@@ -107,7 +107,11 @@ export function AdminUsersManager() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Unable to save user.");
-      setNotice(editingId ? "User details and access assignments updated." : "User account created successfully.");
+      setNotice(editingId
+        ? (canEditAccess
+            ? "User details and access assignments updated."
+            : "User profile or password updated. Existing role assignments were preserved.")
+        : "User account created successfully.");
       setForm(emptyForm);
       setEditingId(null);
       setCanEditAccess(true);
