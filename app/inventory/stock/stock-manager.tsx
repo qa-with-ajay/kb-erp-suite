@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 
 type ProductOption = { id: string; name: string; sku: string; baseUnit: string };
@@ -94,6 +94,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<SuccessNotice | null>(null);
+  const [confirmation, setConfirmation] = useState<string[] | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const loadBalances = useCallback(async (signal?: AbortSignal) => {
     const query = new URLSearchParams({ search: balanceSearch, page: String(balancePage), pageSize: String(pageSize), ...(balanceLocationId ? { locationId: balanceLocationId } : {}) });
@@ -122,6 +124,12 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   useEffect(() => {
     void refreshLists();
   }, [refreshLists]);
+
+  useEffect(() => {
+    if (!success) return;
+    const timer = window.setTimeout(() => setSuccess(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [success]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -225,7 +233,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
 
   function invalidateRequestKey() {
     setRequestKey("");
-    setSuccess("");
+    setSuccess(null);
+    setConfirmation(null);
   }
 
   async function handleBarcodeScan(code: string) {
@@ -310,10 +319,14 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         type === "ADJUSTMENT" ? (reason === "Other" ? adjustmentReasonDetails.trim() : reason.trim()) :
         type === "TRANSFER" ? (reason === "Other" ? transferReasonDetails.trim() : reason.trim()) : reason.trim(),
     ].filter(Boolean);
-    if (!window.confirm(confirmationLines.join("\\n"))) return;
+    if (!confirmation) {
+      setConfirmation(confirmationLines);
+      return;
+    }
+    setConfirmation(null);
     setSaving(true);
     setError("");
-    setSuccess("");
+    setSuccess(null);
     const key = requestKey || crypto.randomUUID();
     setRequestKey(key);
     try {
@@ -402,9 +415,19 @@ export function StockManager({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-8">
+      {confirmation && (
+        <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" aria-labelledby="movement-confirmation-title">
+          <h3 id="movement-confirmation-title" className="font-semibold">Review stock movement</h3>
+          <ul className="mt-2 list-disc space-y-1 pl-5">{confirmation.slice(1).map((line) => <li key={line}>{line}</li>)}</ul>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" disabled={saving} onClick={() => formRef.current?.requestSubmit()} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? "Recording…" : "Confirm and record"}</button>
+            <button type="button" disabled={saving} onClick={() => setConfirmation(null)} className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700">Cancel</button>
+          </div>
+        </section>
+      )}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {success && (
-        <section role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+        <section role="status" aria-live="polite" className="fixed right-4 top-4 z-50 w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-xl">
           <div className="flex items-start gap-2">
             <span aria-hidden="true" className="mt-0.5 font-bold text-emerald-700">✓</span>
             <div className="min-w-0 flex-1">
@@ -426,6 +449,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                 </div>
               </details>
             </div>
+            <button type="button" onClick={() => setSuccess(null)} aria-label="Dismiss notification" className="rounded p-1 text-emerald-800 hover:bg-emerald-100">×</button>
           </div>
         </section>
       )}
@@ -434,7 +458,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">Stock Transactions</h2>
           <p className="mt-1 text-sm text-gray-600">Quantities are entered in the product’s base unit. Every entry is recorded in the stock ledger.</p>
-          <form onSubmit={submitMovement} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <form ref={formRef} onSubmit={submitMovement} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="sm:col-span-2 xl:col-span-4"><BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan product to select it for stock management" /></div>
             <label className="text-sm font-medium">
               Movement type
