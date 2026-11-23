@@ -28,9 +28,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { id: token.userId },
           select: { name: true, email: true, role: true, isActive: true, passwordVersion: true },
         });
-        token.userDisabled = !profile?.isActive || (typeof token.passwordVersion === "number" && token.passwordVersion !== profile.passwordVersion);
-        if (profile) token.passwordVersion = profile.passwordVersion;
-        if (profile?.isActive) {
+        if (!profile?.isActive) {
+          token.userDisabled = true;
+        } else if (typeof token.passwordVersion === "number" && token.passwordVersion !== profile.passwordVersion) {
+          token.userDisabled = true;
+        } else {
+          token.userDisabled = false;
+          token.passwordVersion = profile.passwordVersion;
+        }
+        if (profile?.isActive && !token.userDisabled) {
           token.name = profile.name;
           token.email = profile.email;
           token.role = profile.role;
