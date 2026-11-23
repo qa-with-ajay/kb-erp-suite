@@ -198,11 +198,13 @@ export function StockManager({ canManage }: { canManage: boolean }) {
 
     lookup
       .then((result) => {
-        const sourceData = isTransfer ? result[0] : result as PageResponse<Balance>;
+        const sourceData = isTransfer
+          ? (result as [PageResponse<Balance>, PageResponse<Balance>])[0]
+          : result as PageResponse<Balance>;
         const balance = sourceData.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === stockLocationId);
         setAvailableStock(balance?.quantity ?? "0");
         if (isTransfer) {
-          const destinationData = result[1] as PageResponse<Balance>;
+          const destinationData = (result as [PageResponse<Balance>, PageResponse<Balance>])[1];
           const destinationBalance = destinationData.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === destinationLocationId);
           setDestinationStock(destinationBalance?.quantity ?? "0");
         }
