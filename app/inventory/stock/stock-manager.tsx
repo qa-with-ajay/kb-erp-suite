@@ -75,6 +75,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [reason, setReason] = useState("");
   const [inwardReason, setInwardReason] = useState("");
   const [inwardReasonDetails, setInwardReasonDetails] = useState("");
+  const [availableStock, setAvailableStock] = useState<string | null>(null);
+  const [stockLookupLoading, setStockLookupLoading] = useState(false);
   const [requestKey, setRequestKey] = useState("");
   const [balancePage, setBalancePage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
@@ -161,6 +163,34 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     return () => controller.abort();
   }, [productId]);
 
+  useEffect(() => {
+    if (type !== "OUTWARD" || !productId || !locationId || (variants.length > 0 && !variantId)) {
+      setAvailableStock(null);
+      setStockLookupLoading(false);
+      return;
+    }
+    const selectedProduct = products.find((item) => item.id === productId);
+    if (!selectedProduct) {
+      setAvailableStock(null);
+      return;
+    }
+    const controller = new AbortController();
+    setAvailableStock(null);
+    setStockLookupLoading(true);
+    const query = new URLSearchParams({ search: selectedProduct.sku, page: "1", pageSize: "100", locationId });
+    fetch(`/api/inventory/stock?${query}`, { signal: controller.signal })
+      .then((response) => readJson<PageResponse<Balance>>(response))
+      .then((data) => {
+        const balance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === locationId);
+        setAvailableStock(balance?.quantity ?? "0");
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to check available stock.");
+      })
+      .finally(() => { if (!controller.signal.aborted) setStockLookupLoading(false); });
+    return () => controller.abort();
+  }, [type, productId, locationId, variantId, variants.length, products]);
+
   function invalidateRequestKey() {
     setRequestKey("");
     setSuccess("");
@@ -190,12 +220,24 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     const selectedDestination = locations.find((item) => item.id === destinationLocationId);
     const quantityLabel = `${formatQuantity(quantity)} ${selectedProduct?.baseUnit ?? "units"}`;
     const inwardValue = Number(quantity) * Number(unitCost);
+    if (type === "OUTWARD") {
+      if (availableStock === null) {
+        setError("Wait for the available stock quantity to load before recording an outward movement.");
+        return;
+      }
+      if (Number(quantity) > Number(availableStock)) {
+        setError(`Insufficient stock. Available: ${formatQuantity(availableStock)} ${selectedProduct?.baseUnit ?? "units"}.`);
+        return;
+      }
+    }
     const confirmationLines = [
       `Confirm ${type === "INWARD" ? "stock inward" : type === "OUTWARD" ? "stock outward" : type === "TRANSFER" ? "stock transfer" : `stock adjustment (${adjustmentDirection.toLowerCase()})`}?`,
       `Product: ${selectedProduct?.name ?? "Selected product"} (${selectedProduct?.sku ?? "—"})`,
       variants.find((item) => item.id === variantId) ? `Variant: ${variantLabel(variants.find((item) => item.id === variantId) ?? null)}` : null,
       type === "TRANSFER" ? `From: ${selectedSource?.name ?? "—"} → To: ${selectedDestination?.name ?? "—"}` : `Location: ${selectedLocation?.name ?? "—"}`,
       `Quantity: ${quantityLabel}`,
+      type === "OUTWARD" ? `Available before outward: ${formatQuantity(availableStock ?? "0")} ${selectedProduct?.baseUnit ?? ""}` : null,
+      type === "OUTWARD" ? `Estimated remaining: ${formatQuantity(String(Number(availableStock ?? "0") - Number(quantity)))} ${selectedProduct?.baseUnit ?? ""}` : null,
       type === "INWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "INCREASE")
         ? `Unit cost: ₹${Number(unitCost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
         : null,
@@ -254,6 +296,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       setReason("");
       setInwardReason("");
       setInwardReasonDetails("");
+      setAvailableStock(null);
       setRequestKey("");
       await refreshLists();
     } catch (cause) {
@@ -341,6 +384,12 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                 </select>
               </label>
             )}
+            {type === "OUTWARD" && productId && locationId && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm sm:col-span-2">
+                <span className="font-medium">Available stock: </span>
+                {stockLookupLoading ? "Checking…" : availableStock === null ? "Unable to determine stock" : `${formatQuantity(availableStock)} ${products.find((item) => item.id === productId)?.baseUnit ?? "units"}`}
+              </div>
+            )}
             <label className="text-sm font-medium">
               Quantity
               <input required type="number" min="0.0001" step="0.0001" value={quantity} onChange={(event) => { setQuantity(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
@@ -375,6 +424,19 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                   </label>
                 )}
               </>
+            ) : type === "OUTWARD" ? (
+              <label className="text-sm font-medium">
+                Outward reason (optional)
+                <select value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                  <option value="">Select reason</option>
+                  <option value="Customer Sale">Customer Sale</option>
+                  <option value="Internal Use">Internal Use</option>
+                  <option value="Damaged / Wastage">Damaged / Wastage</option>
+                  <option value="Sample / Demonstration">Sample / Demonstration</option>
+                  <option value="Return to Supplier">Return to Supplier</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
             ) : (
               <label className="text-sm font-medium sm:col-span-2">
                 Reason {type === "ADJUSTMENT" && <span className="text-red-700">*</span>}
@@ -382,7 +444,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               </label>
             )}
             <div className="flex items-end">
-              <button disabled={saving || !locations.length || !productId || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              <button disabled={saving || !locations.length || !productId || (type === "OUTWARD" && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))) || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Recording…" : "Record movement"}
               </button>
             </div>
