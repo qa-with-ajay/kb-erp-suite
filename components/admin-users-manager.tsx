@@ -209,7 +209,7 @@ export function AdminUsersManager() {
           {error && <p className="admin-users__message admin-users__message--error" role="alert">{error}</p>}
           {notice && <p className="admin-users__message admin-users__message--success" role="status">{notice}</p>}
           <div className="admin-users__form-actions">
-            <button className="admin-users__primary-button" type="submit" disabled={saving || (selectedRole?.scope === "BUSINESS_UNIT" && form.businessUnitIds.length === 0) || (selectedRole?.code === "UNIT_MANAGER" && form.businessUnitIds.length !== 1)}>
+            <button className="admin-users__primary-button" type="submit" disabled={saving || (canEditAccess && selectedRole?.scope === "BUSINESS_UNIT" && form.businessUnitIds.length === 0) || (canEditAccess && selectedRole?.code === "UNIT_MANAGER" && form.businessUnitIds.length !== 1)}>
               {saving ? "Saving…" : editingId ? "Save changes" : "Create account"}
             </button>
             {!editingId && <span className="admin-users__hint">Passwords are securely hashed before storage.</span>}
