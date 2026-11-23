@@ -184,14 +184,26 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     setAvailableStock(null);
     setDestinationStock(null);
     setStockLookupLoading(true);
-    const query = new URLSearchParams({ search: selectedProduct.sku, page: "1", pageSize: "100", ...(!isTransfer ? { locationId: stockLocationId } : {}) });
-    fetch(`/api/inventory/stock?${query}`, { signal: controller.signal })
-      .then((response) => readJson<PageResponse<Balance>>(response))
-      .then((data) => {
-        const balance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === stockLocationId);
+    const makeStockUrl = (targetLocationId: string) => {
+      const query = new URLSearchParams({ search: selectedProduct.sku, page: "1", pageSize: "100", locationId: targetLocationId });
+      return `/api/inventory/stock?${query}`;
+    };
+    const sourceUrl = makeStockUrl(stockLocationId);
+    const lookup = isTransfer
+      ? Promise.all([
+          fetch(sourceUrl, { signal: controller.signal }).then((response) => readJson<PageResponse<Balance>>(response)),
+          fetch(makeStockUrl(destinationLocationId), { signal: controller.signal }).then((response) => readJson<PageResponse<Balance>>(response)),
+        ])
+      : fetch(sourceUrl, { signal: controller.signal }).then((response) => readJson<PageResponse<Balance>>(response));
+
+    lookup
+      .then((result) => {
+        const sourceData = isTransfer ? result[0] : result as PageResponse<Balance>;
+        const balance = sourceData.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === stockLocationId);
         setAvailableStock(balance?.quantity ?? "0");
         if (isTransfer) {
-          const destinationBalance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === destinationLocationId);
+          const destinationData = result[1] as PageResponse<Balance>;
+          const destinationBalance = destinationData.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === destinationLocationId);
           setDestinationStock(destinationBalance?.quantity ?? "0");
         }
       })
@@ -209,7 +221,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
 
   async function handleBarcodeScan(code: string) {
     try {
-      const response = await fetch(`/api/inventory/scan?code=${encodeURIComponent(code)}${locationId ? `&locationId=${encodeURIComponent(locationId)}` : ""}`);
+      const scanLocationId = type === "TRANSFER" ? sourceLocationId : locationId;
+      const response = await fetch(`/api/inventory/scan?code=${encodeURIComponent(code)}${scanLocationId ? `&locationId=${encodeURIComponent(scanLocationId)}` : ""}`);
       const body = await readJson<{ product: ProductOption; matchedVariantId: string | null }>(response);
       setProducts((current) => current.some((item) => item.id === body.product.id) ? current : [body.product, ...current]);
       setProductId(body.product.id);
