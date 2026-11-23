@@ -100,6 +100,7 @@ export function ProductForm({ productId }: Props) {
   const [loading, setLoading] = useState(Boolean(productId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createRequestId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -223,8 +224,9 @@ export function ProductForm({ productId }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...values,
+            ...(productId ? {} : { requestId: createRequestId }),
             sku: values.sku.trim() || undefined,
-            stockEntry: shouldSubmitStock ? { locationId: stockLocationId, variantId: stockVariantId || null, quantity: stockQuantity, unitCost: stockUnitCost, reference: stockReference || null, idempotencyKey: crypto.randomUUID() } : undefined,
+            stockEntry: shouldSubmitStock ? { locationId: stockLocationId, variantId: stockVariantId || null, quantity: stockQuantity, unitCost: stockUnitCost, reference: stockReference || null, idempotencyKey: productId ? crypto.randomUUID() : createRequestId } : undefined,
             description: values.description || null,
             barcode: values.barcode || null,
             barcodeType: values.barcodeType,
