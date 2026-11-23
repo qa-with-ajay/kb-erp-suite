@@ -55,40 +55,42 @@ export async function getBusinessUnitAccess(permission: string): Promise<Invento
     }),
   ]);
   const groupPermissions = getPermissionCodes(groupRoles, "GROUP");
-  const eligibleUnitRoles = unitRoles.filter(
-    ({ role }) =>
-      role.isActive &&
-      role.scope === "BUSINESS_UNIT" &&
-      role.permissions.some(({ permission: unitPermission }) => unitPermission.code === permission),
+  const activeUnitRoles = unitRoles.filter(
+    ({ role }) => role.isActive && role.scope === "BUSINESS_UNIT",
+  );
+  const eligibleUnitRoles = activeUnitRoles.filter(({ role }) =>
+    role.permissions.some(({ permission: unitPermission }) => unitPermission.code === permission),
   );
 
   const selectedUnitId = (await cookies()).get(ACTIVE_BUSINESS_UNIT_COOKIE)?.value;
   const hasGroupPermission = groupPermissions.has(permission);
   let businessUnit: BusinessUnitContext["businessUnit"] | undefined;
 
-  if (selectedUnitId) {
-    if (hasGroupPermission) {
-      businessUnit = await prisma.businessUnit.findFirst({
-        where: { id: selectedUnitId, isActive: true },
-        select: { id: true, code: true, name: true },
-      }) ?? undefined;
+  if (hasGroupPermission) {
+    const selectedUnit = selectedUnitId
+      ? await prisma.businessUnit.findFirst({
+          where: { id: selectedUnitId, isActive: true },
+          select: { id: true, code: true, name: true },
+        })
+      : null;
+    if (selectedUnit) {
+      businessUnit = selectedUnit;
     } else {
-      businessUnit = eligibleUnitRoles.find(({ businessUnit: unit }) => unit.id === selectedUnitId)?.businessUnit;
+      const activeUnits = await prisma.businessUnit.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true },
+        orderBy: { name: "asc" },
+      });
+      businessUnit = activeUnits.find(({ code }) => code === "KB_INTERIORS") ?? activeUnits[0];
     }
-  } else if (hasGroupPermission) {
-    const activeUnits = await prisma.businessUnit.findMany({
-      where: { isActive: true },
-      select: { id: true, code: true, name: true },
-      orderBy: { name: "asc" },
-    });
-    businessUnit = activeUnits.find(({ code }) => code === "KB_INTERIORS") ?? activeUnits[0];
   } else {
-    const defaultAssignment = eligibleUnitRoles.find(({ businessUnit: unit }) => unit.code === "KB_INTERIORS")
-      ?? eligibleUnitRoles[0];
-    businessUnit = defaultAssignment?.businessUnit;
+    const selectedAssignment = activeUnitRoles.find(({ businessUnit: unit }) => unit.id === selectedUnitId);
+    const defaultAssignment = activeUnitRoles.find(({ businessUnit: unit }) => unit.code === "KB_INTERIORS")
+      ?? activeUnitRoles[0];
+    businessUnit = (selectedAssignment ?? defaultAssignment)?.businessUnit;
   }
 
-  if (!businessUnit) return { ok: false, status: 403, error: "No authorized business unit is selected." };
+  if (!businessUnit) return { ok: false, status: 403, error: "No authorized business unit is assigned." };
   const hasUnitPermission = eligibleUnitRoles.some(({ businessUnit: unit }) => unit.id === businessUnit?.id);
   if (!hasGroupPermission && !hasUnitPermission) {
     return { ok: false, status: 403, error: "You do not have permission to access this business unit." };
