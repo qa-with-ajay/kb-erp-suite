@@ -19,9 +19,10 @@ export default async function DashboardPage() {
   if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("inventory.read");
   if (!access.ok) redirect(access.status === 401 ? "/login" : "/inventory");
 
-  const [dashboard, canViewBilling, canManageCustomers, canManageSuppliers, canManagePurchases] = await Promise.all([
+  const [dashboard, canViewBilling, canViewInventory, canManageCustomers, canManageSuppliers, canManagePurchases] = await Promise.all([
     getUnitDashboardData(access.context.businessUnit.id),
     getBusinessUnitAccess("billing.read").then((result) => result.ok),
+    getBusinessUnitAccess("inventory.read").then((result) => result.ok),
     getBusinessUnitAccess("customers.manage").then((result) => result.ok),
     getBusinessUnitAccess("suppliers.manage").then((result) => result.ok),
     getBusinessUnitAccess("purchases.manage").then((result) => result.ok),
@@ -57,7 +58,7 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {canViewBilling && <section className="mt-8 grid gap-6 xl:grid-cols-[2fr_1fr]">
+      <section className={canViewBilling ? "mt-8 grid gap-6 xl:grid-cols-[2fr_1fr]" : "mt-8"}>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -79,7 +80,7 @@ export default async function DashboardPage() {
                 <tbody>
                   {dashboard.lowStockItems.map((item) => (
                     <tr key={item.productId} className="border-b border-gray-100 last:border-0">
-                      <td className="py-3 pr-4 font-medium">{item.productName}</td>
+                      <td className="py-3 pr-4 font-medium"><Link href={canViewInventory ? `/inventory/products/${item.productId}` : "/dashboard"} className={canViewInventory ? "hover:text-emerald-800 hover:underline" : ""}>{item.productName}</Link></td>
                       <td className="py-3 pr-4 text-gray-600">{item.sku}</td>
                       <td className="py-3 pr-4 text-amber-800">{formatQuantity(item.currentStock)} {item.baseUnit}</td>
                       <td className="py-3">{formatQuantity(item.minimumStock)} {item.baseUnit}</td>
@@ -95,6 +96,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
+        {canViewBilling && (
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="font-semibold">Financial overview</h2>
           <p className="mt-1 text-sm text-gray-600">Net sales for {dashboard.name}, after returns; gross profit reflects restocked returns.</p>
@@ -138,8 +140,10 @@ export default async function DashboardPage() {
           </div>
           <Link href="/sales" className="mt-4 inline-block text-sm font-semibold text-emerald-900 hover:underline">Open sales & billing</Link>
         </div>
-      </section>}
+        )}
+      </section>
 
+      {canViewInventory && (
       <section className="mt-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -151,6 +155,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </section>
+      )}
 
       {(canManageCustomers || canManageSuppliers) && (
         <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
