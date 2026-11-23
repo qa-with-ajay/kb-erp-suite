@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { formatAmount, formatQuantity, getGroupDashboardData } from "@/lib/dashboard-data";
 import { getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
+import { GroupDashboardProductLink } from "@/components/group-dashboard-product-link";
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -18,6 +19,7 @@ export default async function GroupDashboardPage() {
   if (!session) redirect("/login");
   if (!(await hasGroupPermission(session.user.id, "group.dashboard.read"))) redirect("/dashboard");
 
+  const canViewGroupInventory = await hasGroupPermission(session.user.id, "inventory.read");
   const units = await getGroupDashboardData();
   const productCount = units.reduce((total, unit) => total + unit.productCount, 0);
   const movementCount = units.reduce((total, unit) => total + unit.movementCount, 0);
@@ -67,7 +69,7 @@ export default async function GroupDashboardPage() {
     ? [...supplierCreditsByCurrency.entries()].map(([currency, value]) => formatAmount(value.toString(), currency)).join(" · ")
     : "—";
   const lowStockItems = units.flatMap((unit) =>
-    unit.lowStockItems.map((item) => ({ ...item, businessUnitName: unit.name })),
+    unit.lowStockItems.map((item) => ({ ...item, businessUnitId: unit.id, businessUnitName: unit.name })),
   ).slice(0, 10);
   const financialMetrics = ["Purchases", "Expenses", "Receivables", "Payables", "Customer credits", "Supplier credits"];
 
@@ -176,7 +178,7 @@ export default async function GroupDashboardPage() {
                 {lowStockItems.map((item) => (
                   <tr key={`${item.businessUnitName}-${item.productId}`} className="border-b border-gray-100 last:border-0">
                     <td className="py-3 pr-4">{item.businessUnitName}</td>
-                    <td className="py-3 pr-4 font-medium">{item.productName}</td>
+                    <td className="py-3 pr-4 font-medium">{canViewGroupInventory ? <GroupDashboardProductLink businessUnitId={item.businessUnitId} productId={item.productId} productName={item.productName} /> : item.productName}</td>
                     <td className="py-3 pr-4 text-gray-600">{item.sku}</td>
                     <td className="py-3 pr-4 text-amber-800">{formatQuantity(item.currentStock)} {item.baseUnit}</td>
                     <td className="py-3">{formatQuantity(item.minimumStock)} {item.baseUnit}</td>
