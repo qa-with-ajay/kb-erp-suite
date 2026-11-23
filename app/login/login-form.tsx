@@ -5,11 +5,22 @@ import { loginAction, type LoginState } from "./actions";
 
 const initialState: LoginState = { error: null };
 
-export function LoginForm() {
+type LoginRole = { code: string; name: string; scope: "GROUP" | "BUSINESS_UNIT" };
+
+export function LoginForm({ roles }: { roles: LoginRole[] }) {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
     <form action={formAction} className="space-y-4">
+      <label className="block text-sm font-medium">
+        Role
+        <select name="roleCode" required defaultValue="" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-3">
+          <option value="" disabled>Select your role</option>
+          {roles.map((role) => (
+            <option key={role.code} value={role.code}>{role.name}</option>
+          ))}
+        </select>
+      </label>
       <label className="block text-sm font-medium">
         Email
         <input name="email" type="email" required autoComplete="username" className="mt-1 w-full rounded-lg border border-gray-300 p-3" />
