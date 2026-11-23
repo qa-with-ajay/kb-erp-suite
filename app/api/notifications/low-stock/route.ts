@@ -2,7 +2,6 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
-import { auth } from "@/auth";
 type LowStockRow = {
   productId: string;
   productName: string;
@@ -43,16 +42,7 @@ export async function GET() {
     ORDER BY "currentStock"::numeric ASC, "productName" ASC
     
   `);
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
-
-  const userId = session.user.id;
+  const userId = access.context.session.user.id;
   const businessUnitId = access.context.businessUnit.id;
 
   const currentProductIds = rows.map((row) => row.productId);
@@ -117,4 +107,22 @@ export async function GET() {
     total: rows[0]?.total ?? 0,
     items,
   });
+}
+
+
+export async function PATCH() {
+  let access = await getBusinessUnitAccess("inventory.read");
+  if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("reports.unit.read");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
+  const result = await prisma.lowStockNotification.updateMany({
+    where: {
+      userId: access.context.session.user.id,
+      businessUnitId: access.context.businessUnit.id,
+      isRead: false,
+    },
+    data: { isRead: true, readAt: new Date() },
+  });
+
+  return NextResponse.json({ updated: result.count });
 }
