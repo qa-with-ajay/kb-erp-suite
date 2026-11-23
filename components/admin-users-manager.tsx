@@ -204,7 +204,7 @@ export function AdminUsersManager() {
               <strong>Organization-wide access</strong>
               <span>This role can work across all active business units. No individual unit assignment is required.</span>
             </div>
-          )}
+          ) : null}
 
           {error && <p className="admin-users__message admin-users__message--error" role="alert">{error}</p>}
           {notice && <p className="admin-users__message admin-users__message--success" role="status">{notice}</p>}
