@@ -77,6 +77,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [inwardReasonDetails, setInwardReasonDetails] = useState("");
   const [adjustmentReasonDetails, setAdjustmentReasonDetails] = useState("");
   const [availableStock, setAvailableStock] = useState<string | null>(null);
+  const [destinationStock, setDestinationStock] = useState<string | null>(null);
+  const [transferReasonDetails, setTransferReasonDetails] = useState("");
   const [stockLookupLoading, setStockLookupLoading] = useState(false);
   const [requestKey, setRequestKey] = useState("");
   const [balancePage, setBalancePage] = useState(1);
@@ -165,8 +167,11 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   }, [productId]);
 
   useEffect(() => {
-    if ((type !== "OUTWARD" && type !== "ADJUSTMENT") || !productId || !locationId || (variants.length > 0 && !variantId)) {
+    const isTransfer = type === "TRANSFER";
+    const stockLocationId = isTransfer ? sourceLocationId : locationId;
+    if ((!isTransfer && type !== "OUTWARD" && type !== "ADJUSTMENT") || !productId || !stockLocationId || (variants.length > 0 && !variantId) || (isTransfer && !destinationLocationId)) {
       setAvailableStock(null);
+      setDestinationStock(null);
       setStockLookupLoading(false);
       return;
     }
@@ -178,19 +183,23 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     const controller = new AbortController();
     setAvailableStock(null);
     setStockLookupLoading(true);
-    const query = new URLSearchParams({ search: selectedProduct.sku, page: "1", pageSize: "100", locationId });
+    const query = new URLSearchParams({ search: selectedProduct.sku, page: "1", pageSize: "100", ...(!isTransfer ? { locationId: stockLocationId } : {}) });
     fetch(`/api/inventory/stock?${query}`, { signal: controller.signal })
       .then((response) => readJson<PageResponse<Balance>>(response))
       .then((data) => {
         const balance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === locationId);
         setAvailableStock(balance?.quantity ?? "0");
+        if (isTransfer) {
+          const destinationBalance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === destinationLocationId);
+          setDestinationStock(destinationBalance?.quantity ?? "0");
+        }
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to check available stock.");
       })
       .finally(() => { if (!controller.signal.aborted) setStockLookupLoading(false); });
     return () => controller.abort();
-  }, [type, productId, locationId, variantId, variants.length, products]);
+  }, [type, productId, locationId, sourceLocationId, destinationLocationId, variantId, variants.length, products]);
 
   function invalidateRequestKey() {
     setRequestKey("");
@@ -231,6 +240,18 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         return;
       }
     }
+    if (type === "TRANSFER" && (!reason.trim() || (reason === "Other" && !transferReasonDetails.trim()))) {
+      setError("Choose a transfer reason and provide details when selecting Other.");
+      return;
+    }
+    if (type === "TRANSFER" && (availableStock === null || destinationStock === null || stockLookupLoading)) {
+      setError("Wait for source and destination stock quantities to load before recording this transfer.");
+      return;
+    }
+    if (type === "TRANSFER" && Number(quantity) > Number(availableStock)) {
+      setError("Insufficient source stock. Available: " + formatQuantity(availableStock ?? "0") + " " + (selectedProduct?.baseUnit ?? "units") + ".");
+      return;
+    }
     if (type === "ADJUSTMENT" && (!reason.trim() || (reason === "Other" && !adjustmentReasonDetails.trim()))) {
       setError("Choose an adjustment reason and provide details when selecting Other.");
       return;
@@ -241,8 +262,13 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       variants.find((item) => item.id === variantId) ? `Variant: ${variantLabel(variants.find((item) => item.id === variantId) ?? null)}` : null,
       type === "TRANSFER" ? `From: ${selectedSource?.name ?? "—"} → To: ${selectedDestination?.name ?? "—"}` : `Location: ${selectedLocation?.name ?? "—"}`,
       `Quantity: ${quantityLabel}`,
-      type === "OUTWARD" || type === "ADJUSTMENT"
-        ? `Current stock: ${formatQuantity(availableStock ?? "0")} ${selectedProduct?.baseUnit ?? ""}`
+      type === "TRANSFER"
+        ? "Source stock before: " + formatQuantity(availableStock ?? "0") + " " + (selectedProduct?.baseUnit ?? "") + "; after: " + formatQuantity(String(Number(availableStock ?? "0") - Number(quantity)))
+        : type === "OUTWARD" || type === "ADJUSTMENT"
+          ? `Current stock: ${formatQuantity(availableStock ?? "0")} ${selectedProduct?.baseUnit ?? ""}`
+          : null,
+      type === "TRANSFER"
+        ? "Destination stock before: " + formatQuantity(destinationStock ?? "0") + " " + (selectedProduct?.baseUnit ?? "") + "; after: " + formatQuantity(String(Number(destinationStock ?? "0") + Number(quantity)))
         : null,
       type === "OUTWARD" || type === "ADJUSTMENT"
         ? `Estimated resulting stock: ${formatQuantity(String(Number(availableStock ?? "0") + (type === "ADJUSTMENT" && adjustmentDirection === "INCREASE" ? Number(quantity) : -Number(quantity))))} ${selectedProduct?.baseUnit ?? ""}`
@@ -258,7 +284,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         : null,
       reference.trim() ? `Reference: ${reference.trim()}` : null,
       type === "INWARD" ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason) :
-        type === "ADJUSTMENT" ? (reason === "Other" ? adjustmentReasonDetails.trim() : reason.trim()) : reason.trim(),
+        type === "ADJUSTMENT" ? (reason === "Other" ? adjustmentReasonDetails.trim() : reason.trim()) :
+        type === "TRANSFER" ? (reason === "Other" ? transferReasonDetails.trim() : reason.trim()) : reason.trim(),
     ].filter(Boolean);
     if (!window.confirm(confirmationLines.join("\\n"))) return;
     setSaving(true);
@@ -283,7 +310,9 @@ export function StockManager({ canManage }: { canManage: boolean }) {
             ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason || null)
             : type === "ADJUSTMENT"
               ? (reason === "Other" ? adjustmentReasonDetails.trim() : reason)
-              : reason,
+              : type === "TRANSFER"
+                ? (reason === "Other" ? transferReasonDetails.trim() : reason)
+                : reason,
           idempotencyKey: key,
         }),
       });
@@ -310,9 +339,11 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       setReference("");
       setReason("");
       setAdjustmentReasonDetails("");
+      setTransferReasonDetails("");
       setInwardReason("");
       setInwardReasonDetails("");
       setAvailableStock(null);
+      setDestinationStock(null);
       setRequestKey("");
       await refreshLists();
     } catch (cause) {
@@ -400,6 +431,17 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                 </select>
               </label>
             )}
+            {type === "TRANSFER" && productId && sourceLocationId && destinationLocationId && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm sm:col-span-2 xl:col-span-4">
+                <div className="font-medium">Transfer stock availability</div>
+                {stockLookupLoading ? "Checking source and destination…" : availableStock === null || destinationStock === null ? "Unable to determine transfer balances" : (
+                  <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                    <span>{locations.find((item) => item.id === sourceLocationId)?.name}: {formatQuantity(availableStock)} {products.find((item) => item.id === productId)?.baseUnit ?? "units"}</span>
+                    <span>{locations.find((item) => item.id === destinationLocationId)?.name}: {formatQuantity(destinationStock)} {products.find((item) => item.id === productId)?.baseUnit ?? "units"}</span>
+                  </div>
+                )}
+              </div>
+            )}
             {(type === "OUTWARD" || type === "ADJUSTMENT") && productId && locationId && (
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm sm:col-span-2">
                 <span className="font-medium">{type === "ADJUSTMENT" ? "Current stock at this location: " : "Available stock: "}</span>
@@ -410,9 +452,9 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               Quantity
               <input required type="number" min="0.0001" step="0.0001" value={quantity} onChange={(event) => { setQuantity(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
-            {(type === "OUTWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE")) && availableStock !== null && quantity && Number(quantity) > Number(availableStock) && (
+            {(type === "TRANSFER" || type === "OUTWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE")) && availableStock !== null && quantity && Number(quantity) > Number(availableStock) && (
               <p role="alert" className="text-sm font-medium text-red-700 sm:col-span-2">
-                Insufficient stock: requested {formatQuantity(quantity)} {products.find((item) => item.id === productId)?.baseUnit ?? "units"}, but only {formatQuantity(availableStock)} is available.
+                Insufficient stock at the selected source: requested {formatQuantity(quantity)} {products.find((item) => item.id === productId)?.baseUnit ?? "units"}, but only {formatQuantity(availableStock)} is available.
               </p>
             )}
             {type !== "OUTWARD" && type !== "TRANSFER" && !(type === "ADJUSTMENT" && adjustmentDirection === "DECREASE") && (
@@ -458,6 +500,26 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                   <option value="Other">Other</option>
                 </select>
               </label>
+            ) : type === "TRANSFER" ? (
+              <>
+                <label className="text-sm font-medium">
+                  Transfer reason <span className="text-red-700">*</span>
+                  <select required value={reason} onChange={(event) => { setReason(event.target.value); setTransferReasonDetails(""); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                    <option value="">Select reason</option>
+                    <option value="Warehouse replenishment">Warehouse replenishment</option>
+                    <option value="Showroom replenishment">Showroom replenishment</option>
+                    <option value="Inter-location relocation">Inter-location relocation</option>
+                    <option value="Project / site allocation">Project / site allocation</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                {reason === "Other" && (
+                  <label className="text-sm font-medium sm:col-span-2">
+                    Specify transfer reason <span className="text-red-700">*</span>
+                    <input required maxLength={500} value={transferReasonDetails} onChange={(event) => { setTransferReasonDetails(event.target.value); invalidateRequestKey(); }} placeholder="Explain why stock is being transferred" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
+                  </label>
+                )}
+              </>
             ) : type === "ADJUSTMENT" ? (
               <>
                 <label className="text-sm font-medium">
@@ -495,7 +557,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               </label>
             )}
             <div className="flex items-end">
-              <button disabled={saving || !locations.length || !productId || (type === "OUTWARD" && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))) || (type === "ADJUSTMENT" && (!reason || (reason === "Other" && !adjustmentReasonDetails.trim()) || ((adjustmentDirection === "DECREASE") && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))))) || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              <button disabled={saving || !locations.length || !productId || (type === "OUTWARD" && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))) || (type === "ADJUSTMENT" && (!reason || (reason === "Other" && !adjustmentReasonDetails.trim()) || ((adjustmentDirection === "DECREASE") && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))))) || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId || !reason || (reason === "Other" && !transferReasonDetails.trim()) || stockLookupLoading || availableStock === null || destinationStock === null || !quantity || Number(quantity) <= 0 || Number(quantity) > Number(availableStock)))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Recording…" : "Record movement"}
               </button>
             </div>
