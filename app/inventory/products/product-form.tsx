@@ -89,6 +89,8 @@ export function ProductForm({ productId }: Props) {
   const [categories, setCategories] = useState<Option[]>([]);
   const [brands, setBrands] = useState<Option[]>([]);
   const [stockLocations, setStockLocations] = useState<(Option & { code: string })[]>([]);
+  const [stockLocationsLoading, setStockLocationsLoading] = useState(true);
+  const [stockLocationsError, setStockLocationsError] = useState<string | null>(null);
   const [addInitialStock, setAddInitialStock] = useState(false);
   const [stockQuantity, setStockQuantity] = useState("");
   const [stockUnitCost, setStockUnitCost] = useState("");
@@ -106,8 +108,9 @@ export function ProductForm({ productId }: Props) {
     const controller = new AbortController();
     fetch("/api/inventory/stock/locations", { signal: controller.signal })
       .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "Unable to load stock locations."); return body.items as (Option & { code: string })[]; })
-      .then((items) => { setStockLocations(items); })
-      .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load stock locations."); });
+      .then((items) => { setStockLocations(items); setStockLocationsError(null); })
+      .catch((cause: unknown) => { if (!controller.signal.aborted) setStockLocationsError(cause instanceof Error ? cause.message : "Unable to load stock locations."); })
+      .finally(() => { if (!controller.signal.aborted) setStockLocationsLoading(false); });
     const categoryRequest = fetch(
       "/api/inventory/categories?active=true&pageSize=100",
       { signal: controller.signal }
@@ -311,6 +314,7 @@ export function ProductForm({ productId }: Props) {
         onSubmit={submit}
         className="grid gap-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm md:grid-cols-2"
       >
+        <div className="border-b border-gray-100 pb-2 md:col-span-2"><h2 className="text-base font-semibold text-gray-900">Basic information</h2><p className="mt-1 text-sm font-normal text-gray-500">Identify the product and choose its stock unit.</p></div>
         <label className="text-sm font-medium">
           Product name
           <input
@@ -370,6 +374,7 @@ export function ProductForm({ productId }: Props) {
           )}
         </label>
 
+        <div className="border-b border-gray-100 pb-2 md:col-span-2"><h2 className="text-base font-semibold text-gray-900">Classification</h2><p className="mt-1 text-sm font-normal text-gray-500">Organize the product by category and brand.</p></div>
         <label className="text-sm font-medium">
           Category
           <select
@@ -402,6 +407,7 @@ export function ProductForm({ productId }: Props) {
           </select>
         </label>
 
+        <div className="border-b border-gray-100 pb-2 md:col-span-2"><h2 className="text-base font-semibold text-gray-900">Pricing and stock threshold</h2><p className="mt-1 text-sm font-normal text-gray-500">Set the customer price, applicable GST and low-stock alert threshold.</p></div>
         <label className="text-sm font-medium">
           Selling price
           <input
@@ -464,7 +470,7 @@ export function ProductForm({ productId }: Props) {
               <h3 className="text-sm font-semibold text-gray-800">Add stock inward (optional)</h3>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <label className="text-sm font-medium">Inward quantity ({values.baseUnit})<input type="number" min="0" step="0.0001" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} placeholder="e.g. 100" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
-                <label className="text-sm font-medium">Stock location<select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select location</option>{stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>{!stockLocations.length && <span className="mt-1 block text-xs text-amber-700">No active stock locations available. You can save product details and add stock later.</span>}</label>
+                <label className="text-sm font-medium">Stock location<select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select location</option>{stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>{stockLocationsLoading ? <span role="status" className="mt-1 block text-xs text-gray-500">Loading locations…</span> : stockLocationsError ? <span role="alert" className="mt-1 block text-xs text-red-700">{stockLocationsError} You can save product details and add stock later.</span> : !stockLocations.length ? <span className="mt-1 block text-xs text-amber-700">No active stock locations available. You can save product details and add stock later.</span> : null}</label>
                 {productVariants.length > 0 && <label className="text-sm font-medium">Product variant<select value={stockVariantId} onChange={(event) => setStockVariantId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select variant</option>{productVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.code || Object.entries(variant.attributes).map(([key, value]) => key + ": " + value).join(", ")}</option>)}</select></label>}
                 <label className="text-sm font-medium">Unit cost<input type="number" min="0" step="0.0001" value={stockUnitCost} onChange={(event) => setStockUnitCost(event.target.value)} placeholder="Actual cost per base unit" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
                 <label className="text-sm font-medium">Reference / invoice number (optional)<input maxLength={100} value={stockReference} onChange={(event) => setStockReference(event.target.value)} placeholder="Supplier invoice or reference" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
@@ -488,7 +494,7 @@ export function ProductForm({ productId }: Props) {
             {addInitialStock && (
               <div className="mt-4 grid gap-4 border-t border-gray-200 pt-4 md:grid-cols-2">
                 <label className="text-sm font-medium">Quantity ({values.baseUnit})<input type="number" min="0" step="0.0001" required value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} placeholder="e.g. 100" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
-                <label className="text-sm font-medium">Stock location<select required value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select location</option>{stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>{!stockLocations.length && <span className="mt-1 block text-xs text-amber-700">No active stock locations available. Save the product without stock, then configure a location and record an inward.</span>}</label>
+                <label className="text-sm font-medium">Stock location<select required value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select location</option>{stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>{stockLocationsLoading ? <span role="status" className="mt-1 block text-xs text-gray-500">Loading locations…</span> : stockLocationsError ? <span role="alert" className="mt-1 block text-xs text-red-700">{stockLocationsError} Save the product without stock, then retry.</span> : !stockLocations.length ? <span className="mt-1 block text-xs text-amber-700">No active stock locations available. Save the product without stock, then configure a location and record an inward.</span> : null}</label>
                 {productVariants.length > 0 && <label className="text-sm font-medium">Product variant<select required value={stockVariantId} onChange={(event) => setStockVariantId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"><option value="">Select variant</option>{productVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.code || Object.entries(variant.attributes).map(([key, value]) => key + ": " + value).join(", ")}</option>)}</select></label>}
                 <label className="text-sm font-medium">Unit cost<input type="number" min="0" step="0.0001" required value={stockUnitCost} onChange={(event) => setStockUnitCost(event.target.value)} placeholder="Actual cost per base unit" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
                 <label className="text-sm font-medium">Reference / invoice number (optional)<input maxLength={100} value={stockReference} onChange={(event) => setStockReference(event.target.value)} placeholder="Supplier invoice or reference" className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5" /></label>
@@ -497,6 +503,7 @@ export function ProductForm({ productId }: Props) {
           </section>
         )}
 
+        <div className="border-b border-gray-100 pb-2 md:col-span-2"><h2 className="text-base font-semibold text-gray-900">Barcode</h2><p className="mt-1 text-sm font-normal text-gray-500">Generate a KB internal barcode or enter the manufacturer barcode.</p></div>
         <label className="text-sm font-medium">
           Barcode source
           <select
@@ -562,6 +569,7 @@ export function ProductForm({ productId }: Props) {
           </div>
         )}
 
+        <div className="border-b border-gray-100 pb-2 md:col-span-2"><h2 className="text-base font-semibold text-gray-900">Additional details</h2><p className="mt-1 text-sm font-normal text-gray-500">Optionally add an image and product description.</p></div>
         <label className="text-sm font-medium">
           Product image path or URL (optional)
           <input
