@@ -148,7 +148,7 @@ function LowStockNotifications() {
   }
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/notifications/low-stock", { signal: controller.signal })
+    fetch("/api/notifications/low-stock", { method: "POST", signal: controller.signal })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error ?? "Unable to load low-stock notifications.");
