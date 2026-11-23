@@ -67,9 +67,7 @@ export default async function DashboardPage() {
                 {dashboard.lowStockCount} active product{dashboard.lowStockCount === 1 ? "" : "s"} at or below minimum stock.
               </p>
             </div>
-            <Link href="/inventory/products" className="text-sm font-semibold text-emerald-900 hover:underline">
-              View products
-            </Link>
+            {canViewInventory && <Link href="/inventory/products" className="text-sm font-semibold text-emerald-900 hover:underline">View products</Link>}
           </div>
           {dashboard.lowStockItems.length ? (
             <div className="mt-4 overflow-x-auto">
@@ -80,7 +78,7 @@ export default async function DashboardPage() {
                 <tbody>
                   {dashboard.lowStockItems.map((item) => (
                     <tr key={item.productId} className="border-b border-gray-100 last:border-0">
-                      <td className="py-3 pr-4 font-medium"><Link href={canViewInventory ? `/inventory/products/${item.productId}` : "/dashboard"} className={canViewInventory ? "hover:text-emerald-800 hover:underline" : ""}>{item.productName}</Link></td>
+                      <td className="py-3 pr-4 font-medium">{canViewInventory ? <Link href={`/inventory/products/${item.productId}`} className="hover:text-emerald-800 hover:underline">{item.productName}</Link> : item.productName}</td>
                       <td className="py-3 pr-4 text-gray-600">{item.sku}</td>
                       <td className="py-3 pr-4 text-amber-800">{formatQuantity(item.currentStock)} {item.baseUnit}</td>
                       <td className="py-3">{formatQuantity(item.minimumStock)} {item.baseUnit}</td>
