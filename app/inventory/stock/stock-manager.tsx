@@ -75,6 +75,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [reason, setReason] = useState("");
   const [inwardReason, setInwardReason] = useState("");
   const [inwardReasonDetails, setInwardReasonDetails] = useState("");
+  const [adjustmentReasonDetails, setAdjustmentReasonDetails] = useState("");
   const [availableStock, setAvailableStock] = useState<string | null>(null);
   const [stockLookupLoading, setStockLookupLoading] = useState(false);
   const [requestKey, setRequestKey] = useState("");
@@ -164,7 +165,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   }, [productId]);
 
   useEffect(() => {
-    if (type !== "OUTWARD" || !productId || !locationId || (variants.length > 0 && !variantId)) {
+    if ((type !== "OUTWARD" && type !== "ADJUSTMENT") || !productId || !locationId || (variants.length > 0 && !variantId)) {
       setAvailableStock(null);
       setStockLookupLoading(false);
       return;
@@ -220,9 +221,9 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     const selectedDestination = locations.find((item) => item.id === destinationLocationId);
     const quantityLabel = `${formatQuantity(quantity)} ${selectedProduct?.baseUnit ?? "units"}`;
     const inwardValue = Number(quantity) * Number(unitCost);
-    if (type === "OUTWARD") {
-      if (availableStock === null) {
-        setError("Wait for the available stock quantity to load before recording an outward movement.");
+    if (type === "OUTWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE")) {
+      if (availableStock === null || stockLookupLoading) {
+        setError("Wait for the current stock quantity to load before recording this movement.");
         return;
       }
       if (Number(quantity) > Number(availableStock)) {
@@ -230,22 +231,34 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         return;
       }
     }
+    if (type === "ADJUSTMENT" && (!reason.trim() || (reason === "Other" && !adjustmentReasonDetails.trim()))) {
+      setError("Choose an adjustment reason and provide details when selecting Other.");
+      return;
+    }
     const confirmationLines = [
       `Confirm ${type === "INWARD" ? "stock inward" : type === "OUTWARD" ? "stock outward" : type === "TRANSFER" ? "stock transfer" : `stock adjustment (${adjustmentDirection.toLowerCase()})`}?`,
       `Product: ${selectedProduct?.name ?? "Selected product"} (${selectedProduct?.sku ?? "—"})`,
       variants.find((item) => item.id === variantId) ? `Variant: ${variantLabel(variants.find((item) => item.id === variantId) ?? null)}` : null,
       type === "TRANSFER" ? `From: ${selectedSource?.name ?? "—"} → To: ${selectedDestination?.name ?? "—"}` : `Location: ${selectedLocation?.name ?? "—"}`,
       `Quantity: ${quantityLabel}`,
-      type === "OUTWARD" ? `Available before outward: ${formatQuantity(availableStock ?? "0")} ${selectedProduct?.baseUnit ?? ""}` : null,
-      type === "OUTWARD" ? `Estimated remaining: ${formatQuantity(String(Number(availableStock ?? "0") - Number(quantity)))} ${selectedProduct?.baseUnit ?? ""}` : null,
+      type === "OUTWARD" || type === "ADJUSTMENT"
+        ? `Current stock: ${formatQuantity(availableStock ?? "0")} ${selectedProduct?.baseUnit ?? ""}`
+        : null,
+      type === "OUTWARD" || type === "ADJUSTMENT"
+        ? `Estimated resulting stock: ${formatQuantity(String(Number(availableStock ?? "0") + (type === "ADJUSTMENT" && adjustmentDirection === "INCREASE" ? Number(quantity) : -Number(quantity))))} ${selectedProduct?.baseUnit ?? ""}`
+        : null,
       type === "INWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "INCREASE")
         ? `Unit cost: ₹${Number(unitCost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+        : null,
+      type === "ADJUSTMENT" && adjustmentDirection === "INCREASE"
+        ? `Estimated adjustment value: ₹${(Number(quantity) * Number(unitCost)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : null,
       type === "INWARD"
         ? `Total inward value: ₹${inwardValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : null,
       reference.trim() ? `Reference: ${reference.trim()}` : null,
-      type === "INWARD" ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason) : reason.trim(),
+      type === "INWARD" ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason) :
+        type === "ADJUSTMENT" ? (reason === "Other" ? adjustmentReasonDetails.trim() : reason.trim()) : reason.trim(),
     ].filter(Boolean);
     if (!window.confirm(confirmationLines.join("\\n"))) return;
     setSaving(true);
@@ -294,6 +307,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       setQuantity("");
       setReference("");
       setReason("");
+      setAdjustmentReasonDetails("");
       setInwardReason("");
       setInwardReasonDetails("");
       setAvailableStock(null);
@@ -384,9 +398,9 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                 </select>
               </label>
             )}
-            {type === "OUTWARD" && productId && locationId && (
+            {(type === "OUTWARD" || type === "ADJUSTMENT") && productId && locationId && (
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm sm:col-span-2">
-                <span className="font-medium">Available stock: </span>
+                <span className="font-medium">{type === "ADJUSTMENT" ? "Current stock at this location: " : "Available stock: "}</span>
                 {stockLookupLoading ? "Checking…" : availableStock === null ? "Unable to determine stock" : `${formatQuantity(availableStock)} ${products.find((item) => item.id === productId)?.baseUnit ?? "units"}`}
               </div>
             )}
@@ -394,7 +408,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               Quantity
               <input required type="number" min="0.0001" step="0.0001" value={quantity} onChange={(event) => { setQuantity(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
-            {type === "OUTWARD" && availableStock !== null && quantity && Number(quantity) > Number(availableStock) && (
+            {(type === "OUTWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE")) && availableStock !== null && quantity && Number(quantity) > Number(availableStock) && (
               <p role="alert" className="text-sm font-medium text-red-700 sm:col-span-2">
                 Insufficient stock: requested {formatQuantity(quantity)} {products.find((item) => item.id === productId)?.baseUnit ?? "units"}, but only {formatQuantity(availableStock)} is available.
               </p>
@@ -442,14 +456,44 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                   <option value="Other">Other</option>
                 </select>
               </label>
+            ) : type === "ADJUSTMENT" ? (
+              <>
+                <label className="text-sm font-medium">
+                  Adjustment reason <span className="text-red-700">*</span>
+                  <select required value={reason} onChange={(event) => { setReason(event.target.value); setAdjustmentReasonDetails(""); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                    <option value="">Select reason</option>
+                    {adjustmentDirection === "INCREASE" ? (
+                      <>
+                        <option value="Physical Stock Count – Excess">Physical Stock Count – Excess</option>
+                        <option value="Found / Recovered Stock">Found / Recovered Stock</option>
+                        <option value="Previous Entry Correction">Previous Entry Correction</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Physical Stock Count – Shortage">Physical Stock Count – Shortage</option>
+                        <option value="Damaged / Wastage">Damaged / Wastage</option>
+                        <option value="Lost / Missing">Lost / Missing</option>
+                        <option value="Internal Consumption">Internal Consumption</option>
+                      </>
+                    )}
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                {reason === "Other" && (
+                  <label className="text-sm font-medium sm:col-span-2">
+                    Specify adjustment reason <span className="text-red-700">*</span>
+                    <input required maxLength={500} value={adjustmentReasonDetails} onChange={(event) => { setAdjustmentReasonDetails(event.target.value); invalidateRequestKey(); }} placeholder="Explain the stock adjustment" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
+                  </label>
+                )}
+              </>
             ) : (
               <label className="text-sm font-medium sm:col-span-2">
-                Reason {type === "ADJUSTMENT" && <span className="text-red-700">*</span>}
-                <input maxLength={500} required={type === "ADJUSTMENT"} value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} placeholder={type === "ADJUSTMENT" ? "Required for adjustments" : "Optional note"} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
+                Reason
+                <input maxLength={500} value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} placeholder="Optional note" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
               </label>
             )}
             <div className="flex items-end">
-              <button disabled={saving || !locations.length || !productId || (type === "OUTWARD" && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))) || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              <button disabled={saving || !locations.length || !productId || (type === "OUTWARD" && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))) || (type === "ADJUSTMENT" && (!reason || (reason === "Other" && !adjustmentReasonDetails.trim()) || ((adjustmentDirection === "DECREASE") && (stockLookupLoading || availableStock === null || !quantity || Number(quantity) > Number(availableStock))))) || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Recording…" : "Record movement"}
               </button>
             </div>
