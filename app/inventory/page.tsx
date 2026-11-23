@@ -8,6 +8,7 @@ const sections = [
   { title: "Categories", description: "Organize products by category.", href: "/inventory/categories" },
   { title: "Brands", description: "Maintain the product brand list.", href: "/inventory/brands" },
   { title: "Stock", description: "Record stock inward, outward and adjustments; review balances and stock ledger history.", href: "/inventory/stock" },
+  { title: "Stock Locations", description: "Configure warehouses, showrooms, and other stock holding locations.", href: "/inventory/locations" },
 ];
 
 export default async function InventoryPage() {
