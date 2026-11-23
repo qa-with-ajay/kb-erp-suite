@@ -126,12 +126,6 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   }, [refreshLists]);
 
   useEffect(() => {
-    if (!success) return;
-    const timer = window.setTimeout(() => setSuccess(null), 6500);
-    return () => window.clearTimeout(timer);
-  }, [success]);
-
-  useEffect(() => {
     const controller = new AbortController();
     fetch("/api/inventory/stock/locations", { signal: controller.signal })
       .then((response) => readJson<{ items: LocationOption[] }>(response))
@@ -427,7 +421,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       )}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {success && (
-        <section role="status" aria-live="polite" className="fixed right-4 top-4 z-50 w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-xl">
+        <section role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
           <div className="flex items-start gap-2">
             <span aria-hidden="true" className="mt-0.5 font-bold text-emerald-700">✓</span>
             <div className="min-w-0 flex-1">
@@ -449,7 +443,6 @@ export function StockManager({ canManage }: { canManage: boolean }) {
                 </div>
               </details>
             </div>
-            <button type="button" onClick={() => setSuccess(null)} aria-label="Dismiss notification" className="rounded p-1 text-emerald-800 hover:bg-emerald-100">×</button>
           </div>
         </section>
       )}
