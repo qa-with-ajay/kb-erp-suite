@@ -13,7 +13,7 @@ const sections = [
 
 export default async function InventoryPage() {
   const access = await getInventoryAccess("inventory.read");
-  if (!access.ok) redirect(access.status === 401 ? "/login" : "/dashboard");
+  if (!access.ok) redirect(access.status === 401 ? "/login" : "/access-denied");
   const canManage = (await getInventoryAccess("inventory.manage")).ok;
 
   return (
