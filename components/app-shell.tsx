@@ -118,7 +118,7 @@ function LowStockNotifications() {
 
       const response = await fetch(
         "/api/notifications/low-stock",
-        { method: "GET" }
+        { method: "PATCH" }
       );
 
       const data = await response.json();
