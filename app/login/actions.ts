@@ -9,6 +9,7 @@ export async function loginAction(_previousState: LoginState, formData: FormData
     await signIn("credentials", {
       email: String(formData.get("email") ?? "").trim().toLowerCase(),
       password: String(formData.get("password") ?? ""),
+      roleCode: String(formData.get("roleCode") ?? ""),
       redirectTo: "/post-login",
     });
   } catch (error) {
