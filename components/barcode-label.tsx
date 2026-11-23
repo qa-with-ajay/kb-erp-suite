@@ -24,7 +24,7 @@ export function BarcodeLabel({ value, title }: Props) {
       setError("Code 128 supports up to 80 characters.");
       return;
     }
-    if (!/^[\\x20-\\x7E]+$/.test(normalizedValue)) {
+    if (!/^[\x20-\x7E]+$/.test(normalizedValue)) {
       setError("Code 128 requires printable ASCII characters. Check the barcode value.");
       return;
     }
