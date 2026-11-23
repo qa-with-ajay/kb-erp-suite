@@ -29,6 +29,7 @@ export function ProductList({ canManage }: Props) {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [active, setActive] = useState("all");
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
@@ -39,7 +40,7 @@ export function ProductList({ canManage }: Props) {
 
   const loadProducts = useCallback(async (signal: AbortSignal) => {
     const query = new URLSearchParams({
-      search,
+      search: debouncedSearch,
       active,
       page: String(page),
       pageSize: "10",
@@ -53,7 +54,12 @@ export function ProductList({ canManage }: Props) {
     if (!response.ok) throw new Error(body.error ?? "Unable to load products.");
     setItems(body.items);
     setTotal(body.total);
-  }, [active, brandId, categoryId, page, productType, search, sort]);
+  }, [active, brandId, categoryId, debouncedSearch, page, productType, sort]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,6 +99,16 @@ export function ProductList({ canManage }: Props) {
 
   const pageCount = Math.max(1, Math.ceil(total / 10));
   const resetPage = () => setPage(1);
+  const hasActiveFilters = Boolean(search || active !== "all" || categoryId || brandId || productType);
+  function clearFilters() {
+    setSearch("");
+    setDebouncedSearch("");
+    setActive("all");
+    setCategoryId("");
+    setBrandId("");
+    setProductType("");
+    setPage(1);
+  }
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -132,6 +148,7 @@ export function ProductList({ canManage }: Props) {
             <option value="">All brands</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
           </select>
         </label>
+        {hasActiveFilters && <button type="button" onClick={clearFilters} className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Clear filters</button>}
         {canManage && <div className="flex flex-wrap gap-2"><Link href="/inventory/import" className="rounded-lg border border-emerald-800 px-4 py-2.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">Bulk import</Link><Link href="/inventory/products/new" className="rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Add product</Link></div>}
       </div>
 
@@ -149,7 +166,7 @@ export function ProductList({ canManage }: Props) {
             {loading ? (
               <tr><td colSpan={7} className="py-8 text-center text-gray-500">Loading products…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-gray-500">No products found.</td></tr>
+              <tr><td colSpan={7} className="py-8 text-center text-gray-500">{hasActiveFilters ? "No products match these filters. Try changing or clearing your filters." : "No products found. Add your first product to get started."}</td></tr>
             ) : items.map((item) => (
               <tr key={item.id}>
                 <td className="py-3 pr-4"><p className="font-medium">{item.name}</p><p className="text-xs text-gray-500">{item.sku}</p><p className="text-xs text-gray-400">{item.barcode ? `${item.barcode} · ${item.barcodeType === "MANUFACTURER" ? "Manufacturer" : "KB"}` : "No barcode"}</p></td>
