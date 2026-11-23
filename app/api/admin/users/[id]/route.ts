@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
+import { hash } from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserAdministration } from "@/lib/admin-auth";
 
 const updateUserSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
+  password: z.string().min(12).max(128).optional(),
   isActive: z.boolean().optional(),
   roleCode: z.string().min(2).max(64).optional(),
   businessUnitIds: z.array(z.string().uuid()).max(20).refine((ids) => new Set(ids).size === ids.length, "Business units must be unique.").optional(),
-}).refine((value) => value.name !== undefined || value.isActive !== undefined || value.roleCode !== undefined || value.businessUnitIds !== undefined);
+}).refine((value) => value.name !== undefined || value.password !== undefined || value.isActive !== undefined || value.roleCode !== undefined || value.businessUnitIds !== undefined);
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const access = await requireUserAdministration();
@@ -54,11 +56,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Select a role when changing business-unit assignments." }, { status: 400 });
   }
 
+  const passwordHash = parsed.data.password ? await hash(parsed.data.password, 12) : undefined;
   const result = await prisma.$transaction(async (tx) => {
     const legacyRole = role ? (role.scope === "GROUP" ? "ADMIN" : role.code === "CASHIER" ? "CASHIER" : "MANAGER") : undefined;
     const user = await tx.user.update({
       where: { id },
-      data: { ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}), ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}), ...(legacyRole ? { role: legacyRole } : {}) },
+      data: {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(passwordHash ? { passwordHash } : {}),
+        ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+        ...(legacyRole ? { role: legacyRole } : {}),
+      },
       select: { id: true, name: true, email: true, isActive: true },
     });
 
@@ -77,7 +85,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       action: "UPDATE",
       entity: "User",
       entityId: id,
-      details: { changes: parsed.data, roleCode: role?.code ?? null },
+      details: {
+        changes: {
+          ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+          ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+          ...(parsed.data.roleCode !== undefined ? { roleCode: parsed.data.roleCode } : {}),
+          ...(parsed.data.businessUnitIds !== undefined ? { businessUnitIds: parsed.data.businessUnitIds } : {}),
+          ...(passwordHash ? { passwordReset: true } : {}),
+        },
+        roleCode: role?.code ?? null,
+      },
     } });
     return user;
   });
