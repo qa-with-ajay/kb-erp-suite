@@ -14,7 +14,7 @@ export function BarcodeLabel({ value, title }: Props) {
     const normalizedValue = value.trim();
     if (!normalizedValue) return { bars: [], error: "Barcode value is empty." };
     if (normalizedValue.length > 80) return { bars: [], error: "Code 128 supports up to 80 characters." };
-    if (!/^[\\x20-\\x7E]+$/.test(normalizedValue)) {
+    if (!/^[\x20-\x7E]+$/.test(normalizedValue)) {
       return { bars: [], error: "Code 128 requires printable ASCII characters. Check the barcode value." };
     }
 
