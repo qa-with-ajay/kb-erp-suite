@@ -126,14 +126,14 @@ export async function getBusinessUnitPermissionCodes() {
       for (const { role } of selectedRoles) {
         for (const { permission } of role.permissions) permissions.add(permission.code);
       }
-    } else if (permissions.size) {
-      const selectedUnit = await prisma.businessUnit.findFirst({
-        where: { id: selectedUnitId, isActive: true },
-        select: { id: true },
-      });
-      if (!selectedUnit) return new Set<string>();
-    } else {
-      return permissions;
+    } else if (!permissions.size) {
+      const fallbackUnitId = activeUnitRoles.find(({ businessUnit }) => businessUnit.code === "KB_INTERIORS")?.businessUnit.id
+        ?? activeUnitRoles[0]?.businessUnit.id;
+      for (const { businessUnit, role } of activeUnitRoles) {
+        if (businessUnit.id === fallbackUnitId) {
+          for (const { permission } of role.permissions) permissions.add(permission.code);
+        }
+      }
     }
   } else {
     if (permissions.size) {
