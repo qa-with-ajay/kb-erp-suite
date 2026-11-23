@@ -394,6 +394,11 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               Quantity
               <input required type="number" min="0.0001" step="0.0001" value={quantity} onChange={(event) => { setQuantity(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
+            {type === "OUTWARD" && availableStock !== null && quantity && Number(quantity) > Number(availableStock) && (
+              <p role="alert" className="text-sm font-medium text-red-700 sm:col-span-2">
+                Insufficient stock: requested {formatQuantity(quantity)} {products.find((item) => item.id === productId)?.baseUnit ?? "units"}, but only {formatQuantity(availableStock)} is available.
+              </p>
+            )}
             {type !== "OUTWARD" && type !== "TRANSFER" && !(type === "ADJUSTMENT" && adjustmentDirection === "DECREASE") && (
               <label className="text-sm font-medium">
                 Unit cost
