@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { UserRole } from "@prisma/client";
 import { getBusinessUnitAccess, hasGroupPermission } from "@/lib/inventory-auth";
 
 export default async function PostLoginPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  if (session.user.role === UserRole.ADMIN || await hasGroupPermission(session.user.id, "businessUnits.manage")) {
+  if (await hasGroupPermission(session.user.id, "businessUnits.manage")) {
     redirect("/group-dashboard");
   }
 
