@@ -182,12 +182,13 @@ export function StockManager({ canManage }: { canManage: boolean }) {
     }
     const controller = new AbortController();
     setAvailableStock(null);
+    setDestinationStock(null);
     setStockLookupLoading(true);
     const query = new URLSearchParams({ search: selectedProduct.sku, page: "1", pageSize: "100", ...(!isTransfer ? { locationId: stockLocationId } : {}) });
     fetch(`/api/inventory/stock?${query}`, { signal: controller.signal })
       .then((response) => readJson<PageResponse<Balance>>(response))
       .then((data) => {
-        const balance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === locationId);
+        const balance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === stockLocationId);
         setAvailableStock(balance?.quantity ?? "0");
         if (isTransfer) {
           const destinationBalance = data.items.find((item) => item.product.id === productId && (item.variant?.id ?? null) === (variantId || null) && item.location.id === destinationLocationId);
