@@ -1,60 +1,60 @@
-// import NextAuth from "next-auth";
-// import Credentials from "next-auth/providers/credentials";
-// import { compare } from "bcryptjs";
-// import { z } from "zod";
-// import { UserRole } from "@prisma/client";
-// import { prisma } from "@/lib/prisma";
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { compare } from "bcryptjs";
+import { z } from "zod";
+import { UserRole } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import authConfig from "./auth.config";
 
-// function isUserRole(value: unknown): value is UserRole {
-//   return Object.values(UserRole).some((role) => role === value);
-// }
+function isUserRole(value: unknown): value is UserRole {
+  return Object.values(UserRole).some((role) => role === value);
+}
 
-// export const { handlers, auth, signIn, signOut } = NextAuth({
-//   session: { strategy: "jwt" },
-//   callbacks: {
-//     authorized({ auth, request }) {
-//       if (request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/inventory")) {
-//         return !!auth?.user?.id;
-//       }
-//       return true;
-//     },
-//     async jwt({ token, user }) {
-//       if (user) {
-//         token.userId = user.id;
-//         token.role = user.role;
-//       }
-//       if (typeof token.userId === "string") {
-//         // Refresh account state and legacy role on every session check so role changes
-//         // and deactivation take effect without waiting for the JWT to expire.
-//         const profile = await prisma.user.findUnique({
-//           where: { id: token.userId },
-//           select: { name: true, email: true, role: true, isActive: true },
-//         });
-//         token.userDisabled = !profile?.isActive;
-//         if (profile?.isActive) {
-//           token.name = profile.name;
-//           token.email = profile.email;
-//           token.role = profile.role;
-//         }
-//       }
-//       return token;
-//     },
-//     async session({ session, token }) {
-//       if (session.user) {
-//         if (typeof token.userId !== "string" || !isUserRole(token.role)) {
-//           throw new Error("Authenticated session is missing user authorization details.");
-//         }
-//         session.user.id = token.userDisabled ? "" : token.userId;
-//         session.user.role = token.role;
-//         if (typeof token.name === "string") session.user.name = token.name;
-//         if (typeof token.email === "string") session.user.email = token.email;
-//       }
-//       return session;
-//     },
-//   },
-//   pages: { signIn: "/login" },
-//   providers: [
-//     Credentials({
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user }) {
+      if (user) {
+        token.userId = user.id;
+        token.role = user.role;
+        if ("selectedRoleCode" in user && typeof user.selectedRoleCode === "string") {
+          token.selectedRoleCode = user.selectedRoleCode;
+        }
+      }
+
+      if (typeof token.userId === "string") {
+        const profile = await prisma.user.findUnique({
+          where: { id: token.userId },
+          select: { name: true, email: true, role: true, isActive: true },
+        });
+        token.userDisabled = !profile?.isActive;
+        if (profile?.isActive) {
+          token.name = profile.name;
+          token.email = profile.email;
+          token.role = profile.role;
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        if (typeof token.userId !== "string" || !isUserRole(token.role)) {
+          throw new Error("Authenticated session is missing user authorization details.");
+        }
+        session.user.id = token.userDisabled ? "" : token.userId;
+        session.user.role = token.role;
+        if (typeof token.selectedRoleCode === "string") {
+          session.user.selectedRoleCode = token.selectedRoleCode;
+        }
+        if (typeof token.name === "string") session.user.name = token.name;
+        if (typeof token.email === "string") session.user.email = token.email;
+      }
+      return session;
+    },
+  },
+  providers: [
+    Credentials({
       name: "Email and password",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -99,9 +99,14 @@
         const valid = await compare(parsed.data.password, user.passwordHash);
         if (!valid) return null;
 
-        return { id: user.id, name: user.name, email: user.email, role: user.role };
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          selectedRoleCode: selectedRole.code,
+        };
       },
-    }),,
+    }),
   ],
 });
-
