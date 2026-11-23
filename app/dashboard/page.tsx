@@ -17,7 +17,7 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
 export default async function DashboardPage() {
   let access = await getBusinessUnitAccess("reports.unit.read");
   if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("inventory.read");
-  if (!access.ok) redirect(access.status === 401 ? "/login" : "/inventory");
+  if (!access.ok) redirect(access.status === 401 ? "/login" : "/access-denied");
 
   const [dashboard, canViewBilling, canViewInventory, canManageCustomers, canManageSuppliers, canManagePurchases] = await Promise.all([
     getUnitDashboardData(access.context.businessUnit.id),
