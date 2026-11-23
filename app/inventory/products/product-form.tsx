@@ -507,12 +507,16 @@ export function ProductForm({ productId }: Props) {
                   ? "MANUFACTURER"
                   : "INTERNAL";
 
-              setValues((current) => ({
-                ...current,
-                barcodeType,
-                barcode:
-                  barcodeType === "INTERNAL" ? "" : current.barcode,
-              }));
+              setValues((current) => {
+                if (barcodeType === current.barcodeType) return current;
+                return {
+                  ...current,
+                  barcodeType,
+                  // Barcode values are source-specific. Never carry an internally
+                  // generated value into the manufacturer barcode field (or vice versa).
+                  barcode: "",
+                };
+              });
             }}
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
           >
