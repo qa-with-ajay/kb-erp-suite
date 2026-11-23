@@ -111,7 +111,7 @@ export async function getBusinessUnitPermissionCodes() {
     prisma.userBusinessUnitRole.findMany({
       where: { userId: session.user.id, businessUnit: { isActive: true } },
       include: {
-        businessUnit: { select: { id: true } },
+        businessUnit: { select: { id: true, code: true } },
         role: { include: { permissions: { include: { permission: true } } } },
       },
     }),
