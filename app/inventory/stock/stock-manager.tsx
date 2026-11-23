@@ -73,6 +73,8 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [unitCost, setUnitCost] = useState("");
   const [reference, setReference] = useState("");
   const [reason, setReason] = useState("");
+  const [inwardReason, setInwardReason] = useState("");
+  const [inwardReasonDetails, setInwardReasonDetails] = useState("");
   const [requestKey, setRequestKey] = useState("");
   const [balancePage, setBalancePage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
@@ -115,9 +117,6 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       .then((response) => readJson<{ items: LocationOption[] }>(response))
       .then(({ items }) => {
         setLocations(items);
-        setLocationId((current) => current || items[0]?.id || "");
-        setSourceLocationId((current) => current || items[0]?.id || "");
-        setDestinationLocationId((current) => current || items.find((item) => item.id !== items[0]?.id)?.id || "");
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load stock locations.");
@@ -185,10 +184,28 @@ export function StockManager({ canManage }: { canManage: boolean }) {
 
   async function submitMovement(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const movementLabel = type === "ADJUSTMENT"
-      ? `adjust stock ${adjustmentDirection.toLowerCase()}`
-      : type === "TRANSFER" ? "transfer stock" : `record ${type.toLowerCase().replaceAll("_", " ")}`;
-    if (!window.confirm(`Confirm you want to ${movementLabel} by ${quantity} for the selected product?`)) return;
+    const selectedProduct = products.find((item) => item.id === productId);
+    const selectedLocation = locations.find((item) => item.id === locationId);
+    const selectedSource = locations.find((item) => item.id === sourceLocationId);
+    const selectedDestination = locations.find((item) => item.id === destinationLocationId);
+    const quantityLabel = `${formatQuantity(quantity)} ${selectedProduct?.baseUnit ?? "units"}`;
+    const inwardValue = Number(quantity) * Number(unitCost);
+    const confirmationLines = [
+      `Confirm ${type === "INWARD" ? "stock inward" : type === "OUTWARD" ? "stock outward" : type === "TRANSFER" ? "stock transfer" : `stock adjustment (${adjustmentDirection.toLowerCase()})`}?`,
+      `Product: ${selectedProduct?.name ?? "Selected product"} (${selectedProduct?.sku ?? "—"})`,
+      variants.find((item) => item.id === variantId) ? `Variant: ${variantLabel(variants.find((item) => item.id === variantId) ?? null)}` : null,
+      type === "TRANSFER" ? `From: ${selectedSource?.name ?? "—"} → To: ${selectedDestination?.name ?? "—"}` : `Location: ${selectedLocation?.name ?? "—"}`,
+      `Quantity: ${quantityLabel}`,
+      type === "INWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "INCREASE")
+        ? `Unit cost: ₹${Number(unitCost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+        : null,
+      type === "INWARD"
+        ? `Total inward value: ₹${inwardValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : null,
+      reference.trim() ? `Reference: ${reference.trim()}` : null,
+      type === "INWARD" ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason) : reason.trim(),
+    ].filter(Boolean);
+    if (!window.confirm(confirmationLines.join("\\n"))) return;
     setSaving(true);
     setError("");
     setSuccess("");
@@ -207,15 +224,31 @@ export function StockManager({ canManage }: { canManage: boolean }) {
           adjustmentDirection: type === "ADJUSTMENT" ? adjustmentDirection : undefined,
           unitCost: type === "OUTWARD" || type === "TRANSFER" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE") ? undefined : unitCost,
           reference,
-          reason,
+          reason: type === "INWARD"
+            ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason || null)
+            : reason,
           idempotencyKey: key,
         }),
       });
-      await readJson<{ movementId: string; replayed: boolean }>(response);
-      setSuccess("Stock transaction recorded.");
+      const result = await readJson<{ movementId: string; replayed: boolean }>(response);
+      const stockQuery = new URLSearchParams({ search: selectedProduct?.sku ?? "", page: "1", pageSize: "100" });
+      if (type !== "TRANSFER" && locationId) stockQuery.set("locationId", locationId);
+      const stockResponse = await fetch(`/api/inventory/stock?${stockQuery}`);
+      const currentStock = await readJson<PageResponse<Balance>>(stockResponse);
+      const matchingBalance = (targetLocationId: string) => currentStock.items.find((item) =>
+        item.product.id === productId &&
+        (item.variant?.id ?? null) === (variantId || null) &&
+        item.location.id === targetLocationId
+      );
+      const stockSummary = type === "TRANSFER"
+        ? `Source remaining: ${formatQuantity(matchingBalance(sourceLocationId)?.quantity ?? "0")}; destination now: ${formatQuantity(matchingBalance(destinationLocationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`
+        : `Available at ${selectedLocation?.name ?? "location"}: ${formatQuantity(matchingBalance(locationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`;
+      setSuccess(`Stock movement ${result.movementId} recorded. ${stockSummary}${result.replayed ? " (Existing request safely replayed.)" : ""}`);
       setQuantity("");
       setReference("");
       setReason("");
+      setInwardReason("");
+      setInwardReasonDetails("");
       setRequestKey("");
       await refreshLists();
     } catch (cause) {
@@ -317,10 +350,32 @@ export function StockManager({ canManage }: { canManage: boolean }) {
               Reference
               <input maxLength={100} value={reference} onChange={(event) => { setReference(event.target.value); invalidateRequestKey(); }} placeholder="Optional reference" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
-            <label className="text-sm font-medium sm:col-span-2">
-              Reason {type === "ADJUSTMENT" && <span className="text-red-700">*</span>}
-              <input maxLength={500} required={type === "ADJUSTMENT"} value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} placeholder={type === "ADJUSTMENT" ? "Required for adjustments" : type === "INWARD" ? "Initial inventory, supplier receipt, etc." : "Optional note"} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
-            </label>
+            {type === "INWARD" ? (
+              <>
+                <label className="text-sm font-medium">
+                  Inward reason (optional)
+                  <select value={inwardReason} onChange={(event) => { setInwardReason(event.target.value); setInwardReasonDetails(""); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                    <option value="">Select reason</option>
+                    <option value="Supplier Purchase">Supplier Purchase</option>
+                    <option value="Opening Inventory">Opening Inventory</option>
+                    <option value="Customer Return">Customer Return</option>
+                    <option value="Stock Received">Stock Received</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                {inwardReason === "Other" && (
+                  <label className="text-sm font-medium sm:col-span-2">
+                    Specify reason (optional)
+                    <input maxLength={500} value={inwardReasonDetails} onChange={(event) => { setInwardReasonDetails(event.target.value); invalidateRequestKey(); }} placeholder="Enter inward reason" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
+                  </label>
+                )}
+              </>
+            ) : (
+              <label className="text-sm font-medium sm:col-span-2">
+                Reason {type === "ADJUSTMENT" && <span className="text-red-700">*</span>}
+                <input maxLength={500} required={type === "ADJUSTMENT"} value={reason} onChange={(event) => { setReason(event.target.value); invalidateRequestKey(); }} placeholder={type === "ADJUSTMENT" ? "Required for adjustments" : "Optional note"} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
+              </label>
+            )}
             <div className="flex items-end">
               <button disabled={saving || !locations.length || !productId || (type === "TRANSFER" && (!sourceLocationId || !destinationLocationId || sourceLocationId === destinationLocationId))} className="w-full rounded-lg bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Recording…" : "Record movement"}
