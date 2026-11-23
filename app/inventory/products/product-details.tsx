@@ -42,10 +42,10 @@ type Product = {
   stockBalances: {
     id: string;
     quantity: string;
-    averageCost: string;
     location: { id: string; name: string; code: string };
     variant: { id: string; code: string | null; attributes: Record<string, string> } | null;
   }[];
+  stockLocations: { id: string; name: string; code: string }[];
 };
 type AttributeRow = { key: string; value: string };
 const units = ["PCS", "SQFT", "BOX", "RFT", "ROLL", "METER", "KG", "LITRE", "BUNDLE", "SET"];
@@ -245,6 +245,21 @@ export function ProductDetails({ productId, canManage }: Props) {
     { unit: product.baseUnit, conversionFactor: "1", isPurchaseUnit: false, isSalesUnit: false, precision: 4, roundingMode: "HALF_UP", id: "base" },
     ...product.unitConversions,
   ];
+  const totalAvailableStock = product.stockBalances.reduce((total, balance) => total + Number(balance.quantity), 0);
+  const minimumStock = Number(product.minimumStock);
+  const isBelowMinimumStock = minimumStock > 0 && totalAvailableStock < minimumStock;
+  const stockRows = [
+    ...product.stockBalances.map((balance) => ({ ...balance, isZeroBalanceLocation: false })),
+    ...product.stockLocations
+      .filter((location) => !product.stockBalances.some((balance) => balance.location.id === location.id))
+      .map((location) => ({
+        id: `zero-${location.id}`,
+        quantity: "0",
+        location,
+        variant: null,
+        isZeroBalanceLocation: true,
+      })),
+  ].sort((a, b) => a.location.name.localeCompare(b.location.name));
 
   return (
     <main className="min-h-screen p-5 md:p-10">
@@ -268,14 +283,21 @@ export function ProductDetails({ productId, canManage }: Props) {
         <p><span className="block text-xs text-gray-500">Category</span>{product.category?.name ?? "—"}</p>
         <p><span className="block text-xs text-gray-500">Brand</span>{product.brand?.name ?? "—"}</p>
         <p><span className="block text-xs text-gray-500">Selling price / GST</span>{product.sellingPrice} / {product.gstPercentage}%</p>
-        <p><span className="block text-xs text-gray-500">Minimum stock</span>{product.minimumStock} {product.baseUnit}</p>
+        <p><span className="block text-xs text-gray-500">Minimum stock</span>{product.minimumStock} {product.baseUnit}<span className="mt-1 block text-xs text-gray-500">Threshold applies to combined stock across all locations</span></p>
         <p><span className="block text-xs text-gray-500">Status</span>{product.isActive ? "Active" : "Inactive"}</p>
         <div className="sm:col-span-2 lg:col-span-2">
           <span className="mb-1 block text-xs text-gray-500">Barcode · {product.barcodeType === "MANUFACTURER" ? "Manufacturer" : "KB internal"}</span>
           {product.barcode ? <BarcodeLabel value={product.barcode} title={product.name} /> : "—"}
           {product.barcodeType === "INTERNAL" && <p className="mt-1 text-xs text-gray-500">Internal Code 128 · Not a GS1/GTIN barcode</p>}
         </div>
-        <p><span className="block text-xs text-gray-500">Image reference</span>{product.imageUrl ?? "—"}</p>
+        <div className="sm:col-span-2 lg:col-span-2">
+          <span className="mb-1 block text-xs text-gray-500">Product image</span>
+          {product.imageUrl ? (
+            <a href={product.imageUrl} target="_blank" rel="noreferrer" className="inline-flex">
+              <img src={product.imageUrl} alt={`${product.name} product image`} loading="lazy" className="h-28 w-28 rounded-lg border border-gray-200 object-contain p-1" />
+            </a>
+          ) : <span className="text-sm text-gray-500">No image added</span>}
+        </div>
         {product.description && <p className="sm:col-span-2 lg:col-span-4"><span className="block text-xs text-gray-500">Description</span>{product.description}</p>}
       </section>
 
@@ -287,30 +309,40 @@ export function ProductDetails({ productId, canManage }: Props) {
           </div>
           <Link href="/inventory/stock" className="text-sm font-medium text-emerald-900 hover:underline">Open Stock Management</Link>
         </div>
-        {product.stockBalances.length ? (
-          <>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Total available</span>
-                <span className="mt-1 block text-xl font-semibold tabular-nums">{product.stockBalances.reduce((total, balance) => total + Number(balance.quantity), 0).toLocaleString("en-IN", { maximumFractionDigits: 4 })} {product.baseUnit}</span>
-              </div>
-            </div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[28rem] text-left text-sm">
-                <thead className="border-b border-gray-200 text-gray-500"><tr><th className="py-2 pr-3">Location</th><th className="py-2 pr-3">Variant</th><th className="py-2 text-right">Available quantity</th></tr></thead>
-                <tbody className="divide-y divide-gray-100">
-                  {product.stockBalances.map((balance) => (
-                    <tr key={balance.id}>
-                      <td className="py-3 pr-3">{balance.location.name} ({balance.location.code})</td>
-                      <td className="py-3 pr-3">{balance.variant ? [balance.variant.code, Object.entries(balance.variant.attributes).map(([key, value]) => `${key}: ${value}`).join(", ")].filter(Boolean).join(" · ") : "—"}</td>
-                      <td className="py-3 text-right font-medium tabular-nums">{Number(balance.quantity).toLocaleString("en-IN", { maximumFractionDigits: 4 })} {product.baseUnit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : <p className="mt-4 text-sm text-gray-500">No stock has been received for this product yet.</p>}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg bg-gray-50 p-3">
+            <span className="block text-xs text-gray-500">Total available across locations</span>
+            <span className="mt-1 block text-xl font-semibold tabular-nums">{totalAvailableStock.toLocaleString("en-IN", { maximumFractionDigits: 4 })} {product.baseUnit}</span>
+          </div>
+          <div className={`rounded-lg p-3 ${isBelowMinimumStock ? "bg-amber-50" : "bg-gray-50"}`}>
+            <span className="block text-xs text-gray-500">Minimum stock status</span>
+            <span className={`mt-1 block text-sm font-semibold ${isBelowMinimumStock ? "text-amber-800" : "text-gray-900"}`}>{minimumStock <= 0 ? "No minimum set" : isBelowMinimumStock ? "Below minimum stock" : "Minimum stock met"}</span>
+            <span className="mt-1 block text-xs text-gray-500">Minimum: {minimumStock.toLocaleString("en-IN", { maximumFractionDigits: 4 })} {product.baseUnit}</span>
+          </div>
+        </div>
+        {isBelowMinimumStock && (
+          <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            Low stock: combined available quantity is below the minimum. Review replenishment across Warehouse and Showroom.
+          </p>
+        )}
+        {product.stockLocations.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">No active stock locations are configured for this business unit.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[28rem] text-left text-sm">
+              <thead className="border-b border-gray-200 text-gray-500"><tr><th className="py-2 pr-3">Location</th><th className="py-2 pr-3">Variant</th><th className="py-2 text-right">Available quantity</th></tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {stockRows.map((balance) => (
+                  <tr key={balance.id}>
+                    <td className="py-3 pr-3">{balance.location.name} ({balance.location.code})</td>
+                    <td className="py-3 pr-3">{balance.variant ? [balance.variant.code, Object.entries(balance.variant.attributes).map(([key, value]) => `${key}: ${value}`).join(", ")].filter(Boolean).join(" · ") : "—"}</td>
+                    <td className="py-3 text-right font-medium tabular-nums">{Number(balance.quantity).toLocaleString("en-IN", { maximumFractionDigits: 4 })} {product.baseUnit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
