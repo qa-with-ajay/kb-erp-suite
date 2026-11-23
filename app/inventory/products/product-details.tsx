@@ -212,8 +212,8 @@ export function ProductDetails({ productId, canManage }: Props) {
     const isActive = target.type === "product" ? product.isActive : target.variant.isActive;
     const action = isActive ? "deactivate" : "activate";
     const endpoint = target.type === "product"
-      ? \`/api/inventory/products/\${product.id}\`
-      : \`/api/inventory/products/\${productId}/variants/\${target.variant.id}\`;
+      ? `/api/inventory/products/${product.id}`
+      : `/api/inventory/products/${productId}/variants/${target.variant.id}`;
     setPending(true);
     setError(null);
     setNotice(null);
@@ -225,14 +225,14 @@ export function ProductDetails({ productId, canManage }: Props) {
       });
       const body = await response.json();
       if (!response.ok) {
-        throw new Error(body.error ?? \`Unable to \${action} \${target.type}.\`);
+        throw new Error(body.error ?? `Unable to ${action} ${target.type}.`);
       }
       await loadProduct();
       setStatusChangeTarget(null);
-      setNotice(target.type === "product" ? \`Product \${action}d.\` : \`Variant \${action}d.\`);
+      setNotice(target.type === "product" ? `Product ${action}d.` : `Variant ${action}d.`);
     } catch (cause) {
       setStatusChangeTarget(null);
-      setError(cause instanceof Error ? cause.message : \`Unable to \${action} \${target.type}.\`);
+      setError(cause instanceof Error ? cause.message : `Unable to ${action} ${target.type}.`);
     } finally {
       setPending(false);
     }
