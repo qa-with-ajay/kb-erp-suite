@@ -26,9 +26,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (typeof token.userId === "string") {
         const profile = await prisma.user.findUnique({
           where: { id: token.userId },
-          select: { name: true, email: true, role: true, isActive: true },
+          select: { name: true, email: true, role: true, isActive: true, passwordVersion: true },
         });
-        token.userDisabled = !profile?.isActive;
+        token.userDisabled = !profile?.isActive || (typeof token.passwordVersion === "number" && token.passwordVersion !== profile.passwordVersion);
+        if (profile) token.passwordVersion = profile.passwordVersion;
         if (profile?.isActive) {
           token.name = profile.name;
           token.email = profile.email;
