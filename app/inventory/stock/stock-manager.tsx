@@ -281,7 +281,9 @@ export function StockManager({ canManage }: { canManage: boolean }) {
           reference,
           reason: type === "INWARD"
             ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason || null)
-            : reason,
+            : type === "ADJUSTMENT"
+              ? (reason === "Other" ? adjustmentReasonDetails.trim() : reason)
+              : reason,
           idempotencyKey: key,
         }),
       });
