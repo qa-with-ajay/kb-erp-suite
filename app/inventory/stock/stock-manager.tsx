@@ -231,19 +231,24 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         }),
       });
       const result = await readJson<{ movementId: string; replayed: boolean }>(response);
-      const stockQuery = new URLSearchParams({ search: selectedProduct?.sku ?? "", page: "1", pageSize: "100" });
-      if (type !== "TRANSFER" && locationId) stockQuery.set("locationId", locationId);
-      const stockResponse = await fetch(`/api/inventory/stock?${stockQuery}`);
-      const currentStock = await readJson<PageResponse<Balance>>(stockResponse);
-      const matchingBalance = (targetLocationId: string) => currentStock.items.find((item) =>
-        item.product.id === productId &&
-        (item.variant?.id ?? null) === (variantId || null) &&
-        item.location.id === targetLocationId
-      );
-      const stockSummary = type === "TRANSFER"
-        ? `Source remaining: ${formatQuantity(matchingBalance(sourceLocationId)?.quantity ?? "0")}; destination now: ${formatQuantity(matchingBalance(destinationLocationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`
-        : `Available at ${selectedLocation?.name ?? "location"}: ${formatQuantity(matchingBalance(locationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`;
-      setSuccess(`Stock movement ${result.movementId} recorded. ${stockSummary}${result.replayed ? " (Existing request safely replayed.)" : ""}`);
+      setSuccess(`Stock movement ${result.movementId} recorded${result.replayed ? " (Existing request safely replayed.)" : ""}. Refreshing stock balance…`);
+      try {
+        const stockQuery = new URLSearchParams({ search: selectedProduct?.sku ?? "", page: "1", pageSize: "100" });
+        if (type !== "TRANSFER" && locationId) stockQuery.set("locationId", locationId);
+        const stockResponse = await fetch(`/api/inventory/stock?${stockQuery}`);
+        const currentStock = await readJson<PageResponse<Balance>>(stockResponse);
+        const matchingBalance = (targetLocationId: string) => currentStock.items.find((item) =>
+          item.product.id === productId &&
+          (item.variant?.id ?? null) === (variantId || null) &&
+          item.location.id === targetLocationId
+        );
+        const stockSummary = type === "TRANSFER"
+          ? `Source remaining: ${formatQuantity(matchingBalance(sourceLocationId)?.quantity ?? "0")}; destination now: ${formatQuantity(matchingBalance(destinationLocationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`
+          : `Available at ${selectedLocation?.name ?? "location"}: ${formatQuantity(matchingBalance(locationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`;
+        setSuccess(`Stock movement ${result.movementId} recorded. ${stockSummary}${result.replayed ? " (Existing request safely replayed.)" : ""}`);
+      } catch {
+        setSuccess(`Stock movement ${result.movementId} was recorded. The latest balance could not be loaded; refresh the stock list to verify it.`);
+      }
       setQuantity("");
       setReference("");
       setReason("");
