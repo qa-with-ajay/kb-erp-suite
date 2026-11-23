@@ -76,7 +76,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const selectedRole = await prisma.role.findFirst({
           where: { code: parsed.data.roleCode, isActive: true },
-          select: { id: true, scope: true },
+          select: { id: true, code: true, scope: true },
         });
         if (!selectedRole) return null;
 
