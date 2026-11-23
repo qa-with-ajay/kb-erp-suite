@@ -15,7 +15,7 @@
 
 //       if (!protectedRoute) return true;
 
-//       return Boolean(auth?.user?.id);
+//       return Boolean(auth?.user);
 //     },
 //   },
 //   providers: [],
