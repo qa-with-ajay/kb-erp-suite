@@ -410,41 +410,47 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   return (
     <div className="space-y-8">
       {confirmation && (
-        <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" aria-labelledby="movement-confirmation-title">
-          <h3 id="movement-confirmation-title" className="font-semibold">Review stock movement</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5">{confirmation.slice(1).map((line) => <li key={line}>{line}</li>)}</ul>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" disabled={saving} onClick={() => formRef.current?.requestSubmit()} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? "Recording…" : "Confirm and record"}</button>
-            <button type="button" disabled={saving} onClick={() => setConfirmation(null)} className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700">Cancel</button>
-          </div>
-        </section>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="movement-confirmation-title" className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 text-sm text-gray-900 shadow-2xl">
+            <h3 id="movement-confirmation-title" className="text-lg font-semibold">Confirm stock movement</h3>
+            <p className="mt-1 text-gray-600">Please review the details before recording this transaction.</p>
+            <ul className="mt-4 list-disc space-y-2 pl-5">{confirmation.slice(1).map((line) => <li key={line}>{line}</li>)}</ul>
+            <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4">
+              <button type="button" disabled={saving} onClick={() => setConfirmation(null)} className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700">Cancel</button>
+              <button type="button" disabled={saving} onClick={() => formRef.current?.requestSubmit()} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? "Recording…" : "Confirm and record"}</button>
+            </div>
+          </section>
+        </div>
       )}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {success && (
-        <section role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-          <div className="flex items-start gap-2">
-            <span aria-hidden="true" className="mt-0.5 font-bold text-emerald-700">✓</span>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold">{success.title}</p>
-              <p className="mt-1">{success.description}</p>
-              {success.balanceLines.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  {success.balanceLines.map((line) => <p key={line} className="font-medium">{line}</p>)}
-                </div>
-              )}
-              {success.note && <p className="mt-2 text-emerald-800">{success.note}</p>}
-              <details className="mt-3 text-xs text-emerald-800">
-                <summary className="w-fit cursor-pointer select-none">Movement reference</summary>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <code className="break-all">{success.movementId}</code>
-                  <button type="button" onClick={() => { void navigator.clipboard?.writeText(success.movementId); }} className="rounded border border-emerald-300 px-2 py-1 font-medium hover:bg-emerald-100">
-                    Copy reference
-                  </button>
-                </div>
-              </details>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="movement-success-title" className="w-full max-w-md rounded-xl border border-emerald-200 bg-white p-5 text-sm text-gray-900 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-700">✓</span>
+              <div className="min-w-0 flex-1">
+                <p id="movement-success-title" className="font-semibold">{success.title}</p>
+                <p className="mt-1 text-gray-600">{success.description}</p>
+                {success.balanceLines.length > 0 && (
+                  <div className="mt-3 space-y-1 rounded-lg bg-gray-50 p-3">
+                    {success.balanceLines.map((line) => <p key={line} className="font-medium">{line}</p>)}
+                  </div>
+                )}
+                {success.note && <p className="mt-2 text-amber-800">{success.note}</p>}
+                <details className="mt-3 text-xs text-gray-600">
+                  <summary className="w-fit cursor-pointer select-none">Movement reference</summary>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <code className="break-all">{success.movementId}</code>
+                    <button type="button" onClick={() => { void navigator.clipboard?.writeText(success.movementId); }} className="rounded border border-gray-300 px-2 py-1 font-medium hover:bg-gray-100">Copy reference</button>
+                  </div>
+                </details>
+              </div>
             </div>
-          </div>
-        </section>
+            <div className="mt-5 flex justify-end border-t border-gray-100 pt-4">
+              <button type="button" onClick={() => setSuccess(null)} className="rounded-lg bg-emerald-900 px-5 py-2 font-semibold text-white hover:bg-emerald-800">Done</button>
+            </div>
+          </section>
+        </div>
       )}
 
       {canManage && (
