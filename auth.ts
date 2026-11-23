@@ -106,15 +106,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: true,
             role: true,
             isActive: true,
+            updatedAt: true,
           },
         });
 
-        token.userDisabled = !profile?.isActive;
+        const profileUpdatedAt = profile?.updatedAt.getTime();
+        const profileChanged = Boolean(
+          profile?.isActive &&
+          !user &&
+          typeof token.userUpdatedAt === "number" &&
+          token.userUpdatedAt !== profileUpdatedAt
+        );
 
-        if (profile?.isActive) {
+        token.userDisabled = !profile?.isActive || profileChanged;
+
+        if (profile?.isActive && !profileChanged) {
           token.name = profile.name;
           token.email = profile.email;
           token.role = profile.role;
+          if (typeof profileUpdatedAt === "number") token.userUpdatedAt = profileUpdatedAt;
         }
       }
 
