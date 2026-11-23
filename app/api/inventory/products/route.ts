@@ -39,7 +39,24 @@ export async function GET(request: Request) {
   const [items, total] = await prisma.$transaction([
     prisma.product.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        description: true,
+        productType: true,
+        baseUnit: true,
+        sellingPrice: true,
+        gstPercentage: true,
+        minimumStock: true,
+        barcode: true,
+        barcodeType: true,
+        imageUrl: true,
+        isActive: true,
+        categoryId: true,
+        brandId: true,
+        createdAt: true,
+        updatedAt: true,
         category: { select: { id: true, name: true } },
         brand: { select: { id: true, name: true } },
         _count: { select: { variants: true } },
