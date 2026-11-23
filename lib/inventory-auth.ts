@@ -187,8 +187,10 @@ export async function hasGroupPermission(userId: string, permissionCode: string)
 }
 
 export async function getAvailableBusinessUnits(userId: string) {
+  const session = await auth();
+  const selectedRoleCode = session?.user?.id === userId ? session.user.selectedRoleCode : undefined;
   const groupRoles = await prisma.userGroupRole.findMany({
-    where: { userId },
+    where: { userId, ...(selectedRoleCode ? { role: { code: selectedRoleCode } } : {}) },
     include: { role: { include: { permissions: { include: { permission: true } } } } },
   });
   const canAccessAllUnits = groupRoles.some(
@@ -209,7 +211,7 @@ export async function getAvailableBusinessUnits(userId: string) {
   }
 
   const assignments = await prisma.userBusinessUnitRole.findMany({
-    where: { userId, businessUnit: { isActive: true }, role: { isActive: true, scope: "BUSINESS_UNIT" } },
+    where: { userId, businessUnit: { isActive: true }, role: { isActive: true, scope: "BUSINESS_UNIT", ...(selectedRoleCode ? { code: selectedRoleCode } : {}) } },
     select: { businessUnit: { select: { id: true, code: true, name: true } } },
     distinct: ["businessUnitId"],
     orderBy: { businessUnit: { name: "asc" } },
