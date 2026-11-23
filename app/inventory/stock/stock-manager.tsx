@@ -33,6 +33,13 @@ type Movement = {
   ledgerEntries: LedgerEntry[];
 };
 type PageResponse<T> = { items: T[]; total: number; page: number; pageSize: number };
+type SuccessNotice = {
+  title: string;
+  description: string;
+  balanceLines: string[];
+  movementId: string;
+  note?: string;
+};
 
 const pageSize = 20;
 
@@ -86,7 +93,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [success, setSuccess] = useState<SuccessNotice | null>(null);
 
   const loadBalances = useCallback(async (signal?: AbortSignal) => {
     const query = new URLSearchParams({ search: balanceSearch, page: String(balancePage), pageSize: String(pageSize), ...(balanceLocationId ? { locationId: balanceLocationId } : {}) });
@@ -333,23 +340,44 @@ export function StockManager({ canManage }: { canManage: boolean }) {
         }),
       });
       const result = await readJson<{ movementId: string; replayed: boolean }>(response);
-      setSuccess(`Stock movement ${result.movementId} recorded${result.replayed ? " (Existing request safely replayed.)" : ""}. Refreshing stock balance…`);
       try {
-        const stockQuery = new URLSearchParams({ search: selectedProduct?.sku ?? "", page: "1", pageSize: "100" });
-        if (type !== "TRANSFER" && locationId) stockQuery.set("locationId", locationId);
-        const stockResponse = await fetch(`/api/inventory/stock?${stockQuery}`);
-        const currentStock = await readJson<PageResponse<Balance>>(stockResponse);
-        const matchingBalance = (targetLocationId: string) => currentStock.items.find((item) =>
+        const targetLocationIds = type === "TRANSFER" ? [sourceLocationId, destinationLocationId] : [locationId];
+        const stockResponses = await Promise.all(targetLocationIds.map(async (targetLocationId) => {
+          const stockQuery = new URLSearchParams({ search: selectedProduct?.sku ?? "", page: "1", pageSize: "100", locationId: targetLocationId });
+          const stockResponse = await fetch(`/api/inventory/stock?${stockQuery}`);
+          return readJson<PageResponse<Balance>>(stockResponse);
+        }));
+        const matchingBalance = (targetLocationId: string, data: PageResponse<Balance>) => data.items.find((item) =>
           item.product.id === productId &&
           (item.variant?.id ?? null) === (variantId || null) &&
           item.location.id === targetLocationId
         );
-        const stockSummary = type === "TRANSFER"
-          ? `Source remaining: ${formatQuantity(matchingBalance(sourceLocationId)?.quantity ?? "0")}; destination now: ${formatQuantity(matchingBalance(destinationLocationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`
-          : `Available at ${selectedLocation?.name ?? "location"}: ${formatQuantity(matchingBalance(locationId)?.quantity ?? "0")} ${selectedProduct?.baseUnit ?? ""}.`;
-        setSuccess(`Stock movement ${result.movementId} recorded. ${stockSummary}${result.replayed ? " (Existing request safely replayed.)" : ""}`);
+        const unit = selectedProduct?.baseUnit ?? "units";
+        const quantityText = `${formatQuantity(quantity)} ${unit}`;
+        const title = type === "TRANSFER" ? "Stock transferred successfully"
+          : type === "INWARD" ? "Stock inward recorded"
+          : type === "OUTWARD" ? "Stock outward recorded"
+          : "Stock adjustment recorded";
+        const description = type === "TRANSFER"
+          ? `${quantityText} transferred from ${selectedSource?.name ?? "source"} to ${selectedDestination?.name ?? "destination"}.`
+          : type === "INWARD" ? `${quantityText} added at ${selectedLocation?.name ?? "location"}.`
+          : type === "OUTWARD" ? `${quantityText} issued from ${selectedLocation?.name ?? "location"}.`
+          : `${quantityText} ${adjustmentDirection === "INCREASE" ? "added to" : "removed from"} stock at ${selectedLocation?.name ?? "location"}.`;
+        const balanceLines = type === "TRANSFER"
+          ? [
+              `Source remaining: ${formatQuantity(matchingBalance(sourceLocationId, stockResponses[0])?.quantity ?? "0")} ${unit}`,
+              `Destination now: ${formatQuantity(matchingBalance(destinationLocationId, stockResponses[1])?.quantity ?? "0")} ${unit}`,
+            ]
+          : [`Available at ${selectedLocation?.name ?? "location"}: ${formatQuantity(matchingBalance(locationId, stockResponses[0])?.quantity ?? "0")} ${unit}`];
+        setSuccess({ title, description, balanceLines, movementId: result.movementId, ...(result.replayed ? { note: "This was a safely replayed request; no duplicate movement was created." } : {}) });
       } catch {
-        setSuccess(`Stock movement ${result.movementId} was recorded. The latest balance could not be loaded; refresh the stock list to verify it.`);
+        setSuccess({
+          title: type === "TRANSFER" ? "Stock transfer recorded" : "Stock movement recorded",
+          description: `${formatQuantity(quantity)} ${selectedProduct?.baseUnit ?? "units"} processed successfully.`,
+          balanceLines: [],
+          movementId: result.movementId,
+          note: "The latest balance could not be loaded. Refresh the stock list to verify the updated quantity.",
+        });
       }
       setQuantity("");
       setReference("");
@@ -375,7 +403,32 @@ export function StockManager({ canManage }: { canManage: boolean }) {
   return (
     <div className="space-y-8">
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {success && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{success}</p>}
+      {success && (
+        <section role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+          <div className="flex items-start gap-2">
+            <span aria-hidden="true" className="mt-0.5 font-bold text-emerald-700">✓</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">{success.title}</p>
+              <p className="mt-1">{success.description}</p>
+              {success.balanceLines.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {success.balanceLines.map((line) => <p key={line} className="font-medium">{line}</p>)}
+                </div>
+              )}
+              {success.note && <p className="mt-2 text-emerald-800">{success.note}</p>}
+              <details className="mt-3 text-xs text-emerald-800">
+                <summary className="w-fit cursor-pointer select-none">Movement reference</summary>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <code className="break-all">{success.movementId}</code>
+                  <button type="button" onClick={() => { void navigator.clipboard?.writeText(success.movementId); }} className="rounded border border-emerald-300 px-2 py-1 font-medium hover:bg-emerald-100">
+                    Copy reference
+                  </button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </section>
+      )}
 
       {canManage && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
