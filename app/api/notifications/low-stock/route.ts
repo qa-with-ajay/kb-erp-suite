@@ -1,3 +1,47 @@
+export async function GET() {
+  let access = await getBusinessUnitAccess("inventory.read");
+  if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("reports.unit.read");
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
+  const rows = await prisma.$queryRaw<LowStockRow[]>(Prisma.sql`
+    SELECT
+      product."id" AS "productId",
+      product."name" AS "productName",
+      product."sku",
+      product."baseUnit",
+      COALESCE(SUM(balance."quantity"), 0)::text AS "currentStock",
+      product."minimumStock"::text AS "minimumStock"
+    FROM "Product" product
+    LEFT JOIN "StockBalance" balance
+      ON balance."businessUnitId" = product."businessUnitId"
+      AND balance."productId" = product."id"
+      AND balance."stockKind" = 'STANDARD'::"StockKind"
+    WHERE product."businessUnitId" = ${access.context.businessUnit.id}::uuid
+      AND product."isActive" = true
+      AND product."minimumStock" > 0
+    GROUP BY product."id", product."name", product."sku", product."baseUnit", product."minimumStock"
+    HAVING COALESCE(SUM(balance."quantity"), 0) <= product."minimumStock"
+    ORDER BY COALESCE(SUM(balance."quantity"), 0) ASC, product."name" ASC
+  `);
+
+  const notifications = await prisma.lowStockNotification.findMany({
+    where: {
+      userId: access.context.session.user.id,
+      businessUnitId: access.context.businessUnit.id,
+      productId: { in: rows.map((row) => row.productId) },
+    },
+    select: { productId: true, isRead: true },
+  });
+  const readByProduct = new Map(notifications.map(({ productId, isRead }) => [productId, isRead]));
+  const items = rows.slice(0, 5).map((item) => ({
+    ...item,
+    isRead: readByProduct.get(item.productId) ?? false,
+  }));
+  const count = rows.filter((item) => !readByProduct.get(item.productId)).length;
+
+  return NextResponse.json({ count, total: rows.length, items });
+}
+
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -12,7 +56,7 @@ type LowStockRow = {
   total: number;
 };
 
-export async function GET() {
+export async function POST() {
   let access = await getBusinessUnitAccess("inventory.read");
   if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("reports.unit.read");
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
