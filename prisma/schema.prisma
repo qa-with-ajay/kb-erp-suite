@@ -827,6 +827,7 @@ model MaterialProcessing {
   inputWidth      Decimal?           @db.Decimal(12, 4)
   inputQuantity   Decimal             @default(0) @db.Decimal(14, 4)
   inputUnit       MeasurementUnit?
+  wastedQuantity  Decimal             @default(0) @db.Decimal(14, 4)
   soldArea        Decimal            @default(0) @db.Decimal(14, 4)
   wastedArea      Decimal            @default(0) @db.Decimal(14, 4)
   createdAt       DateTime           @default(now())

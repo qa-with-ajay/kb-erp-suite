@@ -1,0 +1,1 @@
+ALTER TABLE "PanelOperation" ADD COLUMN "wastedQuantity" DECIMAL(14,4) NOT NULL DEFAULT 0;
