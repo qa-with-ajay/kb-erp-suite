@@ -132,7 +132,7 @@ export async function POST(request: Request) {
         `;
         if (!locked.length) return { error: "SOURCE_REMNANT_NOT_AVAILABLE" as const };
         sourceRemnant = await tx.materialRemnant.findFirst({ where: { id: locked[0].id, businessUnitId: businessUnit.id } });
-        if (!sourceRemnant || sourceRemnant.variantId !== (input.variantId ?? null) || sourceRemnant.unit !== outputUnit || sourceRemnant.quantity.lt(requestedInput)) {
+        if (!sourceRemnant || sourceRemnant.variantId !== (input.variantId ?? null) || (sourceRemnant.unit ?? outputUnit) !== outputUnit || sourceRemnant.quantity.lt(requestedInput)) {
           return { error: "SOURCE_REMNANT_NOT_AVAILABLE" as const };
         }
         inputMaterialQty = requestedInput;
@@ -232,13 +232,24 @@ export async function POST(request: Request) {
       if (ledgerRows.length) await tx.stockLedgerEntry.createMany({ data: ledgerRows });
 
       if (createdRemnants.length) {
-        const existing = await tx.stockBalance.findFirst({ where: remnantWhere });
+        const lockedOutputBalance = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnit.id}::uuid
+          AND "locationId" = ${input.locationId}::uuid AND "productId" = ${product.id}::uuid
+          AND "variantId" IS NOT DISTINCT FROM ${input.variantId ?? null}::uuid AND "stockKind" = 'REMNANT'
+          FOR UPDATE
+        `;
+        const existing = lockedOutputBalance.length
+          ? await tx.stockBalance.findFirst({ where: { ...remnantWhere, id: lockedOutputBalance[0].id } })
+          : null;
         const currentQty = existing?.quantity ?? new Prisma.Decimal(0);
         const nextQty = currentQty.plus(outputTotal);
         const average = existing && nextQty.isPositive()
           ? currentQty.mul(existing.averageCost).plus(outputTotal.mul(materialUnitCost)).div(nextQty).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
           : materialUnitCost;
-        if (existing) await tx.stockBalance.update({ where: { id: existing.id }, data: { quantity: nextQty, averageCost: average } });
+        if (existing) await tx.stockBalance.update({
+          where: { id: existing.id },
+          data: { quantity: { increment: outputTotal }, averageCost: average },
+        });
         else await tx.stockBalance.create({ data: { ...remnantWhere, quantity: outputTotal, averageCost: average } });
       }
       await tx.auditLog.create({
