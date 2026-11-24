@@ -15,7 +15,7 @@ type Product = {
   materialUnit?: string | null;
   materialUnitsPerBaseUnit?: string | null;
   isProcessingEnabled: boolean;
-  unitConversions?: Array<{ unit: string; conversionFactor: string }>;
+  unitConversions?: Array<{ unit: string; conversionFactor: string; isSalesUnit?: boolean }>;
   productType: "STANDARD" | "MATERIAL";
   sellingPrice: string;
   gstPercentage: string;
@@ -63,7 +63,7 @@ function saleUnitPrice(product: Product | null, unit: string) {
   if (!product) return 0;
   if (product.materialUnit && unit === product.materialUnit) return Number(product.sellingPrice) / Number(product.materialUnitsPerBaseUnit || 1);
   if (unit === product.baseUnit) return Number(product.sellingPrice);
-  const conversion = product.unitConversions?.find((item) => item.unit === unit);
+  const conversion = product.unitConversions?.find((item) => item.unit === unit && item.isSalesUnit !== false);
   return conversion ? Number(product.sellingPrice) * Number(conversion.conversionFactor) : Number(product.sellingPrice);
 }
 function lineQuantity(line: DraftLine) {
@@ -71,7 +71,7 @@ function lineQuantity(line: DraftLine) {
   const remnantQty = Object.entries(line.allocations).filter(([key]) => key.startsWith("REMNANT:")).reduce((sum, [, raw]) => sum + Number(raw || 0), 0);
   if (line.createRemnant) return Number(line.saleQuantity || 0) + remnantQty;
   const materialFactor = Number(line.product.materialUnitsPerBaseUnit || 1);
-  const conversion = line.product.unitConversions?.find((item) => item.unit === line.saleUnit);
+  const conversion = line.product.unitConversions?.find((item) => item.unit === line.saleUnit && item.isSalesUnit !== false);
   return Object.entries(line.allocations).reduce((sum, [key, raw]) => {
     const quantity = Number(raw || 0);
     if (key.startsWith("REMNANT:")) return sum + quantity;
@@ -433,7 +433,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                       <p className="font-semibold">Stock source allocation</p>
                       {product && <label className="block text-xs font-medium">Sales unit
                         <select value={line.saleUnit || saleUnit(product)} onChange={(event) => updateLine(line.key, { saleUnit: event.target.value, createRemnant: false, saleQuantity: "", allocations: Object.fromEntries(Object.entries(line.allocations).filter(([key]) => key.startsWith("STANDARD:") || (key.startsWith("REMNANT:") && selectedRemnants.some((remnant) => `REMNANT:${remnant.id}` === key && (remnant.unit ?? product?.materialUnit ?? product?.baseUnit) === event.target.value))) }) })} className="mt-1 w-full rounded border p-2">
-                          {[product.baseUnit, ...(product.materialUnit ? [product.materialUnit] : []), ...(product.unitConversions ?? []).map((item) => item.unit)].filter((unit, i, all) => all.indexOf(unit) === i).map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                          {[product.baseUnit, ...(product.materialUnit ? [product.materialUnit] : []), ...(product.unitConversions ?? []).filter((item) => item.isSalesUnit !== false).map((item) => item.unit)].filter((unit, i, all) => all.indexOf(unit) === i).map((unit) => <option key={unit} value={unit}>{unit}</option>)}
                         </select>
                       </label>}
                       {selectedBalances.map((balance) => {
