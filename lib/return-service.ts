@@ -329,7 +329,7 @@ export async function createSaleReturn(
       const ok = await applyAllocationStockDelta(tx, movement.id, businessUnitId, item.allocation, {
         productId: item.line.productId, variantId: item.line.variantId,
       }, item.allocationQuantity, "IN");
-      if (!ok) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      if (!ok) throw new Error("SALE_RETURN_STOCK_CHANGED");
     } else {
       const remnant = item.allocation.remnant!;
       await tx.materialRemnant.update({ where: { id: remnant.id }, data: {
@@ -339,7 +339,7 @@ export async function createSaleReturn(
         businessUnitId, locationId: input.locationId, productId: item.line.productId,
         variantId: item.line.variantId, stockKind: "REMNANT",
       } });
-      if (!balance) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      if (!balance) throw new Error("SALE_RETURN_STOCK_CHANGED");
       const newQuantity = balance.quantity.plus(item.allocationQuantity);
       const newAverageCost = balance.quantity.mul(balance.averageCost).plus(item.allocationQuantity.mul(item.allocation.unitCost))
         .div(newQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
@@ -580,31 +580,67 @@ export async function reverseSaleReturn(
   if (!await lockExistingLocation(tx, businessUnitId, record.locationId)) return { kind: "error", error: "RETURN_NOT_AVAILABLE" };
 
   const restockLines = record.lines.filter((line) => line.disposition === "RESTOCK");
+  const standardRequired = new Map<string, Prisma.Decimal>();
+  const remnantRequired = new Map<string, Prisma.Decimal>();
+  const legacyRequired = new Map<string, { productId: string; variantId: string | null; quantity: Prisma.Decimal }>();
+  const remnantBalanceRequired = new Map<string, { productId: string; variantId: string | null; quantity: Prisma.Decimal }>();
+
   for (const line of restockLines) {
-    if (!line.sourceAllocationId) continue; // historical STANDARD returns
+    if (!line.sourceAllocationId) {
+      const key = `${line.productId}:${line.variantId ?? ""}`;
+      const current = legacyRequired.get(key);
+      legacyRequired.set(key, { productId: line.productId, variantId: line.variantId,
+        quantity: (current?.quantity ?? new Prisma.Decimal(0)).plus(line.quantity) });
+      continue;
+    }
     const allocation = line.sourceAllocation;
     if (!allocation || !line.allocationQuantity) return { kind: "error", error: "INSUFFICIENT_STOCK" };
     if (allocation.sourceType === "STANDARD") {
-      const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal }>>`
-        SELECT "id", "quantity" FROM "StockBalance" WHERE "id" = ${allocation.stockBalanceId!}::uuid
-          AND "businessUnitId" = ${businessUnitId}::uuid AND "stockKind" = 'STANDARD' FOR UPDATE
-      `;
-      if (!rows.length || rows[0].quantity.lt(line.allocationQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      const id = allocation.stockBalanceId;
+      if (!id) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      standardRequired.set(id, (standardRequired.get(id) ?? new Prisma.Decimal(0)).plus(line.allocationQuantity));
     } else {
-      const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal; status: string }>>`
-        SELECT "id", "quantity", "status" FROM "Remnant" WHERE "id" = ${allocation.remnantId!}::uuid
-          AND "businessUnitId" = ${businessUnitId}::uuid FOR UPDATE
-      `;
-      if (!rows.length || !["AVAILABLE", "SOLD"].includes(rows[0].status) || rows[0].quantity.lt(line.allocationQuantity)) {
-        return { kind: "error", error: "INSUFFICIENT_STOCK" };
-      }
-      const balances = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal }>>`
-        SELECT "id", "quantity" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnitId}::uuid
-          AND "locationId" = ${record.locationId}::uuid AND "productId" = ${line.productId}::uuid
-          AND "variantId" IS NOT DISTINCT FROM ${line.variantId}::uuid AND "stockKind" = 'REMNANT' FOR UPDATE
-      `;
-      if (balances.length !== 1 || balances[0].quantity.lt(line.allocationQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      const id = allocation.remnantId;
+      if (!id) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      remnantRequired.set(id, (remnantRequired.get(id) ?? new Prisma.Decimal(0)).plus(line.allocationQuantity));
+      const key = `${line.productId}:${line.variantId ?? ""}`;
+      const current = remnantBalanceRequired.get(key);
+      remnantBalanceRequired.set(key, { productId: line.productId, variantId: line.variantId,
+        quantity: (current?.quantity ?? new Prisma.Decimal(0)).plus(line.allocationQuantity) });
     }
+  }
+
+  for (const [balanceId, quantity] of standardRequired) {
+    const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal }>>`
+      SELECT "id", "quantity" FROM "StockBalance" WHERE "id" = ${balanceId}::uuid
+        AND "businessUnitId" = ${businessUnitId}::uuid AND "stockKind" = 'STANDARD' FOR UPDATE
+    `;
+    if (!rows.length || rows[0].quantity.lt(quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+  }
+  for (const [remnantId, quantity] of remnantRequired) {
+    const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal; status: string }>>`
+      SELECT "id", "quantity", "status" FROM "Remnant" WHERE "id" = ${remnantId}::uuid
+        AND "businessUnitId" = ${businessUnitId}::uuid FOR UPDATE
+    `;
+    if (!rows.length || !["AVAILABLE", "SOLD"].includes(rows[0].status) || rows[0].quantity.lt(quantity)) {
+      return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    }
+  }
+  for (const requirement of remnantBalanceRequired.values()) {
+    const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal }>>`
+      SELECT "id", "quantity" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnitId}::uuid
+        AND "locationId" = ${record.locationId}::uuid AND "productId" = ${requirement.productId}::uuid
+        AND "variantId" IS NOT DISTINCT FROM ${requirement.variantId}::uuid AND "stockKind" = 'REMNANT' FOR UPDATE
+    `;
+    if (rows.length !== 1 || rows[0].quantity.lt(requirement.quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+  }
+  for (const requirement of legacyRequired.values()) {
+    const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal }>>`
+      SELECT "id", "quantity" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnitId}::uuid
+        AND "locationId" = ${record.locationId}::uuid AND "productId" = ${requirement.productId}::uuid
+        AND "variantId" IS NOT DISTINCT FROM ${requirement.variantId}::uuid AND "stockKind" = 'STANDARD' FOR UPDATE
+    `;
+    if (rows.length !== 1 || rows[0].quantity.lt(requirement.quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
   }
 
   const movement = await tx.stockMovement.create({ data: {
