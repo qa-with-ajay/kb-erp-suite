@@ -14,6 +14,7 @@ type Product = {
   baseUnit: string;
   materialUnit?: string | null;
   materialUnitsPerBaseUnit?: string | null;
+  isProcessingEnabled: boolean;
   unitConversions?: Array<{ unit: string; conversionFactor: string }>;
   productType: "STANDARD" | "MATERIAL";
   sellingPrice: string;
@@ -449,7 +450,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                           <input type="number" min="0" step="0.0001" max={remnant.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder={`Quantity in ${remnant.unit ?? saleUnit(product)}`} className="mt-1 w-full rounded border p-2" />
                         </label>;
                       })}
-                      {product?.materialUnit && line.saleUnit === product.materialUnit && selectedBalances.length > 0 && <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs">
+                      {product?.isProcessingEnabled && product.materialUnit && line.saleUnit === product.materialUnit && selectedBalances.length > 0 && <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs">
                         <input type="checkbox" checked={line.createRemnant} onChange={(event) => updateLine(line.key, { createRemnant: event.target.checked, saleQuantity: event.target.checked ? line.saleQuantity : "" })} className="mt-0.5" />
                         <span><strong>Create a remnant from opened package</strong><span className="block text-gray-600">Deduct the selected whole package(s), sell the quantity entered, and register the reusable balance as a separate remnant.</span></span>
                       </label>}
