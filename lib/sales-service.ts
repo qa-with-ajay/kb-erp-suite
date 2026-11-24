@@ -40,6 +40,11 @@ export function isSameSaleRequest(existing: MovementWithSale, input: SaleInput, 
   return input.lines.every((line) => {
     const saved = savedLines.get(lineKey(line));
     if (!saved || saved.variantId !== (line.variantId || null) || !saved.quantity.equals(line.quantity)) return false;
+    if (line.createRemnant) {
+      return saved.baseUnit === (line.saleUnit ?? saved.baseUnit)
+        && saved.stockAllocations.some((allocation) => allocation.sourceType === "REMNANT")
+        && saved.stockAllocations.reduce((sum, allocation) => sum.plus(allocation.baseQuantity), new Prisma.Decimal(0)).equals(line.quantity);
+    }
     if (line.allocations) {
       return normalizedAllocations(saved.stockAllocations.map((a) => ({
         sourceType: a.sourceType, sourceId: a.sourceType === "STANDARD" ? a.stockBalanceId : a.remnantId, quantity: a.quantity,
