@@ -419,7 +419,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         const key = `STANDARD:${balance.id}`;
                         return <label key={key} className="block rounded-lg border border-gray-200 p-2">
                           <span className="flex justify-between gap-2"><span>Regular · {product?.baseUnit}</span><span className="text-gray-500">Available: {balance.quantity}</span></span>
-                          <input type="number" min="0" step={product?.materialUnit && factor > 1 ? "1" : product?.productType === "STANDARD" ? "1" : "0.0001"} max={balance.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder="Quantity to take" className="mt-1 w-full rounded border p-2" />
+                          <input type="number" min="0" step={product?.materialUnit || product?.productType === "STANDARD" ? "1" : "0.0001"} max={balance.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder="Quantity to take" className="mt-1 w-full rounded border p-2" />
                         </label>;
                       })}
                       {selectedRemnants.map((remnant) => {
