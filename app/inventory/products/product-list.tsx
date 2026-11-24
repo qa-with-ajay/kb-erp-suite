@@ -9,7 +9,7 @@ type ProductItem = {
   sku: string;
   barcode: string | null;
   barcodeType: "INTERNAL" | "MANUFACTURER";
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
   baseUnit: string;
   sellingPrice: string;
   gstPercentage: string;
@@ -126,7 +126,7 @@ export function ProductList({ canManage }: Props) {
         <label className="text-sm font-medium">
           Type
           <select value={productType} onChange={(event) => { setProductType(event.target.value); resetPage(); }} className="mt-1 block rounded-lg border border-gray-300 bg-white p-2.5">
-            <option value="">All types</option><option value="STANDARD">Standard</option><option value="PANEL">Panel</option>
+            <option value="">All types</option><option value="STANDARD">Standard</option><option value="MATERIAL">Material</option>
           </select>
         </label>
         <label className="text-sm font-medium">
@@ -158,7 +158,7 @@ export function ProductList({ canManage }: Props) {
           <thead className="border-b border-gray-200 text-gray-500">
             <tr>
               <th className="py-3 pr-4 font-medium">Product</th><th className="py-3 pr-4 font-medium">Category / Brand</th>
-              <th className="py-3 pr-4 font-medium">Type / Unit</th><th className="py-3 pr-4 font-medium">Selling price</th>
+              <th className="py-3 pr-4 font-medium">Type / Processing / Unit</th><th className="py-3 pr-4 font-medium">Selling price</th>
               <th className="py-3 pr-4 font-medium">Variants</th><th className="py-3 pr-4 font-medium">Status</th><th className="py-3 text-right font-medium">Details</th>
             </tr>
           </thead>
