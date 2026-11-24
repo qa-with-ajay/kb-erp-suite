@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Party = {
   id: string;
@@ -48,6 +49,7 @@ export function PartyManager({ resource, title }: Props) {
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<Party | null>(null);
   const [form, setForm] = useState<PartyForm>(emptyForm);
+  const [partyToToggle, setPartyToToggle] = useState<Party | null>(null);
 
   const loadParties = useCallback(async (signal: AbortSignal) => {
     const query = new URLSearchParams({ search, active, page: String(page), pageSize: "20" });
@@ -112,9 +114,15 @@ export function PartyManager({ resource, title }: Props) {
     }
   }
 
-  async function toggleActive(party: Party) {
+  function toggleActive(party: Party) {
+    setPartyToToggle(party);
+  }
+
+  async function confirmToggleActive() {
+    if (!partyToToggle) return;
+    const party = partyToToggle;
     const action = party.isActive ? "deactivate" : "activate";
-    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} ${party.name}?`)) return;
+    setPartyToToggle(null);
     setPending(true);
     setError("");
     setNotice("");
@@ -139,6 +147,7 @@ export function PartyManager({ resource, title }: Props) {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <ConfirmDialog open={Boolean(partyToToggle)} title={`${partyToToggle?.isActive ? "Deactivate" : "Activate"} ${title.slice(0, -1)}?`} description={partyToToggle ? `${partyToToggle.name} will be ${partyToToggle.isActive ? "inactive" : "active"} for this business unit.` : undefined} confirmLabel={partyToToggle?.isActive ? "Deactivate" : "Activate"} destructive={Boolean(partyToToggle?.isActive)} busy={pending} onCancel={() => setPartyToToggle(null)} onConfirm={() => void confirmToggleActive()} />
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-52 flex-1 text-sm font-medium">

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Location = { id: string; name: string; code: string; isActive: boolean };
 type ResponseData = { items: Location[]; total: number; page: number; pageSize: number };
@@ -18,6 +19,7 @@ export function LocationManager({ canManage }: { canManage: boolean }) {
   const [editing, setEditing] = useState<Location | null>(null);
   const [name, setName] = useState("Warehouse");
   const [code, setCode] = useState("WAREHOUSE");
+  const [locationToToggle, setLocationToToggle] = useState<Location | null>(null);
 
   const loadLocations = useCallback(async (signal: AbortSignal) => {
     const query = new URLSearchParams({ search, active, page: String(page), pageSize: "20" });
@@ -74,9 +76,15 @@ export function LocationManager({ canManage }: { canManage: boolean }) {
     }
   }
 
-  async function toggleActive(item: Location) {
+  function toggleActive(item: Location) {
+    setLocationToToggle(item);
+  }
+
+  async function confirmToggleActive() {
+    if (!locationToToggle) return;
+    const item = locationToToggle;
     const action = item.isActive ? "deactivate" : "activate";
-    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} ${item.name}? Inactive locations will no longer appear in stock-entry and product stock views.`)) return;
+    setLocationToToggle(null);
     setPending(true);
     setError(null);
     setNotice(null);
@@ -101,6 +109,7 @@ export function LocationManager({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <ConfirmDialog open={Boolean(locationToToggle)} title={`${locationToToggle?.isActive ? "Deactivate" : "Activate"} stock location?`} description={locationToToggle ? `${locationToToggle.name} will be ${locationToToggle.isActive ? "unavailable in stock-entry and product stock views" : "available in stock-entry and product stock views"}. Existing stock history is retained.` : undefined} confirmLabel={locationToToggle?.isActive ? "Deactivate location" : "Activate location"} destructive={Boolean(locationToToggle?.isActive)} busy={pending} onCancel={() => setLocationToToggle(null)} onConfirm={() => void confirmToggleActive()} />
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap gap-3">
           <label className="min-w-52 flex-1 text-sm font-medium">Search

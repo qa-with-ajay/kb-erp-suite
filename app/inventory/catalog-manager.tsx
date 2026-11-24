@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type CatalogItem = {
   id: string;
@@ -37,6 +38,7 @@ export function CatalogManager({ resource, title, canManage, hasDescription = fa
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [itemToToggle, setItemToToggle] = useState<CatalogItem | null>(null);
 
   const loadItems = useCallback(async (signal: AbortSignal) => {
     const query = new URLSearchParams({
@@ -108,9 +110,15 @@ export function CatalogManager({ resource, title, canManage, hasDescription = fa
     }
   }
 
-  async function toggleActive(item: CatalogItem) {
+  function toggleActive(item: CatalogItem) {
+    setItemToToggle(item);
+  }
+
+  async function confirmToggleActive() {
+    if (!itemToToggle) return;
+    const item = itemToToggle;
     const action = item.isActive ? "deactivate" : "activate";
-    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} ${item.name}?`)) return;
+    setItemToToggle(null);
     setPending(true);
     setError(null);
     setNotice(null);
@@ -135,6 +143,7 @@ export function CatalogManager({ resource, title, canManage, hasDescription = fa
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <ConfirmDialog open={Boolean(itemToToggle)} title={`${itemToToggle?.isActive ? "Deactivate" : "Activate"} ${singularTitle.toLowerCase()}?`} description={itemToToggle ? `${itemToToggle.name} will be ${itemToToggle.isActive ? "hidden from active selection lists" : "available in active selection lists"}.` : undefined} confirmLabel={itemToToggle?.isActive ? "Deactivate" : "Activate"} destructive={Boolean(itemToToggle?.isActive)} busy={pending} onCancel={() => setItemToToggle(null)} onConfirm={() => void confirmToggleActive()} />
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap gap-3">
           <label className="min-w-52 flex-1 text-sm font-medium">

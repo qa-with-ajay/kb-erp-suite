@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { PaymentPanel } from "@/components/payment-panel";
 import { ReturnPanel } from "@/components/return-panel";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Supplier = { id: string; name: string; phone: string | null; gstin: string | null };
 type Location = { id: string; name: string; code: string };
@@ -210,6 +211,7 @@ export function PurchaseManager() {
   const [receiptIdempotencyKey, setReceiptIdempotencyKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<"order" | "receipt" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -367,7 +369,12 @@ export function PurchaseManager() {
       setError("Enter positive quantities and valid non-negative cost and GST values.");
       return;
     }
-    if (!window.confirm(`Create this purchase order for ${money(orderTotals.total)}?`)) return;
+    setConfirmAction("order");
+  }
+
+  async function confirmOrder() {
+    if (!selectedSupplier) return;
+    setConfirmAction(null);
     setSaving(true);
     const requestKey = idempotencyKey || crypto.randomUUID();
     setIdempotencyKey(requestKey);
@@ -439,7 +446,14 @@ export function PurchaseManager() {
       setError("A received quantity exceeds the remaining order quantity.");
       return;
     }
-    if (!window.confirm("Receive these quantities into stock? This will update stock balances and the ledger immediately.")) return;
+    setConfirmAction("receipt");
+  }
+
+  async function confirmReceipt() {
+    if (!order) return;
+    const submittedLines = receiptLines.filter((line) => Number(line.purchaseQuantity) > 0);
+    if (!submittedLines.length) return;
+    setConfirmAction(null);
     setSaving(true);
     const key = receiptIdempotencyKey || crypto.randomUUID();
     setReceiptIdempotencyKey(key);
@@ -471,6 +485,15 @@ export function PurchaseManager() {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={confirmAction === "order" ? "Create purchase order?" : "Receive goods into stock?"}
+        description={confirmAction === "order" ? `Create this purchase order for ${money(orderTotals.total)}?` : "This will update stock balances and the inventory ledger immediately."}
+        confirmLabel={confirmAction === "order" ? "Create purchase order" : "Confirm receipt"}
+        busy={saving}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => { if (confirmAction === "order") void confirmOrder(); else if (confirmAction === "receipt") void confirmReceipt(); }}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2" role="tablist" aria-label="Purchase records">
           <button type="button" role="tab" aria-selected={view === "orders"} onClick={() => { setView("orders"); setPage(1); }} className={`rounded-lg px-4 py-2 text-sm font-semibold ${view === "orders" ? "bg-emerald-900 text-white" : "border border-gray-300 bg-white text-gray-700"}`}>Purchase orders</button>
