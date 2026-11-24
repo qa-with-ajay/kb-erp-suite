@@ -115,17 +115,13 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) return NextResponse.json({ error: "Invalid invoice identifier." }, { status: 400 });
-  const sourceSensitiveAllocation = await prisma.saleLineStockAllocation.findFirst({
-    where: {
-      businessUnitId: access.context.businessUnit.id,
-      saleLine: { saleId: id },
-      OR: [
-        { sourceType: "REMNANT" },
-        { unit: { not: "METER" } },
-      ],
-    },
-    select: { id: true },
+  const saleAllocations = await prisma.saleLineStockAllocation.findMany({
+    where: { businessUnitId: access.context.businessUnit.id, saleLine: { saleId: id } },
+    select: { sourceType: true, unit: true, saleLine: { select: { baseUnit: true } } },
   });
+  const sourceSensitiveAllocation = saleAllocations.some((allocation) =>
+    allocation.sourceType === "REMNANT" || allocation.unit !== allocation.saleLine.baseUnit
+  );
   if (sourceSensitiveAllocation) {
     return NextResponse.json({
       error: "This invoice contains remnant or converted-unit stock allocations. Source-aware returns are being implemented in Phase 4; this return cannot be posted safely yet.",
