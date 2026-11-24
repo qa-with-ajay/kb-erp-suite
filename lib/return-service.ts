@@ -126,15 +126,15 @@ async function lockExistingLocation(tx: Prisma.TransactionClient, businessUnitId
 }
 
 function sameSaleReturnRequest(
-  existing: { saleId: string; locationId: string; reason: string; lines: Array<{ saleLineId: string; quantity: Prisma.Decimal; disposition: "RESTOCK" | "DAMAGED" }> },
+  existing: { saleId: string; locationId: string; reason: string; lines: Array<{ saleLineId: string; sourceAllocationId: string | null; allocationQuantity: Prisma.Decimal | null; disposition: "RESTOCK" | "DAMAGED" }> },
   saleId: string,
   input: SaleReturnInput,
 ) {
   if (existing.saleId !== saleId || existing.locationId !== input.locationId || existing.reason !== input.reason || existing.lines.length !== input.lines.length) return false;
-  const lines = new Map(existing.lines.map((line) => [line.saleLineId, line]));
+  const savedByAllocation = new Map(existing.lines.map((line) => [line.sourceAllocationId ?? "", line]));
   return input.lines.every((line) => {
-    const saved = lines.get(line.saleLineId);
-    return saved?.quantity.equals(line.quantity) && saved.disposition === line.disposition;
+    const saved = savedByAllocation.get(line.sourceAllocationId);
+    return saved?.saleLineId === line.saleLineId && saved.allocationQuantity?.equals(line.quantity) && saved.disposition === line.disposition;
   });
 }
 
@@ -157,151 +157,187 @@ export async function createSaleReturn(
   input: SaleReturnInput,
 ): Promise<ReturnResult> {
   const locked = await tx.$queryRaw<Array<{ id: string }>>`
-    SELECT "id" FROM "Sale"
-    WHERE "id" = ${saleId}::uuid AND "businessUnitId" = ${businessUnitId}::uuid
-    FOR UPDATE
+    SELECT "id" FROM "Sale" WHERE "id" = ${saleId}::uuid
+      AND "businessUnitId" = ${businessUnitId}::uuid FOR UPDATE
   `;
   if (!locked.length) return { kind: "error", error: "TARGET_NOT_AVAILABLE" };
 
   const sale = await tx.sale.findFirst({
     where: { id: saleId, businessUnitId },
     select: {
-      invoiceNumber: true,
-      taxMode: true,
-      lines: {
-        select: {
-          id: true, productId: true, variantId: true, productName: true, sku: true,
-          baseUnit: true, productType: true, variantCode: true, variantAttributes: true, quantity: true,
-          unitPrice: true, gstPercentage: true, unitCost: true,
-        },
-      },
+      invoiceNumber: true, taxMode: true,
+      lines: { select: {
+        id: true, productId: true, variantId: true, productName: true, sku: true,
+        baseUnit: true, productType: true, variantCode: true, variantAttributes: true,
+        quantity: true, unitPrice: true, gstPercentage: true, unitCost: true,
+      } },
     },
   });
   if (!sale) return { kind: "error", error: "TARGET_NOT_AVAILABLE" };
-
   const existing = await tx.saleReturn.findUnique({
     where: { businessUnitId_idempotencyKey: { businessUnitId, idempotencyKey: input.idempotencyKey } },
     include: { lines: true },
   });
-  if (existing) {
-    return sameSaleReturnRequest(existing, saleId, input)
-      ? { kind: "replayed", id: existing.id, number: existing.creditNoteNumber }
-      : { kind: "error", error: "IDEMPOTENCY_CONFLICT" };
-  }
+  if (existing) return sameSaleReturnRequest(existing, saleId, input)
+    ? { kind: "replayed", id: existing.id, number: existing.creditNoteNumber }
+    : { kind: "error", error: "IDEMPOTENCY_CONFLICT" };
   if (!await lockLocation(tx, businessUnitId, input.locationId)) return { kind: "error", error: "LOCATION_NOT_AVAILABLE" };
 
-  const savedLines = new Map(sale.lines.map((line) => [line.id, line]));
-  const previouslyReturned = await tx.saleReturnLine.findMany({
-    where: { businessUnitId, saleId, saleReturn: { reversedAt: null } },
-    select: { saleLineId: true, quantity: true },
+  const lineById = new Map(sale.lines.map((line) => [line.id, line]));
+  const allocationIds = input.lines.map((line) => line.sourceAllocationId);
+  const allocations = await tx.saleLineStockAllocation.findMany({
+    where: { businessUnitId, id: { in: allocationIds } },
+    include: {
+      stockBalance: { select: { id: true, locationId: true } },
+      remnant: { select: { id: true, locationId: true, quantity: true, unit: true, unitCost: true, status: true } },
+    },
   });
-  const returnedByLine = new Map<string, Prisma.Decimal>();
-  for (const line of previouslyReturned) {
-    returnedByLine.set(line.saleLineId, (returnedByLine.get(line.saleLineId) ?? new Prisma.Decimal(0)).plus(line.quantity));
+  const allocationById = new Map(allocations.map((allocation) => [allocation.id, allocation]));
+  if (allocations.length !== input.lines.length) return { kind: "error", error: "LINE_NOT_AVAILABLE" };
+
+  const legacyReturns = await tx.saleReturnLine.findMany({
+    where: { businessUnitId, saleId, sourceAllocationId: null, saleReturn: { reversedAt: null } },
+    select: { saleLineId: true },
+  });
+  const legacyLineIds = new Set(legacyReturns.map((line) => line.saleLineId));
+  const previous = await tx.saleReturnLine.findMany({
+    where: { businessUnitId, saleId, sourceAllocationId: { in: allocationIds }, saleReturn: { reversedAt: null } },
+    select: { sourceAllocationId: true, allocationQuantity: true },
+  });
+  const returnedByAllocation = new Map<string, Prisma.Decimal>();
+  for (const item of previous) if (item.sourceAllocationId && item.allocationQuantity) {
+    returnedByAllocation.set(item.sourceAllocationId,
+      (returnedByAllocation.get(item.sourceAllocationId) ?? new Prisma.Decimal(0)).plus(item.allocationQuantity));
   }
 
   const prepared: Array<{
     line: (typeof sale.lines)[number];
-    quantity: Prisma.Decimal;
+    allocation: (typeof allocations)[number];
+    allocationQuantity: Prisma.Decimal;
+    baseQuantity: Prisma.Decimal;
     subtotal: Prisma.Decimal;
     tax: Prisma.Decimal;
     total: Prisma.Decimal;
     cost: Prisma.Decimal;
     disposition: "RESTOCK" | "DAMAGED";
   }> = [];
-  let subtotal = new Prisma.Decimal(0);
-  let taxAmount = new Prisma.Decimal(0);
-  let total = new Prisma.Decimal(0);
-  let cost = new Prisma.Decimal(0);
-  for (const inputLine of input.lines) {
-    const line = savedLines.get(inputLine.saleLineId);
-    if (!line) return { kind: "error", error: "LINE_NOT_AVAILABLE" };
-    const quantity = new Prisma.Decimal(inputLine.quantity);
-    if (!quantity.isPositive() || (line.productType === "STANDARD" && !quantity.isInteger())) {
-      return { kind: "error", error: "INVALID_QUANTITY" };
+  let subtotal = new Prisma.Decimal(0), taxAmount = new Prisma.Decimal(0), total = new Prisma.Decimal(0), cost = new Prisma.Decimal(0);
+
+  for (const requested of input.lines) {
+    const line = lineById.get(requested.saleLineId);
+    const allocation = allocationById.get(requested.sourceAllocationId);
+    if (!line || !allocation || allocation.saleLineId !== requested.saleLineId) return { kind: "error", error: "LINE_NOT_AVAILABLE" };
+    if (legacyLineIds.has(line.id)) return { kind: "error", error: "SOURCE_ALLOCATION_MISMATCH" };
+    const allocationQuantity = new Prisma.Decimal(requested.quantity);
+    if (!allocationQuantity.isPositive() || allocationQuantity.gt(allocation.quantity)) return { kind: "error", error: "INVALID_QUANTITY" };
+    const alreadyReturned = returnedByAllocation.get(allocation.id) ?? new Prisma.Decimal(0);
+    if (alreadyReturned.plus(allocationQuantity).gt(allocation.quantity)) return { kind: "error", error: "OVER_RETURN" };
+
+    const sourceLocationId = allocation.sourceType === "STANDARD" ? allocation.stockBalance?.locationId : allocation.remnant?.locationId;
+    if (!sourceLocationId || sourceLocationId !== input.locationId) return { kind: "error", error: "LOCATION_NOT_AVAILABLE" };
+    if (allocation.sourceType === "STANDARD" && !allocation.stockBalance) return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
+    if (allocation.sourceType === "REMNANT" && (!allocation.remnant || !["AVAILABLE", "SOLD"].includes(allocation.remnant.status))) {
+      return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
     }
-    if (returnedByLine.get(line.id)?.plus(quantity).greaterThan(line.quantity)) {
-      return { kind: "error", error: "OVER_RETURN" };
-    }
-    const lineSubtotal = line.unitPrice.mul(quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-    const lineTax = sale.taxMode === "GST"
-      ? lineSubtotal.mul(line.gstPercentage).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
-      : new Prisma.Decimal(0);
+
+    const baseQuantity = allocationQuantity.equals(allocation.quantity)
+      ? allocation.baseQuantity
+      : allocation.baseQuantity.mul(allocationQuantity).div(allocation.quantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+    const lineSubtotal = line.unitPrice.mul(baseQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const lineTax = sale.taxMode === "GST" ? lineSubtotal.mul(line.gstPercentage).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) : new Prisma.Decimal(0);
     const lineTotal = lineSubtotal.plus(lineTax);
-    const lineCost = line.unitCost.mul(quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-    if ([lineSubtotal, lineTax, lineTotal, lineCost].some((amount) => amount.greaterThan(maximumAmount))) {
-      return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
-    }
-    prepared.push({ line, quantity, subtotal: lineSubtotal, tax: lineTax, total: lineTotal, cost: lineCost, disposition: inputLine.disposition });
-    subtotal = subtotal.plus(lineSubtotal);
-    taxAmount = taxAmount.plus(lineTax);
-    total = total.plus(lineTotal);
-    cost = cost.plus(lineCost);
+    const lineCost = line.unitCost.mul(baseQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    if ([lineSubtotal, lineTax, lineTotal, lineCost].some((amount) => amount.greaterThan(maximumAmount))) return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
+    prepared.push({ line, allocation, allocationQuantity, baseQuantity, subtotal: lineSubtotal, tax: lineTax, total: lineTotal, cost: lineCost, disposition: requested.disposition });
+    subtotal = subtotal.plus(lineSubtotal); taxAmount = taxAmount.plus(lineTax); total = total.plus(lineTotal); cost = cost.plus(lineCost);
   }
-  if ([subtotal, taxAmount, total, cost].some((amount) => amount.greaterThan(maximumAmount))) {
-    return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
+  if ([subtotal, taxAmount, total, cost].some((amount) => amount.greaterThan(maximumAmount))) return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
+
+  // Serialize against sales, processing and other returns on the exact source records.
+  for (const item of prepared.filter((entry) => entry.disposition === "RESTOCK")) {
+    if (item.allocation.sourceType === "STANDARD") {
+      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "StockBalance" WHERE "id" = ${item.allocation.stockBalanceId!}::uuid
+          AND "businessUnitId" = ${businessUnitId}::uuid AND "stockKind" = 'STANDARD' FOR UPDATE
+      `;
+      if (!rows.length) return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
+    } else {
+      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "Remnant" WHERE "id" = ${item.allocation.remnantId!}::uuid
+          AND "businessUnitId" = ${businessUnitId}::uuid AND "status" IN ('AVAILABLE','SOLD') FOR UPDATE
+      `;
+      if (!rows.length) return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
+      const balances = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnitId}::uuid
+          AND "locationId" = ${input.locationId}::uuid AND "productId" = ${item.line.productId}::uuid
+          AND "variantId" IS NOT DISTINCT FROM ${item.line.variantId}::uuid AND "stockKind" = 'REMNANT' FOR UPDATE
+      `;
+      if (!balances.length) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    }
   }
 
-  const unit = await tx.businessUnit.update({
-    where: { id: businessUnitId },
-    data: { nextSalesCreditNoteNo: { increment: 1 } },
-    select: { nextSalesCreditNoteNo: true },
-  });
+  const unit = await tx.businessUnit.update({ where: { id: businessUnitId }, data: { nextSalesCreditNoteNo: { increment: 1 } }, select: { nextSalesCreditNoteNo: true } });
   const creditNoteNumber = `${businessUnitCode}-CN-${String(unit.nextSalesCreditNoteNo - 1).padStart(6, "0")}`;
-  const movement = await tx.stockMovement.create({
-    data: {
-      businessUnitId,
-      type: "SALE_RETURN",
-      actorId,
-      destinationLocationId: input.locationId,
-      reference: creditNoteNumber,
-      idempotencyKey: input.idempotencyKey,
-      reason: input.reason,
-    },
-  });
+  const movement = await tx.stockMovement.create({ data: {
+    businessUnitId, type: "SALE_RETURN", actorId, destinationLocationId: input.locationId,
+    reference: creditNoteNumber, idempotencyKey: input.idempotencyKey, reason: input.reason,
+  } });
+
   for (const item of prepared) {
-    if (item.disposition === "RESTOCK" && !await applyStockDelta(tx, movement.id, businessUnitId, input.locationId, {
-      productId: item.line.productId,
-      variantId: item.line.variantId,
-      quantity: item.quantity,
-      unitCost: item.line.unitCost,
-    }, "IN")) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    if (item.disposition !== "RESTOCK") continue;
+    if (item.allocation.sourceType === "STANDARD") {
+      const ok = await applyStockDelta(tx, movement.id, businessUnitId, input.locationId, {
+        productId: item.line.productId, variantId: item.line.variantId,
+        quantity: item.allocationQuantity, unitCost: item.allocation.unitCost,
+      }, "IN");
+      if (!ok) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    } else {
+      const remnant = item.allocation.remnant!;
+      await tx.materialRemnant.update({ where: { id: remnant.id }, data: {
+        quantity: { increment: item.allocationQuantity }, status: "AVAILABLE",
+      } });
+      const balance = await tx.stockBalance.findFirst({ where: {
+        businessUnitId, locationId: input.locationId, productId: item.line.productId,
+        variantId: item.line.variantId, stockKind: "REMNANT",
+      } });
+      if (!balance) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      const newQuantity = balance.quantity.plus(item.allocationQuantity);
+      const newAverageCost = balance.quantity.mul(balance.averageCost).plus(item.allocationQuantity.mul(item.allocation.unitCost))
+        .div(newQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+      await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: newQuantity, averageCost: newAverageCost } });
+      await tx.stockLedgerEntry.create({ data: {
+        businessUnitId, movementId: movement.id, productId: item.line.productId, variantId: item.line.variantId,
+        locationId: input.locationId, stockKind: "REMNANT", quantityDelta: item.allocationQuantity, unitCost: item.allocation.unitCost,
+      } });
+      await tx.materialRemnantMovement.create({ data: {
+        businessUnitId, remnantId: remnant.id, locationId: input.locationId, actorId, type: "RETURNED",
+        quantityDelta: item.allocationQuantity, reason: `Returned against original sale allocation on ${creditNoteNumber}`,
+      } });
+    }
   }
-  const record = await tx.saleReturn.create({
-    data: {
-      businessUnitId, saleId, stockMovementId: movement.id, locationId: input.locationId,
-      creditNoteNumber, idempotencyKey: input.idempotencyKey, reason: input.reason,
-      subtotal, taxAmount, total, createdBy: actorId,
-      lines: {
-        create: prepared.map((item, index) => ({
-          saleLineId: item.line.id,
-          lineNumber: index + 1,
-          productId: item.line.productId,
-          variantId: item.line.variantId,
-          productName: item.line.productName,
-          sku: item.line.sku,
-          baseUnit: item.line.baseUnit,
-          variantCode: item.line.variantCode,
-          variantAttributes: item.line.variantAttributes ?? Prisma.DbNull,
-          quantity: item.quantity,
-          disposition: item.disposition,
-          unitPrice: item.line.unitPrice,
-          gstPercentage: item.line.gstPercentage,
-          lineSubtotal: item.subtotal,
-          lineTax: item.tax,
-          lineTotal: item.total,
-          unitCost: item.line.unitCost,
-          lineCost: item.cost,
-        })),
-      },
-    },
-  });
-  await tx.auditLog.create({
-    data: {
-      userId: actorId, businessUnitId, action: "CREATE", entity: "SaleReturn", entityId: record.id,
-      details: { creditNoteNumber, invoiceNumber: sale.invoiceNumber, total: total.toString(), lineCount: prepared.length },
-    },
-  });
+
+  const record = await tx.saleReturn.create({ data: {
+    businessUnitId, saleId, stockMovementId: movement.id, locationId: input.locationId,
+    creditNoteNumber, idempotencyKey: input.idempotencyKey, reason: input.reason,
+    subtotal, taxAmount, total, createdBy: actorId,
+    lines: { create: prepared.map((item, index) => ({
+      saleLineId: item.line.id, lineNumber: index + 1, productId: item.line.productId,
+      variantId: item.line.variantId, productName: item.line.productName, sku: item.line.sku,
+      baseUnit: item.line.baseUnit, variantCode: item.line.variantCode,
+      variantAttributes: item.line.variantAttributes ?? Prisma.DbNull,
+      quantity: item.baseQuantity, disposition: item.disposition,
+      sourceAllocationId: item.allocation.id, sourceType: item.allocation.sourceType,
+      allocationQuantity: item.allocationQuantity, allocationUnit: item.allocation.unit,
+      baseQuantity: item.baseQuantity, unitPrice: item.line.unitPrice,
+      gstPercentage: item.line.gstPercentage, lineSubtotal: item.subtotal, lineTax: item.tax,
+      lineTotal: item.total, unitCost: item.line.unitCost, lineCost: item.cost,
+    })) },
+  } });
+  await tx.auditLog.create({ data: {
+    userId: actorId, businessUnitId, action: "CREATE", entity: "SaleReturn", entityId: record.id,
+    details: { creditNoteNumber, invoiceNumber: sale.invoiceNumber, total: total.toString(),
+      allocationCount: prepared.length, sourceTypes: [...new Set(prepared.map((item) => item.allocation.sourceType))] },
+  } });
   return { kind: "created", id: record.id, number: creditNoteNumber };
 }
 
@@ -482,68 +518,106 @@ export async function reverseSaleReturn(
   input: ReturnReversalInput,
 ): Promise<ReturnReversalResult> {
   const locked = await tx.$queryRaw<Array<{ id: string }>>`
-    SELECT "id" FROM "Sale"
-    WHERE "id" = ${saleId}::uuid AND "businessUnitId" = ${businessUnitId}::uuid
-    FOR UPDATE
+    SELECT "id" FROM "Sale" WHERE "id" = ${saleId}::uuid
+      AND "businessUnitId" = ${businessUnitId}::uuid FOR UPDATE
   `;
   if (!locked.length) return { kind: "error", error: "TARGET_NOT_AVAILABLE" };
   const keyMatch = await tx.saleReturn.findUnique({
     where: { businessUnitId_reversalIdempotencyKey: { businessUnitId, reversalIdempotencyKey: input.idempotencyKey } },
     select: { id: true, reversalReason: true },
   });
-  if (keyMatch) {
-    return keyMatch.id === returnId && keyMatch.reversalReason === input.reason
-      ? { kind: "replayed", id: returnId }
-      : { kind: "error", error: "IDEMPOTENCY_CONFLICT" };
-  }
+  if (keyMatch) return keyMatch.id === returnId && keyMatch.reversalReason === input.reason
+    ? { kind: "replayed", id: returnId } : { kind: "error", error: "IDEMPOTENCY_CONFLICT" };
+
   const record = await tx.saleReturn.findFirst({
     where: { id: returnId, businessUnitId, saleId },
-    include: { lines: true },
+    include: { lines: { include: { sourceAllocation: { include: {
+      stockBalance: { select: { id: true } },
+      remnant: { select: { id: true, quantity: true, status: true } },
+    } } } },
   });
   if (!record) return { kind: "error", error: "RETURN_NOT_AVAILABLE" };
   if (record.reversedAt) return { kind: "error", error: "ALREADY_REVERSED" };
   if (!await lockExistingLocation(tx, businessUnitId, record.locationId)) return { kind: "error", error: "RETURN_NOT_AVAILABLE" };
 
   const restockLines = record.lines.filter((line) => line.disposition === "RESTOCK");
-  const requestedByStockKey = new Map<string, Prisma.Decimal>();
   for (const line of restockLines) {
-    const key = `${line.productId}:${line.variantId || ""}`;
-    requestedByStockKey.set(key, (requestedByStockKey.get(key) ?? new Prisma.Decimal(0)).plus(line.quantity));
-  }
-  for (const [key, quantity] of requestedByStockKey) {
-    const [productId, variantId] = key.split(":");
-    const balance = await tx.stockBalance.findFirst({
-      where: { businessUnitId, locationId: record.locationId, productId, variantId: variantId || null, stockKind: "STANDARD" },
-      select: { quantity: true },
-    });
-    if (!balance || balance.quantity.lessThan(quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    if (!line.sourceAllocationId) continue; // historical STANDARD returns
+    const allocation = line.sourceAllocation;
+    if (!allocation || !line.allocationQuantity) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    if (allocation.sourceType === "STANDARD") {
+      const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal }>>`
+        SELECT "id", "quantity" FROM "StockBalance" WHERE "id" = ${allocation.stockBalanceId!}::uuid
+          AND "businessUnitId" = ${businessUnitId}::uuid AND "stockKind" = 'STANDARD' FOR UPDATE
+      `;
+      if (!rows.length || rows[0].quantity.lt(line.allocationQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    } else {
+      const rows = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal; status: string }>>`
+        SELECT "id", "quantity", "status" FROM "Remnant" WHERE "id" = ${allocation.remnantId!}::uuid
+          AND "businessUnitId" = ${businessUnitId}::uuid FOR UPDATE
+      `;
+      if (!rows.length || !["AVAILABLE", "SOLD"].includes(rows[0].status) || rows[0].quantity.lt(line.allocationQuantity)) {
+        return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      }
+      const balances = await tx.$queryRaw<Array<{ id: string; quantity: Prisma.Decimal }>>`
+        SELECT "id", "quantity" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnitId}::uuid
+          AND "locationId" = ${record.locationId}::uuid AND "productId" = ${line.productId}::uuid
+          AND "variantId" IS NOT DISTINCT FROM ${line.variantId}::uuid AND "stockKind" = 'REMNANT' FOR UPDATE
+      `;
+      if (!balances.length || balances[0].quantity.lt(line.allocationQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    }
   }
 
-  const movement = await tx.stockMovement.create({
-    data: {
-      businessUnitId, type: "SALE_RETURN_REVERSAL", actorId,
-      sourceLocationId: record.locationId, reference: `${record.creditNoteNumber}-REV`,
-      idempotencyKey: `${input.idempotencyKey}:sale-return-reversal`, reason: input.reason,
-    },
-  });
+  const movement = await tx.stockMovement.create({ data: {
+    businessUnitId, type: "SALE_RETURN_REVERSAL", actorId,
+    sourceLocationId: record.locationId, reference: `${record.creditNoteNumber}-REV`,
+    idempotencyKey: `${input.idempotencyKey}:sale-return-reversal`, reason: input.reason,
+  } });
   for (const line of restockLines) {
-    await applyStockDelta(tx, movement.id, businessUnitId, record.locationId, {
-      productId: line.productId, variantId: line.variantId, quantity: line.quantity, unitCost: line.unitCost,
-    }, "OUT");
+    if (!line.sourceAllocationId) {
+      const ok = await applyStockDelta(tx, movement.id, businessUnitId, record.locationId, {
+        productId: line.productId, variantId: line.variantId, quantity: line.quantity, unitCost: line.unitCost,
+      }, "OUT");
+      if (!ok) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      continue;
+    }
+    const allocation = line.sourceAllocation!;
+    const quantity = line.allocationQuantity!;
+    if (allocation.sourceType === "STANDARD") {
+      const ok = await applyStockDelta(tx, movement.id, businessUnitId, record.locationId, {
+        productId: line.productId, variantId: line.variantId, quantity, unitCost: allocation.unitCost,
+      }, "OUT");
+      if (!ok) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+    } else {
+      const remnant = allocation.remnant!;
+      const remaining = remnant.quantity.minus(quantity);
+      await tx.materialRemnant.update({ where: { id: remnant.id }, data: {
+        quantity: remaining, status: remaining.isZero() ? "SOLD" : "AVAILABLE",
+      } });
+      const balance = await tx.stockBalance.findFirst({ where: {
+        businessUnitId, locationId: record.locationId, productId: line.productId,
+        variantId: line.variantId, stockKind: "REMNANT",
+      } });
+      if (!balance || balance.quantity.lt(quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: quantity } } });
+      await tx.stockLedgerEntry.create({ data: {
+        businessUnitId, movementId: movement.id, productId: line.productId, variantId: line.variantId,
+        locationId: record.locationId, stockKind: "REMNANT", quantityDelta: quantity.negated(), unitCost: allocation.unitCost,
+      } });
+      await tx.materialRemnantMovement.create({ data: {
+        businessUnitId, remnantId: remnant.id, locationId: record.locationId, actorId, type: "ADJUSTED",
+        quantityDelta: quantity.negated(), reason: `Reversed returned quantity on ${record.creditNoteNumber}`,
+      } });
+    }
   }
-  await tx.saleReturn.update({
-    where: { id: record.id },
-    data: {
-      reversalMovementId: movement.id, reversalIdempotencyKey: input.idempotencyKey,
-      reversedBy: actorId, reversedAt: new Date(), reversalReason: input.reason,
-    },
-  });
-  await tx.auditLog.create({
-    data: {
-      userId: actorId, businessUnitId, action: "REVERSE", entity: "SaleReturn", entityId: record.id,
-      details: { creditNoteNumber: record.creditNoteNumber, reason: input.reason, total: record.total.toString() },
-    },
-  });
+  await tx.saleReturn.update({ where: { id: record.id }, data: {
+    reversalMovementId: movement.id, reversalIdempotencyKey: input.idempotencyKey,
+    reversedBy: actorId, reversedAt: new Date(), reversalReason: input.reason,
+  } });
+  await tx.auditLog.create({ data: {
+    userId: actorId, businessUnitId, action: "REVERSE", entity: "SaleReturn", entityId: record.id,
+    details: { creditNoteNumber: record.creditNoteNumber, reason: input.reason, total: record.total.toString() },
+  } });
   return { kind: "reversed", id: record.id };
 }
 
