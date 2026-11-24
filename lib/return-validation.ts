@@ -16,16 +16,17 @@ export const saleReturnInputSchema = z.object({
   reason: z.string().trim().min(3).max(500),
   lines: z.array(z.object({
     saleLineId: z.string().uuid(),
+    sourceAllocationId: z.string().uuid(),
     quantity: wholeQuantity,
     disposition: z.enum(["RESTOCK", "DAMAGED"]),
   })).min(1).max(50),
 }).superRefine((value, context) => {
   const seen = new Set<string>();
   value.lines.forEach((line, index) => {
-    if (seen.has(line.saleLineId)) {
-      context.addIssue({ code: "custom", path: ["lines", index], message: "Each invoice line may appear only once." });
+    if (seen.has(line.sourceAllocationId)) {
+      context.addIssue({ code: "custom", path: ["lines", index], message: "Each original stock allocation may appear only once per return." });
     }
-    seen.add(line.saleLineId);
+    seen.add(line.sourceAllocationId);
   });
 });
 

@@ -533,6 +533,7 @@ model SaleLineStockAllocation {
   createdAt         DateTime         @default(now())
   businessUnit      BusinessUnit     @relation(fields: [businessUnitId], references: [id])
   saleLine          SaleLine         @relation(fields: [businessUnitId, saleLineId], references: [businessUnitId, id])
+  returnLines       SaleReturnLine[]
   stockBalance      StockBalance?    @relation(fields: [businessUnitId, stockBalanceId], references: [businessUnitId, id], onDelete: Restrict)
   remnant           MaterialRemnant? @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id], onDelete: Restrict)
 
@@ -759,6 +760,11 @@ model SaleReturnLine {
   variantAttributes Json?
   quantity          Decimal               @db.Decimal(18, 4)
   disposition       SaleReturnDisposition
+  sourceAllocationId String?              @db.Uuid
+  sourceType        StockKind?
+  allocationQuantity Decimal?             @db.Decimal(18, 4)
+  allocationUnit    MeasurementUnit?
+  baseQuantity      Decimal?              @db.Decimal(18, 4)
   unitPrice         Decimal               @db.Decimal(14, 2)
   gstPercentage     Decimal               @db.Decimal(5, 2)
   lineSubtotal      Decimal               @db.Decimal(14, 2)
@@ -770,7 +776,9 @@ model SaleReturnLine {
   saleLine          SaleLine              @relation(fields: [businessUnitId, saleId, saleLineId], references: [businessUnitId, saleId, id])
   saleReturn        SaleReturn            @relation(fields: [businessUnitId, saleReturnId, saleId], references: [businessUnitId, id, saleId])
   variant           ProductVariant?       @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
+  sourceAllocation  SaleLineStockAllocation? @relation(fields: [businessUnitId, sourceAllocationId], references: [businessUnitId, id], onDelete: Restrict)
 
+  @@unique([businessUnitId, id])
   @@unique([businessUnitId, saleReturnId, lineNumber])
   @@index([businessUnitId, saleLineId])
 }
@@ -1073,6 +1081,7 @@ enum MaterialRemnantStatus {
 enum MaterialRemnantMovementType {
   CREATED
   SOLD
+  RETURNED
   CONSUMED
   WASTED
   ADJUSTED
