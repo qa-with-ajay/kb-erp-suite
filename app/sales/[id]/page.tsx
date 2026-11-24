@@ -24,7 +24,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const stockAllocations = await prisma.saleLineStockAllocation.findMany({
     where: { businessUnitId: access.context.businessUnit.id, saleLine: { saleId: id } },
     select: {
-      sourceType: true, quantity: true, unit: true, baseQuantity: true, unitCost: true, lineCost: true,
+      id: true, sourceType: true, quantity: true, unit: true, baseQuantity: true, unitCost: true, lineCost: true,
       remnant: { select: { code: true } },
       saleLine: { select: { lineNumber: true, productName: true, baseUnit: true } },
     },
@@ -54,7 +54,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
                 </thead>
                 <tbody>
                   {stockAllocations.map((allocation) => (
-                    <tr key={allocation.saleLine.lineNumber + ":" + allocation.sourceType + ":" + (allocation.remnant?.code ?? "regular") + ":" + allocation.quantity.toString()} className="border-b last:border-0">
+                    <tr key={allocation.id} className="border-b last:border-0">
                       <td className="py-2 pr-3">{allocation.saleLine.productName}</td>
                       <td className="py-2 pr-3">{allocation.sourceType === "REMNANT" ? `Remnant · ${allocation.remnant?.code ?? "record"}` : "Regular stock"}</td>
                       <td className="py-2 pr-3">{allocation.quantity.toString()} {allocation.unit}</td>
