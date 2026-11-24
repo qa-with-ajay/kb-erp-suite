@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     isActive: true,
     OR: [
       { productType: "STANDARD" },
-      { productType: "PANEL", baseUnit: "PCS" },
+      { productType: "MATERIAL" },
     ],
     AND: [
       { stockBalances: { some: { locationId: location.id, stockKind: "STANDARD", quantity: { gt: 0 } } } },

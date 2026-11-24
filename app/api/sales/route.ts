@@ -27,7 +27,6 @@ const saleErrors: Record<SaleError, { message: string; status: number }> = {
   PRODUCT_NOT_AVAILABLE: { message: "One or more selected products are unavailable.", status: 400 },
   VARIANT_REQUIRED: { message: "Select a variant for the product.", status: 400 },
   VARIANT_NOT_AVAILABLE: { message: "The selected variant is unavailable.", status: 400 },
-  PANEL_UNIT_MUST_BE_PCS: { message: "Panel sales require panels to be stocked as whole PCS units. Cutting is not supported.", status: 400 },
   AMOUNT_LIMIT_EXCEEDED: { message: "The invoice exceeds the supported monetary amount.", status: 400 },
   INSUFFICIENT_STOCK: { message: "There is not enough stock for the requested full-unit sale.", status: 409 },
 };

@@ -16,7 +16,7 @@ export type InventoryImportRow = {
   sku: string;
   name: string;
   description: string | null;
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
   baseUnit: "PCS" | "SQFT" | "BOX" | "RFT" | "ROLL" | "METER" | "KG" | "LITRE" | "BUNDLE" | "SET";
   sellingPrice: string;
   gstPercentage: string;
@@ -140,9 +140,9 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (sku && !priorSkuRow) seenSkus.set(normalizedSku, { rowNumber, fingerprint: productFingerprint });
     if (!name || name.length > 160) addIssue(rowNumber, "name", "Product name is required and must be at most 160 characters.");
     if (description && description.length > 2000) addIssue(rowNumber, "description", "Description must be at most 2,000 characters.");
-    if (!["STANDARD", "PANEL"].includes(productType)) addIssue(rowNumber, "productType", "Use STANDARD or PANEL.");
+    if (!["STANDARD", "MATERIAL"].includes(productType)) addIssue(rowNumber, "productType", "Use STANDARD or MATERIAL.");
     if (!allowedUnits.has(baseUnit)) addIssue(rowNumber, "baseUnit", "Unsupported unit of measurement.");
-    if (productType === "PANEL" && !["PCS", "SQFT"].includes(baseUnit)) addIssue(rowNumber, "baseUnit", "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock.");
+    
     if (!money.test(sellingPrice)) addIssue(rowNumber, "sellingPrice", "Enter a non-negative price with up to 2 decimal places.");
     if (!/^\d{1,2}(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/.test(gstPercentage) || Number(gstPercentage) > 100) addIssue(rowNumber, "gstPercentage", "GST must be between 0 and 100.");
     if (!quantity.test(minimumStock)) addIssue(rowNumber, "minimumStock", "Enter a non-negative quantity with up to 4 decimal places.");
@@ -171,9 +171,6 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       const ledgerCount = await db.stockLedgerEntry.count({ where: { businessUnitId, productId: existing.id } });
       const conversionCount = await db.productUnitConversion.count({ where: { businessUnitId, productId: existing.id } });
       if (ledgerCount || conversionCount) addIssue(rowNumber, "baseUnit", "Base unit cannot change after stock ledger entries or unit conversions exist.");
-    }
-    if (existing && existing.productType !== productType && productType === "PANEL" && !["PCS", "SQFT"].includes(baseUnit)) {
-      addIssue(rowNumber, "productType", "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock.");
     }
     if (barcode) {
       const duplicateBarcode = await db.product.findFirst({ where: { businessUnitId, barcode, ...(existing ? { id: { not: existing.id } } : {}) }, select: { id: true } });

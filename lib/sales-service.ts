@@ -19,7 +19,6 @@ export type SaleResult =
         | "PRODUCT_NOT_AVAILABLE"
         | "VARIANT_REQUIRED"
         | "VARIANT_NOT_AVAILABLE"
-        | "PANEL_UNIT_MUST_BE_PCS"
         | "AMOUNT_LIMIT_EXCEEDED"
         | "INSUFFICIENT_STOCK";
       productName?: string;
@@ -131,9 +130,6 @@ export async function createSale(
   for (const line of input.lines) {
     const product = productById.get(line.productId);
     if (!product) return { kind: "error", error: "PRODUCT_NOT_AVAILABLE" };
-    if (product.productType === "PANEL" && product.baseUnit !== "PCS") {
-      return { kind: "error", error: "PANEL_UNIT_MUST_BE_PCS", productName: product.name };
-    }
     if (product.variants.length && !line.variantId) {
       return { kind: "error", error: "VARIANT_REQUIRED", productName: product.name };
     }
