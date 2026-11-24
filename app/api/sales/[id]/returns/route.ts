@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     prisma.saleReturn.findMany({
       where: { businessUnitId, saleId: id },
       include: {
-        lines: { orderBy: { lineNumber: "asc" } },
+        lines: { orderBy: { lineNumber: "asc" }, include: { sourceAllocation: { include: { remnant: { select: { code: true } } } } } },
         creator: { select: { name: true } },
         reverser: { select: { name: true } },
         location: { select: { name: true } },
@@ -133,6 +133,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
         unit: line.baseUnit,
         quantity: line.quantity.toString(),
         disposition: line.disposition,
+        sourceType: line.sourceType,
+        sourceCode: line.sourceType === "REMNANT" ? line.sourceAllocation?.remnant?.code ?? "Remnant" : line.sourceType === "STANDARD" ? "Standard stock" : null,
+        allocationQuantity: line.allocationQuantity?.toString() ?? null,
+        allocationUnit: line.allocationUnit,
         lineTotal: line.lineTotal.toString(),
       })),
     })),
