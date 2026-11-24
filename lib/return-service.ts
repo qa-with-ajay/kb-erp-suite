@@ -269,7 +269,7 @@ export async function createSaleReturn(
     const sourceLocationId = allocation.sourceType === "STANDARD" ? allocation.stockBalance?.locationId : allocation.remnant?.locationId;
     if (!sourceLocationId || sourceLocationId !== input.locationId) return { kind: "error", error: "LOCATION_NOT_AVAILABLE" };
     if (allocation.sourceType === "STANDARD" && !allocation.stockBalance) return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
-    if (allocation.sourceType === "REMNANT" && (!allocation.remnant || !["AVAILABLE", "SOLD"].includes(allocation.remnant.status))) {
+    if (requested.disposition === "RESTOCK" && allocation.sourceType === "REMNANT" && (!allocation.remnant || !["AVAILABLE", "SOLD"].includes(allocation.remnant.status))) {
       return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
     }
 
@@ -280,7 +280,6 @@ export async function createSaleReturn(
     const lineTax = sale.taxMode === "GST" ? lineSubtotal.mul(line.gstPercentage).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) : new Prisma.Decimal(0);
     const lineTotal = lineSubtotal.plus(lineTax);
     const lineCost = allocation.unitCost.mul(allocationQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-    const returnUnitCost = lineCost.div(baseQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
     if ([lineSubtotal, lineTax, lineTotal, lineCost].some((amount) => amount.greaterThan(maximumAmount))) return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
     prepared.push({ line, allocation, allocationQuantity, baseQuantity, subtotal: lineSubtotal, tax: lineTax, total: lineTotal, cost: lineCost, disposition: requested.disposition });
     subtotal = subtotal.plus(lineSubtotal); taxAmount = taxAmount.plus(lineTax); total = total.plus(lineTotal); cost = cost.plus(lineCost);
