@@ -537,6 +537,7 @@ model SaleLineStockAllocation {
 
   @@unique([businessUnitId, id])
   @@index([businessUnitId, saleLineId])
+  @@index([businessUnitId, stockBalanceId])
   @@index([businessUnitId, sourceType, remnantId])
 }
 
