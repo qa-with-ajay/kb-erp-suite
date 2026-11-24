@@ -11,8 +11,8 @@ const demoUnits = {
     customer: "Demo Interiors Customer",
     supplier: "Demo Interiors Supplier",
     products: [
-      { name: "Demo Plywood Panel 18mm", sku: "DEMO-KBI-PLY-18", category: "Demo Plywood", brand: "Demo Century Surface", baseUnit: "PCS", productType: "PANEL", purchasePrice: "1850", sellingPrice: "2450", gstPercentage: "18", minimumStock: "5", openingQuantity: "24" },
-      { name: "Demo Matte Laminate Sheet", sku: "DEMO-KBI-LAM-01", category: "Demo Laminates", brand: "Demo Green Surface", baseUnit: "PCS", productType: "PANEL", purchasePrice: "680", sellingPrice: "950", gstPercentage: "18", minimumStock: "6", openingQuantity: "30" },
+      { name: "Demo Plywood Panel 18mm", sku: "DEMO-KBI-PLY-18", category: "Demo Plywood", brand: "Demo Century Surface", baseUnit: "PCS", productType: "MATERIAL", canBeProcessed: true, purchasePrice: "1850", sellingPrice: "2450", gstPercentage: "18", minimumStock: "5", openingQuantity: "24" },
+      { name: "Demo Matte Laminate Sheet", sku: "DEMO-KBI-LAM-01", category: "Demo Laminates", brand: "Demo Green Surface", baseUnit: "PCS", productType: "MATERIAL", canBeProcessed: true, purchasePrice: "680", sellingPrice: "950", gstPercentage: "18", minimumStock: "6", openingQuantity: "30" },
       { name: "Demo Soft-Close Hinge", sku: "DEMO-KBI-HNG-01", category: "Demo Hardware", brand: "Demo Hettich Hardware", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "110", sellingPrice: "175", gstPercentage: "18", minimumStock: "10", openingQuantity: "40" },
     ],
   },
@@ -94,7 +94,7 @@ async function seedOpeningStock(tx, businessUnit, actorId, location, product, da
     locationId: location.id,
     productId: product.id,
     variantId: null,
-    stockKind: "STANDARD",
+    stockType: "STANDARD",
   };
   const balance = await tx.stockBalance.findFirst({ where: balanceWhere });
   const quantity = new Prisma.Decimal(data.openingQuantity);
@@ -121,7 +121,7 @@ async function seedOpeningStock(tx, businessUnit, actorId, location, product, da
       movementId: movement.id,
       productId: product.id,
       locationId: location.id,
-      stockKind: "STANDARD",
+      stockType: "STANDARD",
       quantityDelta: quantity,
       unitCost,
     },
@@ -250,7 +250,7 @@ async function seedPurchase(tx, businessUnit, actorId, location, supplier, produ
     locationId: location.id,
     productId: orderLine.productId,
     variantId: null,
-    stockKind: "STANDARD",
+    stockType: "STANDARD",
   };
   const balance = await tx.stockBalance.findFirst({ where: balanceWhere });
   if (!balance) throw new Error(`Opening stock is missing for demo product ${product.sku}.`);
@@ -267,7 +267,7 @@ async function seedPurchase(tx, businessUnit, actorId, location, supplier, produ
       movementId: movement.id,
       productId: orderLine.productId,
       locationId: location.id,
-      stockKind: "STANDARD",
+      stockType: "STANDARD",
       quantityDelta: orderLine.quantity,
       unitCost: orderLine.unitCost,
     },
@@ -344,7 +344,7 @@ async function seedSale(tx, businessUnit, actorId, location, customer, product) 
       locationId: location.id,
       productId: product.id,
       variantId: null,
-      stockKind: "STANDARD",
+      stockType: "STANDARD",
     },
   });
   const quantity = new Prisma.Decimal(2);
@@ -386,7 +386,7 @@ async function seedSale(tx, businessUnit, actorId, location, customer, product) 
       movementId: movement.id,
       productId: product.id,
       locationId: location.id,
-      stockKind: "STANDARD",
+      stockType: "STANDARD",
       quantityDelta: quantity.negated(),
       unitCost: balance.averageCost,
     },
