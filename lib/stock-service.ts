@@ -168,11 +168,11 @@ export async function createStockMovement(
 
     const sourceWhere = {
       businessUnitId, locationId: input.sourceLocationId, productId: validated.productId,
-      variantId: input.variantId || null, stockKind: "STANDARD" as const,
+      variantId: input.variantId || null, stockType: "STANDARD" as const,
     };
     const destinationWhere = {
       businessUnitId, locationId: input.destinationLocationId, productId: validated.productId,
-      variantId: input.variantId || null, stockKind: "STANDARD" as const,
+      variantId: input.variantId || null, stockType: "STANDARD" as const,
     };
     const [sourceBalance, destinationBalance] = await Promise.all([
       tx.stockBalance.findFirst({ where: sourceWhere }),
@@ -205,12 +205,12 @@ export async function createStockMovement(
         {
           businessUnitId, movementId: movement.id, productId: validated.productId,
           variantId: input.variantId || null, locationId: input.sourceLocationId,
-          stockKind: "STANDARD", quantityDelta: quantity.negated(), unitCost: sourceAverageCost,
+          stockType: "STANDARD", quantityDelta: quantity.negated(), unitCost: sourceAverageCost,
         },
         {
           businessUnitId, movementId: movement.id, productId: validated.productId,
           variantId: input.variantId || null, locationId: input.destinationLocationId,
-          stockKind: "STANDARD", quantityDelta: quantity, unitCost: sourceAverageCost,
+          stockType: "STANDARD", quantityDelta: quantity, unitCost: sourceAverageCost,
         },
       ],
     });
@@ -261,7 +261,7 @@ export async function createStockMovement(
     locationId,
     productId: validated.productId,
     variantId: input.variantId || null,
-    stockKind: "STANDARD" as const,
+    stockType: "STANDARD" as const,
   };
   const balance = await tx.stockBalance.findFirst({ where: balanceWhere });
   if (input.type === "OPENING") {
@@ -305,7 +305,7 @@ export async function createStockMovement(
       productId: validated.productId,
       variantId: input.variantId || null,
       locationId,
-      stockKind: "STANDARD",
+      stockType: "STANDARD",
       quantityDelta: delta,
       unitCost: ledgerUnitCost,
     },
