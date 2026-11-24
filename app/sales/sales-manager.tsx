@@ -11,7 +11,7 @@ type Product = {
   name: string;
   sku: string;
   baseUnit: string;
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
   sellingPrice: string;
   gstPercentage: string;
   variants: Array<{ id: string; code: string | null; attributes: Record<string, string> }>;
