@@ -31,7 +31,10 @@ export async function GET(request: Request) {
       { productType: "MATERIAL" },
     ],
     AND: [
-      { stockBalances: { some: { locationId: location.id, stockKind: "STANDARD", quantity: { gt: 0 } } } },
+      { OR: [
+        { stockBalances: { some: { locationId: location.id, stockKind: "STANDARD", quantity: { gt: 0 } } } },
+        { materialRemnants: { some: { locationId: location.id, status: "AVAILABLE", quantity: { gt: 0 } } } },
+      ] },
       ...search,
     ],
   };
@@ -55,7 +58,12 @@ export async function GET(request: Request) {
         },
         stockBalances: {
           where: { locationId: location.id, stockKind: "STANDARD" },
-          select: { variantId: true, quantity: true },
+          select: { id: true, variantId: true, quantity: true, averageCost: true },
+        },
+        materialRemnants: {
+          where: { locationId: location.id, status: "AVAILABLE", quantity: { gt: 0 } },
+          select: { id: true, code: true, variantId: true, quantity: true, unit: true, unitCost: true },
+          orderBy: { createdAt: "asc" },
         },
       },
       orderBy: { name: "asc" },

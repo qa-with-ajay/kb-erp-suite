@@ -445,6 +445,7 @@ model StockBalance {
   location       StockLocation   @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id])
   product        Product         @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])
   variant        ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
+  saleAllocations SaleLineStockAllocation[]
 
   @@index([businessUnitId, locationId, productId, variantId, stockKind])
 }
@@ -505,11 +506,35 @@ model SaleLine {
   sale              Sale             @relation(fields: [businessUnitId, saleId], references: [businessUnitId, id])
   variant           ProductVariant?  @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
   returns           SaleReturnLine[]
+  stockAllocations  SaleLineStockAllocation[]
 
   @@unique([businessUnitId, saleId, lineNumber])
   @@unique([businessUnitId, saleId, id])
   @@index([businessUnitId, saleId])
   @@index([businessUnitId, productId])
+}
+
+model SaleLineStockAllocation {
+  id                String           @id @default(uuid()) @db.Uuid
+  businessUnitId    String           @db.Uuid
+  saleLineId        String           @db.Uuid
+  sourceType        StockKind
+  stockBalanceId    String?          @db.Uuid
+  remnantId         String?          @db.Uuid
+  quantity          Decimal          @db.Decimal(18, 4)
+  unit              MeasurementUnit
+  conversionFactor  Decimal          @db.Decimal(18, 8)
+  baseQuantity      Decimal          @db.Decimal(18, 4)
+  unitCost          Decimal          @db.Decimal(14, 4)
+  lineCost          Decimal          @db.Decimal(14, 2)
+  createdAt         DateTime         @default(now())
+  saleLine          SaleLine         @relation(fields: [businessUnitId, saleLineId], references: [businessUnitId, id])
+  stockBalance      StockBalance?    @relation(fields: [stockBalanceId], references: [id])
+  remnant           MaterialRemnant? @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
+
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, saleLineId])
+  @@index([businessUnitId, sourceType, remnantId])
 }
 
 model PurchaseOrder {
@@ -876,6 +901,7 @@ model MaterialRemnant {
   sourceOperation   MaterialProcessing?   @relation("RemnantOutput", fields: [businessUnitId, sourceOperationId], references: [businessUnitId, id])
   variant           ProductVariant?   @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
   movements         MaterialRemnantMovement[]
+  saleAllocations   SaleLineStockAllocation[]
 
   @@unique([businessUnitId, code])
   @@unique([businessUnitId, id])

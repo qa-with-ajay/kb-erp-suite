@@ -16,6 +16,11 @@ export const saleInputSchema = z.object({
     productId: z.string().uuid(),
     variantId: z.string().uuid().nullable().optional(),
     quantity: saleQuantity,
+    allocations: z.array(z.object({
+      sourceType: z.enum(["STANDARD", "REMNANT"]),
+      sourceId: z.string().uuid().nullable().optional(),
+      quantity: saleQuantity,
+    })).min(1).max(100).optional(),
   })).min(1).max(50),
 }).superRefine((value, context) => {
   const keys = new Set<string>();
