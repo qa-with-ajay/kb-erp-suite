@@ -61,7 +61,11 @@ function conversionFactor(product: Product | null) { return product?.materialUni
 function lineQuantity(line: DraftLine) {
   if (!line.product) return 0;
   const factor = conversionFactor(line.product);
-  return Object.entries(line.allocations).reduce((sum, [key, raw]) => sum + Number(raw || 0) * (key.startsWith("STANDARD:") ? factor : 1), 0);
+  return Object.entries(line.allocations).reduce((sum, [key, raw]) => {
+    const quantity = Number(raw || 0);
+    const normalized = key.startsWith("STANDARD:") ? Math.round((quantity * factor + Number.EPSILON) * 10000) / 10000 : quantity;
+    return sum + normalized;
+  }, 0);
 }
 function defaultAllocations(product: Product | null, variantId: string) {
   if (!product) return {};

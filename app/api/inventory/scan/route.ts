@@ -35,7 +35,7 @@ export async function GET(request: Request) {
       materialUnitsPerBaseUnit: true, productType: true, purchasePrice: true, sellingPrice: true, gstPercentage: true,
       variants: { where: { isActive: true }, select: { id: true, code: true, barcode: true, attributes: true }, orderBy: { createdAt: "asc" } },
       unitConversions: { where: { isPurchaseUnit: true }, select: { unit: true, conversionFactor: true, precision: true, roundingMode: true } },
-      stockBalances: { where: { ...(locationId ? { locationId } : {}), stockKind: "STANDARD" }, select: { id: true, locationId: true, variantId: true, quantity: true, averageCost: true } },
+      stockBalances: { where: { ...(locationId ? { locationId } : {}), stockKind: "STANDARD", quantity: { gt: 0 } }, select: { id: true, locationId: true, variantId: true, quantity: true, averageCost: true } },
       materialRemnants: { where: { ...(locationId ? { locationId } : {}), status: "AVAILABLE", quantity: { gt: 0 } }, select: { id: true, code: true, variantId: true, quantity: true, unit: true, unitCost: true }, orderBy: { createdAt: "asc" } },
     },
     take: 2,

@@ -57,7 +57,7 @@ export async function GET(request: Request) {
           orderBy: { createdAt: "asc" },
         },
         stockBalances: {
-          where: { locationId: location.id, stockKind: "STANDARD" },
+          where: { locationId: location.id, stockKind: "STANDARD", quantity: { gt: 0 } },
           select: { id: true, variantId: true, quantity: true, averageCost: true },
         },
         materialRemnants: {
