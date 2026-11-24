@@ -447,6 +447,7 @@ model StockBalance {
   variant        ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
   saleAllocations SaleLineStockAllocation[]
 
+  @@unique([businessUnitId, id])
   @@index([businessUnitId, locationId, productId, variantId, stockKind])
 }
 
@@ -529,7 +530,7 @@ model SaleLineStockAllocation {
   lineCost          Decimal          @db.Decimal(14, 2)
   createdAt         DateTime         @default(now())
   saleLine          SaleLine         @relation(fields: [businessUnitId, saleLineId], references: [businessUnitId, id])
-  stockBalance      StockBalance?    @relation(fields: [stockBalanceId], references: [id])
+  stockBalance      StockBalance?    @relation(fields: [businessUnitId, stockBalanceId], references: [businessUnitId, id])
   remnant           MaterialRemnant? @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
 
   @@unique([businessUnitId, id])

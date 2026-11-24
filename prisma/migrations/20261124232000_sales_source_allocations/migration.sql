@@ -14,7 +14,7 @@ CREATE TABLE "SaleLineStockAllocation" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "SaleLineStockAllocation_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "SaleLineStockAllocation_saleLine_fkey" FOREIGN KEY ("businessUnitId", "saleLineId") REFERENCES "SaleLine"("businessUnitId", "id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT "SaleLineStockAllocation_stockBalance_fkey" FOREIGN KEY ("stockBalanceId") REFERENCES "StockBalance"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+
   CONSTRAINT "SaleLineStockAllocation_remnant_fkey" FOREIGN KEY ("businessUnitId", "remnantId") REFERENCES "Remnant"("businessUnitId", "id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "SaleLineStockAllocation_source_check" CHECK (
     ("sourceType" = 'STANDARD' AND "stockBalanceId" IS NOT NULL AND "remnantId" IS NULL)
