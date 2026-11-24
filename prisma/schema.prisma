@@ -1082,6 +1082,7 @@ enum MaterialRemnantMovementType {
   CREATED
   SOLD
   RETURNED
+  RETURN_REVERSED
   CONSUMED
   WASTED
   ADJUSTED

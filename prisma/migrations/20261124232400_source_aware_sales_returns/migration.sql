@@ -15,6 +15,7 @@ ALTER TABLE "SaleReturnLine"
   ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TYPE "RemnantMovementType" ADD VALUE IF NOT EXISTS 'RETURNED';
+ALTER TYPE "RemnantMovementType" ADD VALUE IF NOT EXISTS 'RETURN_REVERSED';
 
 CREATE INDEX "SaleReturnLine_businessUnitId_sourceAllocationId_idx"
   ON "SaleReturnLine"("businessUnitId", "sourceAllocationId");
