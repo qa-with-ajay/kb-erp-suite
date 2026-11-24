@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const params = parsedParams.data;
   const where: Prisma.StockBalanceWhereInput = {
     businessUnitId: access.context.businessUnit.id,
-    stockKind: "STANDARD",
+    stockType: "STANDARD",
     ...(params.locationId ? { locationId: params.locationId } : {}),
     ...(params.search ? {
       product: {
