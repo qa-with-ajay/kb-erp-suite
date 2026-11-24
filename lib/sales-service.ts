@@ -197,9 +197,11 @@ export async function createSale(
     });
     for (const allocation of line.allocations) {
       if (allocation.sourceType === "STANDARD") {
-        const balance = await tx.stockBalance.findFirstOrThrow({ where: { id: allocation.sourceId, businessUnitId, stockKind: "STANDARD" } });
-        if (balance.quantity.lessThan(allocation.quantity)) throw new Error("SALE_STOCK_CHANGED");
-        await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: allocation.quantity } } });
+        const changed = await tx.stockBalance.updateMany({
+          where: { id: allocation.sourceId, businessUnitId, stockKind: "STANDARD", quantity: { gte: allocation.quantity } },
+          data: { quantity: { decrement: allocation.quantity } },
+        });
+        if (changed.count !== 1) throw new Error("SALE_STOCK_CHANGED");
         await tx.stockLedgerEntry.create({ data: { businessUnitId, movementId: movement.id, productId: line.product.id, variantId: line.variant?.id ?? null,
           locationId: input.locationId, stockKind: "STANDARD", quantityDelta: allocation.quantity.negated(), unitCost: allocation.unitCost } });
       } else {
@@ -213,7 +215,11 @@ export async function createSale(
         await tx.materialRemnant.update({ where: { id: remnant.id }, data: { quantity: remaining, status: remaining.isZero() ? "SOLD" : "AVAILABLE" } });
         const remnantBalance = await tx.stockBalance.findFirst({ where: { businessUnitId, locationId: input.locationId, productId: line.product.id, variantId: line.variant?.id ?? null, stockKind: "REMNANT" } });
         if (!remnantBalance || remnantBalance.quantity.lessThan(allocation.quantity)) throw new Error("SALE_STOCK_CHANGED");
-        await tx.stockBalance.update({ where: { id: remnantBalance.id }, data: { quantity: { decrement: allocation.quantity } } });
+        const remnantBalanceChanged = await tx.stockBalance.updateMany({
+          where: { id: remnantBalance.id, businessUnitId, quantity: { gte: allocation.quantity } },
+          data: { quantity: { decrement: allocation.quantity } },
+        });
+        if (remnantBalanceChanged.count !== 1) throw new Error("SALE_STOCK_CHANGED");
         await tx.stockLedgerEntry.create({ data: { businessUnitId, movementId: movement.id, productId: line.product.id, variantId: line.variant?.id ?? null,
           locationId: input.locationId, stockKind: "REMNANT", quantityDelta: allocation.quantity.negated(), unitCost: allocation.unitCost } });
         await tx.materialRemnantMovement.create({ data: { businessUnitId, remnantId: remnant.id, locationId: input.locationId, actorId, type: "SOLD",
