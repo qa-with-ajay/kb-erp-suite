@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
-type Product = { id: string; name: string; sku: string; baseUnit: string; productType: string; isProcessingEnabled?: boolean };
+type Product = { id: string; name: string; sku: string; baseUnit: string; materialUnit: string | null; materialUnitsPerBaseUnit: string | null; productType: string; isProcessingEnabled?: boolean };
 type Location = { id: string; name: string; code: string };
 type Remnant = {
   id: string; code: string; quantity: string; unit: string | null; length: string | null; width: string | null;
@@ -28,6 +28,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
   const [variants, setVariants] = useState<{ id: string; code: string | null; attributes: Record<string, string> }[]>([]);
   const [locationId, setLocationId] = useState("");
   const [inputQuantity, setInputQuantity] = useState("");
+  const [consumedQuantity, setConsumedQuantity] = useState("");
   const [remnantQuantity, setRemnantQuantity] = useState("");
   const [inputLength, setInputLength] = useState("");
   const [inputWidth, setInputWidth] = useState("");
@@ -73,14 +74,14 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId, variantId: variantId || null, locationId,
-          inputQuantity, remnantQuantity,
+          inputQuantity, consumedQuantity: consumedQuantity || "0", remnantQuantity,
           ...(inputLength && inputWidth ? { inputLength, inputWidth } : {}),
           ...(remnantLength && remnantWidth ? { remnantLength, remnantWidth } : {}),
           reason, idempotencyKey: crypto.randomUUID(),
         }),
       }));
       setNotice("Processing recorded. Standard stock was consumed and reusable remnant stock was created.");
-      setInputQuantity(""); setRemnantQuantity(""); setReason("");
+      setInputQuantity(""); setConsumedQuantity(""); setRemnantQuantity(""); setReason("");
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to record processing."); }
     finally { setBusy(false); }
@@ -153,13 +154,14 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
 
       {canManage && <form onSubmit={createProcessing} className="rounded-xl border bg-white p-5">
         <h2 className="text-lg font-semibold">Record material processing</h2>
-        <p className="mb-4 mt-1 text-sm text-gray-600">Enter the quantity consumed and the reusable leftover. The difference is recorded as waste. Quantities use the product base unit.</p>
+        <p className="mb-4 mt-1 text-sm text-gray-600">Open whole regular stock units. Input quantity uses the base stock unit; consumed, remnant and waste quantities use the material unit. Their total cannot exceed the material quantity contained in the opened stock.</p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <label className="text-sm">Material product<select required value={productId} onChange={(e) => { setProductId(e.target.value); setVariantId(""); }} className="mt-1 w-full rounded-lg border p-2"><option value="">Select product</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}</select></label>
           {variants.length > 0 && <label className="text-sm">Variant<select required value={variantId} onChange={(e) => setVariantId(e.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="">Select variant</option>{variants.map((v) => <option key={v.id} value={v.id}>{v.code ?? Object.entries(v.attributes).map(([k, val]) => `${k}: ${val}`).join(", ")}</option>)}</select></label>}
           <label className="text-sm">Location<select required value={locationId} onChange={(e) => setLocationId(e.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="">Select location</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
-          <label className="text-sm">Input quantity ({selectedProduct?.baseUnit ?? "unit"})<input required type="number" min="0.0001" step="0.0001" value={inputQuantity} onChange={(e) => setInputQuantity(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
-          <label className="text-sm">Reusable remnant quantity ({selectedProduct?.baseUnit ?? "unit"})<input required type="number" min="0" step="0.0001" value={remnantQuantity} onChange={(e) => setRemnantQuantity(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+          <label className="text-sm">Regular stock to open ({selectedProduct?.baseUnit ?? "unit"})<input required type="number" min="0.0001" step={selectedProduct?.materialUnitsPerBaseUnit ? "1" : "0.0001"} value={inputQuantity} onChange={(e) => setInputQuantity(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /><span className="text-xs text-gray-500">Available regular stock is deducted in this unit.</span></label>
+          <label className="text-sm">Consumed / used quantity ({selectedProduct?.materialUnit ?? selectedProduct?.baseUnit ?? "unit"})<input required type="number" min="0" step="0.0001" value={consumedQuantity} onChange={(e) => setConsumedQuantity(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /><span className="text-xs text-gray-500">For example, material allocated to a job.</span></label>
+          <label className="text-sm">Reusable remnant quantity ({selectedProduct?.materialUnit ?? selectedProduct?.baseUnit ?? "unit"})<input required type="number" min="0" step="0.0001" value={remnantQuantity} onChange={(e) => setRemnantQuantity(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
           <label className="text-sm">Input length (optional)<input type="number" min="0.0001" step="0.0001" value={inputLength} onChange={(e) => setInputLength(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
           <label className="text-sm">Input width (optional)<input type="number" min="0.0001" step="0.0001" value={inputWidth} onChange={(e) => setInputWidth(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
           <label className="text-sm">Remnant length (optional)<input type="number" min="0.0001" step="0.0001" value={remnantLength} onChange={(e) => setRemnantLength(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>

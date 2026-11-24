@@ -11,6 +11,7 @@ const createSchema = z.object({
   variantId: z.string().uuid().nullable().optional(),
   locationId: z.string().uuid(),
   inputQuantity: z.coerce.number().positive().max(100000000),
+  consumedQuantity: z.coerce.number().min(0).max(100000000).default(0),
   remnantQuantity: z.coerce.number().min(0).max(100000000),
   inputLength: z.coerce.number().positive().optional(),
   inputWidth: z.coerce.number().positive().optional(),
@@ -19,8 +20,6 @@ const createSchema = z.object({
   reference: z.string().trim().max(100).optional(),
   reason: z.string().trim().max(500).optional(),
   idempotencyKey: z.string().min(8).max(100),
-}).refine((value) => value.remnantQuantity <= value.inputQuantity, {
-  path: ["remnantQuantity"], message: "Reusable remnant quantity cannot exceed the consumed quantity.",
 }).refine((value) => (value.inputLength === undefined) === (value.inputWidth === undefined), {
   path: ["inputLength"], message: "Provide both input dimensions or neither.",
 }).refine((value) => (value.remnantLength === undefined) === (value.remnantWidth === undefined), {
@@ -43,7 +42,7 @@ export async function GET(request: Request) {
       ...(productId ? { productId } : {}),
     },
     include: {
-      product: { select: { id: true, name: true, sku: true, baseUnit: true, productType: true } },
+      product: { select: { id: true, name: true, sku: true, baseUnit: true, materialUnit: true, materialUnitsPerBaseUnit: true, productType: true } },
       variant: { select: { id: true, code: true, attributes: true } },
       location: { select: { id: true, name: true, code: true } },
       sourceOperation: { select: { id: true, type: true, inputQuantity: true, inputUnit: true, createdAt: true } },
@@ -83,7 +82,7 @@ export async function POST(request: Request) {
 
       const product = await tx.product.findFirst({
         where: { id: input.productId, businessUnitId: businessUnit.id, isActive: true, productType: "MATERIAL", isProcessingEnabled: true },
-        select: { id: true, baseUnit: true, variants: { where: { isActive: true }, select: { id: true }, take: 1 } },
+        select: { id: true, baseUnit: true, materialUnit: true, materialUnitsPerBaseUnit: true, variants: { where: { isActive: true }, select: { id: true }, take: 1 } },
       });
       if (!product) return { error: "PROCESSING_NOT_ENABLED" as const };
       if (product.variants.length && !input.variantId) return { error: "VARIANT_REQUIRED" as const };
@@ -95,10 +94,18 @@ export async function POST(request: Request) {
       const balanceWhere = { businessUnitId: businessUnit.id, locationId: input.locationId, productId: product.id, variantId: input.variantId ?? null, stockKind: "STANDARD" as const };
       const sourceBalance = await tx.stockBalance.findFirst({ where: balanceWhere });
       const inputQty = new Prisma.Decimal(input.inputQuantity);
+      const consumedQty = new Prisma.Decimal(input.consumedQuantity);
       const remnantQty = new Prisma.Decimal(input.remnantQuantity);
+      const conversionFactor = product.materialUnitsPerBaseUnit ?? new Prisma.Decimal(1);
+      const outputUnit = product.materialUnit ?? product.baseUnit;
+      const materialInputQty = inputQty.mul(conversionFactor).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
       const currentQty = sourceBalance?.quantity ?? new Prisma.Decimal(0);
+      if (conversionFactor.greaterThan(1) && !inputQty.isInteger()) return { error: "INVALID_INPUT_QUANTITY" as const };
       if (currentQty.lt(inputQty)) return { error: "INSUFFICIENT_STOCK" as const };
+      if (consumedQty.plus(remnantQty).greaterThan(materialInputQty)) return { error: "OUTPUT_QUANTITY_EXCEEDED" as const };
       const unitCost = sourceBalance?.averageCost ?? new Prisma.Decimal(0);
+      const outputUnitCost = unitCost.div(conversionFactor).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+      const wastedQty = materialInputQty.minus(consumedQty).minus(remnantQty);
 
       const movement = await tx.stockMovement.create({
         data: {
@@ -115,7 +122,8 @@ export async function POST(request: Request) {
           inputLength: input.inputLength ? new Prisma.Decimal(input.inputLength) : null,
           inputWidth: input.inputWidth ? new Prisma.Decimal(input.inputWidth) : null,
           inputQuantity: inputQty, inputUnit: product.baseUnit,
-          wastedQuantity: inputQty.minus(remnantQty),
+          consumedQuantity: consumedQty, outputUnit,
+          wastedQuantity: wastedQty,
           wastedArea: new Prisma.Decimal(0),
         },
       });
@@ -127,7 +135,7 @@ export async function POST(request: Request) {
       if (remnantQty.isPositive()) ledgerRows.push({
         businessUnitId: businessUnit.id, movementId: movement.id, productId: product.id,
         variantId: input.variantId ?? null, locationId: input.locationId, stockKind: "REMNANT" as const,
-        quantityDelta: remnantQty, unitCost,
+        quantityDelta: remnantQty, unitCost: outputUnitCost,
       });
       await tx.stockLedgerEntry.createMany({ data: ledgerRows });
       await tx.stockBalance.update({
@@ -142,15 +150,15 @@ export async function POST(request: Request) {
         const remnantCurrent = remnantBalance?.quantity ?? new Prisma.Decimal(0);
         const remnantNext = remnantCurrent.plus(remnantQty);
         const remnantAverage = remnantBalance && remnantNext.isPositive()
-          ? remnantCurrent.mul(remnantBalance.averageCost).plus(remnantQty.mul(unitCost)).div(remnantNext).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
-          : unitCost;
+          ? remnantCurrent.mul(remnantBalance.averageCost).plus(remnantQty.mul(outputUnitCost)).div(remnantNext).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
+          : outputUnitCost;
         if (remnantBalance) await tx.stockBalance.update({ where: { id: remnantBalance.id }, data: { quantity: remnantNext, averageCost: remnantAverage } });
         else await tx.stockBalance.create({ data: { ...remnantWhere, quantity: remnantNext, averageCost: remnantAverage } });
         remnant = await tx.materialRemnant.create({
           data: {
             businessUnitId: businessUnit.id, code: `MR-${randomUUID().slice(0, 8).toUpperCase()}`,
             productId: product.id, variantId: input.variantId ?? null, locationId: input.locationId,
-            sourceOperationId: processing.id, quantity: remnantQty, unit: product.baseUnit,
+            sourceOperationId: processing.id, quantity: remnantQty, unit: outputUnit, unitCost: outputUnitCost,
             length: input.remnantLength ? new Prisma.Decimal(input.remnantLength) : null,
             width: input.remnantWidth ? new Prisma.Decimal(input.remnantWidth) : null,
           },
@@ -164,7 +172,7 @@ export async function POST(request: Request) {
       await tx.auditLog.create({
         data: { userId: session.user.id, businessUnitId: businessUnit.id, action: "CREATE",
           entity: "MaterialProcessing", entityId: processing.id,
-          details: { productId: product.id, inputQuantity: inputQty.toString(), remnantQuantity: remnantQty.toString(), unit: product.baseUnit } },
+          details: { productId: product.id, inputQuantity: inputQty.toString(), inputUnit: product.baseUnit, consumedQuantity: consumedQty.toString(), remnantQuantity: remnantQty.toString(), wastedQuantity: wastedQty.toString(), outputUnit } },
       });
       return { processing, remnant, replayed: false };
     });
@@ -176,6 +184,8 @@ export async function POST(request: Request) {
         VARIANT_REQUIRED: { message: "Select a product variant.", status: 400 },
         VARIANT_NOT_AVAILABLE: { message: "Select a valid active variant.", status: 400 },
         INSUFFICIENT_STOCK: { message: "There is not enough standard stock at this location.", status: 409 },
+        INVALID_INPUT_QUANTITY: { message: "When a material conversion is configured, open whole regular stock units only.", status: 400 },
+        OUTPUT_QUANTITY_EXCEEDED: { message: "Consumed and remnant quantities cannot exceed the material quantity available from the opened stock.", status: 400 },
       };
       return NextResponse.json({ error: errors[result.error].message }, { status: errors[result.error].status });
     }
