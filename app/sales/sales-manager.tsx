@@ -12,13 +12,16 @@ type Product = {
   name: string;
   sku: string;
   baseUnit: string;
+  materialUnit?: string | null;
+  materialUnitsPerBaseUnit?: string | null;
   productType: "STANDARD" | "MATERIAL";
   sellingPrice: string;
   gstPercentage: string;
   variants: Array<{ id: string; code: string | null; attributes: Record<string, string> }>;
-  stockBalances: Array<{ variantId: string | null; quantity: string }>;
+  stockBalances: Array<{ id: string; variantId: string | null; quantity: string; averageCost?: string }>;
+  materialRemnants?: Array<{ id: string; code: string; variantId: string | null; quantity: string; unit: string | null; unitCost: string }>;
 };
-type DraftLine = { key: string; product: Product | null; variantId: string; quantity: string };
+type DraftLine = { key: string; product: Product | null; variantId: string; allocations: Record<string, string> };
 type SaleRow = {
   id: string;
   invoiceNumber: string;
@@ -53,10 +56,19 @@ function variantLabel(variant: Product["variants"][number]) {
     .join(" · ");
 }
 
-function availableQuantity(line: DraftLine) {
+function saleUnit(product: Product | null) { return product?.materialUnit ?? product?.baseUnit ?? "unit"; }
+function conversionFactor(product: Product | null) { return product?.materialUnit ? Number(product.materialUnitsPerBaseUnit ?? 1) : 1; }
+function lineQuantity(line: DraftLine) {
   if (!line.product) return 0;
-  const balance = line.product.stockBalances.find((item) => item.variantId === (line.variantId || null));
-  return Number(balance?.quantity ?? 0);
+  const factor = conversionFactor(line.product);
+  return Object.entries(line.allocations).reduce((sum, [key, raw]) => sum + Number(raw || 0) * (key.startsWith("STANDARD:") ? factor : 1), 0);
+}
+function defaultAllocations(product: Product | null, variantId: string) {
+  if (!product) return {};
+  const balance = product.stockBalances.find((item) => item.variantId === (variantId || null) && Number(item.quantity) > 0);
+  if (balance) return { [`STANDARD:${balance.id}`]: "1" };
+  const remnant = (product.materialRemnants ?? []).find((item) => item.variantId === (variantId || null) && Number(item.quantity) > 0);
+  return remnant ? { [`REMNANT:${remnant.id}`]: "1" } : {};
 }
 
 function roundMoney(value: number) {
@@ -76,7 +88,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", quantity: "1" }]);
+  const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", allocations: {} }]);
   const [requestKey, setRequestKey] = useState("");
   // null = "not edited": the amount follows the invoice total (full payment).
   const [amountReceived, setAmountReceived] = useState<string | null>(null);
@@ -156,9 +168,9 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   }, [locationId, productSearch]);
 
   const totals = useMemo(() => lines.reduce((result, line) => {
-    if (!line.product || !/^\d+(?:\.\d{1,4})?$/.test(line.quantity)) return result;
-    const quantity = Number(line.quantity);
-    const lineSubtotal = roundMoney(Number(line.product.sellingPrice) * quantity);
+    if (!line.product || lineQuantity(line) <= 0) return result;
+    const quantity = lineQuantity(line);
+    const lineSubtotal = roundMoney((Number(line.product.sellingPrice) / conversionFactor(line.product)) * quantity);
     const lineTax = taxMode === "GST"
       ? roundMoney(lineSubtotal * Number(line.product.gstPercentage) / 100)
       : 0;
@@ -196,10 +208,15 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       invalidateRequestKey();
       setLines((current) => {
         const existing = current.find((line) => line.product?.id === product.id && line.variantId === variantId);
-        if (existing) return current.map((line) => line.key === existing.key ? { ...line, quantity: String(Number(line.quantity || 0) + 1) } : line);
+        if (existing) {
+          const sourceKey = Object.keys(existing.allocations)[0];
+          return current.map((line) => line.key === existing.key && sourceKey
+            ? { ...line, allocations: { ...line.allocations, [sourceKey]: String(Number(line.allocations[sourceKey] || 0) + 1) } }
+            : line);
+        }
         const empty = current.find((line) => !line.product);
-        if (empty) return current.map((line) => line.key === empty.key ? { ...line, product, variantId, quantity: "1" } : line);
-        return [...current, { key: crypto.randomUUID(), product, variantId, quantity: "1" }];
+        if (empty) return current.map((line) => line.key === empty.key ? { ...line, product, variantId, allocations: defaultAllocations(product, variantId) } : line);
+        return [...current, { key: crypto.randomUUID(), product, variantId, allocations: defaultAllocations(product, variantId) }];
       });
       setError("");
     } catch (cause) {
@@ -219,12 +236,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Select a variant for each product that has variants.");
       return;
     }
-    if (completeLines.some((line) => !/^\d+(?:\.\d{1,4})?$/.test(line.quantity) || Number(line.quantity) <= 0 || (line.product.productType === "STANDARD" && !Number.isInteger(Number(line.quantity))))) {
-      setError("Enter a positive quantity with up to four decimals for MATERIAL products; STANDARD products require whole quantities.");
-      return;
-    }
-    if (completeLines.some((line) => Number(line.quantity) > availableQuantity(line))) {
-      setError("One or more quantities exceed the available stock.");
+    if (completeLines.some((line) => lineQuantity(line) <= 0 || !Number.isFinite(lineQuantity(line)))) {
+      setError("Allocate a positive quantity from regular stock or at least one available remnant for every invoice line.");
       return;
     }
     if (paymentInvalid) {
@@ -264,7 +277,12 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
           lines: pendingSaleLines.map((line) => ({
             productId: line.product.id,
             variantId: line.variantId || null,
-            quantity: line.quantity,
+            quantity: lineQuantity(line).toFixed(4).replace(/0+$/, "").replace(/\.$/, ""),
+            allocations: Object.entries(line.allocations).filter(([, quantity]) => Number(quantity) > 0).map(([key, quantity]) => ({
+              sourceType: key.startsWith("STANDARD:") ? "STANDARD" : "REMNANT",
+              sourceId: key.split(":")[1],
+              quantity,
+            })),
           })),
         }),
       });
@@ -294,7 +312,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       {canManage && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">Create invoice</h2>
-          <p className="mt-1 text-sm text-gray-600">Sales quantities use each product’s base unit. Material processing and remnant tracking are optional product capabilities.</p>
+          <p className="mt-1 text-sm text-gray-600">Choose regular stock units and/or individual remnants. Material invoices use the configured measurement unit; each source is deducted separately.</p>
           <form onSubmit={submitSale} className="mt-5 space-y-5">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <label className="text-sm font-medium">
@@ -350,7 +368,11 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
 
             <div className="space-y-3">
               {lines.map((line, index) => {
-                const available = availableQuantity(line);
+                const product = line.product;
+                const selectedBalances = product?.stockBalances.filter((item) => item.variantId === (line.variantId || null)) ?? [];
+                const selectedRemnants = (product?.materialRemnants ?? []).filter((item) => item.variantId === (line.variantId || null));
+                const factor = conversionFactor(product);
+                const quantity = lineQuantity(line);
                 return (
                   <div key={line.key} className="grid gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-2 xl:grid-cols-[2fr_1.5fr_1fr_1fr_auto]">
                     <label className="text-sm font-medium">
@@ -360,7 +382,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         value={line.product?.id ?? ""}
                         onChange={(event) => {
                           const product = products.find((candidate) => candidate.id === event.target.value) ?? null;
-                          updateLine(line.key, { product, variantId: "", quantity: "1" });
+                          updateLine(line.key, { product, variantId: "", allocations: defaultAllocations(product, "") });
                         }}
                         className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
                       >
@@ -378,7 +400,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                       <select
                         disabled={!line.product?.variants.length}
                         value={line.variantId}
-                        onChange={(event) => updateLine(line.key, { variantId: event.target.value })}
+                        onChange={(event) => updateLine(line.key, { variantId: event.target.value, allocations: defaultAllocations(product, event.target.value) })}
                         className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5 disabled:bg-gray-100"
                       >
                         <option value="">{line.product?.variants.length ? "Select variant" : "No variant"}</option>
@@ -387,23 +409,29 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         ))}
                       </select>
                     </label>
-                    <label className="text-sm font-medium">
-                      Quantity ({line.product?.baseUnit ?? "units"})
-                      <input
-                        required
-                        type="number"
-                        min={line.product?.productType === "MATERIAL" ? "0.0001" : "1"}
-                        step={line.product?.productType === "MATERIAL" ? "0.0001" : "1"}
-                        max={available}
-                        value={line.quantity}
-                        onChange={(event) => updateLine(line.key, { quantity: event.target.value })}
-                        className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5"
-                      />
-                      <span className="mt-1 block text-xs text-gray-500">Available: {available}</span>
-                    </label>
+                    <div className="space-y-2 text-sm sm:col-span-2 xl:col-span-1">
+                      <p className="font-semibold">Stock source allocation</p>
+                      {selectedBalances.map((balance) => {
+                        const key = `STANDARD:${balance.id}`;
+                        return <label key={key} className="block rounded-lg border border-gray-200 p-2">
+                          <span className="flex justify-between gap-2"><span>Regular · {product?.baseUnit}</span><span className="text-gray-500">Available: {balance.quantity}</span></span>
+                          <input type="number" min="0" step={product?.materialUnit && factor > 1 ? "1" : product?.productType === "STANDARD" ? "1" : "0.0001"} max={balance.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder="Quantity to take" className="mt-1 w-full rounded border p-2" />
+                        </label>;
+                      })}
+                      {selectedRemnants.map((remnant) => {
+                        const key = `REMNANT:${remnant.id}`;
+                        return <label key={key} className="block rounded-lg border border-emerald-200 p-2">
+                          <span className="flex justify-between gap-2"><span>Remnant · {remnant.code}</span><span className="text-gray-500">Available: {remnant.quantity} {remnant.unit ?? saleUnit(product)}</span></span>
+                          <input type="number" min="0" step="0.0001" max={remnant.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder={`Quantity in ${remnant.unit ?? saleUnit(product)}`} className="mt-1 w-full rounded border p-2" />
+                        </label>;
+                      })}
+                      {!selectedBalances.length && !selectedRemnants.length && <p className="text-amber-700">No available stock sources for this variant.</p>}
+                    </div>
                     <div className="text-sm">
-                      <span className="font-medium">Price / {line.product?.baseUnit ?? "unit"}</span>
-                      <p className="mt-3">{line.product ? money(line.product.sellingPrice) : "—"}</p>
+                      <span className="font-medium">Invoice quantity ({saleUnit(product)})</span>
+                      <p className="mt-2 text-lg font-semibold">{quantity.toFixed(4).replace(/0+$/, "").replace(/\.$/, "") || "0"}</p>
+                      <span className="text-xs text-gray-500">Price / {saleUnit(product)}</span>
+                      <p className="mt-1">{product ? money(Number(product.sellingPrice) / factor) : "—"}</p>
                     </div>
                     <button
                       type="button"
@@ -418,7 +446,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 );
               })}
             </div>
-            <button type="button" onClick={() => { invalidateRequestKey(); setLines((current) => [...current, { key: crypto.randomUUID(), product: null, variantId: "", quantity: "1" }]); }} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-900">
+            <button type="button" onClick={() => { invalidateRequestKey(); setLines((current) => [...current, { key: crypto.randomUUID(), product: null, variantId: "", allocations: {} }]); }} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-900">
               Add product
             </button>
 
