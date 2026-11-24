@@ -21,6 +21,15 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   });
   if (!sale) notFound();
 
+  const stockAllocations = await prisma.saleLineStockAllocation.findMany({
+    where: { businessUnitId: access.context.businessUnit.id, saleLine: { saleId: id } },
+    select: {
+      sourceType: true, quantity: true, unit: true, baseQuantity: true, unitCost: true, lineCost: true,
+      remnant: { select: { code: true } },
+      saleLine: { select: { lineNumber: true, productName: true, baseUnit: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
   const canManagePayments = (await getBusinessUnitAccess("billing.manage")).ok;
   const invoice = mapSaleToInvoice(sale);
   const currency = invoice.currency;
@@ -33,6 +42,31 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         </div>
 
         <InvoiceDocument invoice={invoice} />
+
+        {stockAllocations.length > 0 && (
+          <section className="mt-5 rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="text-sm font-semibold">Inventory source allocation</h2>
+            <p className="mt-1 text-xs text-gray-500">Internal stock traceability. This section is not printed on the customer invoice.</p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[34rem] text-left text-sm">
+                <thead className="border-b text-xs uppercase text-gray-500">
+                  <tr><th className="py-2 pr-3">Invoice line</th><th className="py-2 pr-3">Source</th><th className="py-2 pr-3">Quantity taken</th><th className="py-2 pr-3">Invoice equivalent</th><th className="py-2 text-right">Cost</th></tr>
+                </thead>
+                <tbody>
+                  {stockAllocations.map((allocation) => (
+                    <tr key={allocation.saleLine.lineNumber + ":" + allocation.sourceType + ":" + (allocation.remnant?.code ?? "regular") + ":" + allocation.quantity.toString()} className="border-b last:border-0">
+                      <td className="py-2 pr-3">{allocation.saleLine.productName}</td>
+                      <td className="py-2 pr-3">{allocation.sourceType === "REMNANT" ? `Remnant · ${allocation.remnant?.code ?? "record"}` : "Regular stock"}</td>
+                      <td className="py-2 pr-3">{allocation.quantity.toString()} {allocation.unit}</td>
+                      <td className="py-2 pr-3">{allocation.baseQuantity.toString()} {allocation.saleLine.baseUnit}</td>
+                      <td className="py-2 text-right">{new Intl.NumberFormat("en-IN", { style: "currency", currency: currency || "INR" }).format(Number(allocation.lineCost))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         <div className="mt-6">
           <PaymentPanel endpoint={`/api/sales/${sale.id}/payments`} currency={currency} canManage={canManagePayments} />
