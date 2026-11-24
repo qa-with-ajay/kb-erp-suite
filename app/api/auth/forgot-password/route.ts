@@ -12,7 +12,21 @@ const genericMessage = "If an active account matches that email, a password rese
 function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
-  try { return new URL(origin).host === new URL(request.url).host; } catch { return false; }
+
+  try {
+    const originUrl = new URL(origin);
+    const requestUrl = new URL(request.url);
+    // Use the browser-facing Host header: request.url may contain an internal
+    // hostname when the app is running behind a local or production proxy.
+    const requestHost = request.headers.get("host");
+    return Boolean(
+      requestHost &&
+      originUrl.host.toLowerCase() === requestHost.toLowerCase() &&
+      originUrl.protocol === requestUrl.protocol
+    );
+  } catch {
+    return false;
+  }
 }
 
 function createMailTransport() {
