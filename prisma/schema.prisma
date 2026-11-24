@@ -270,6 +270,8 @@ model Product {
   productType           ProductType             @default(STANDARD)
   isProcessingEnabled   Boolean                 @default(false)
   baseUnit              MeasurementUnit
+  materialUnit          MeasurementUnit?
+  materialUnitsPerBaseUnit Decimal?              @db.Decimal(18, 8)
   purchasePrice         Decimal                 @db.Decimal(14, 2)
   sellingPrice          Decimal                 @db.Decimal(14, 2)
   gstPercentage         Decimal                 @default(0) @db.Decimal(5, 2)

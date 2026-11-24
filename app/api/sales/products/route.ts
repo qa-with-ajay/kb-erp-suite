@@ -43,6 +43,8 @@ export async function GET(request: Request) {
         name: true,
         sku: true,
         baseUnit: true,
+        materialUnit: true,
+        materialUnitsPerBaseUnit: true,
         productType: true,
         sellingPrice: true,
         gstPercentage: true,

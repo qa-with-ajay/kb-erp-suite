@@ -30,6 +30,8 @@ const productFieldsSchema = z.object({
   productType: z.enum(productTypes),
   isProcessingEnabled: z.boolean().default(false),
   baseUnit: z.enum(measurementUnits),
+  materialUnit: z.enum(measurementUnits).nullable().optional(),
+  materialUnitsPerBaseUnit: z.string().trim().regex(/^\d{1,10}(?:\.\d{1,8})?$/).nullable().optional(),
   sellingPrice: moneySchema,
   gstPercentage: z.string().trim().regex(/^(?:\d{1,2})(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/).default("0"),
   minimumStock: quantitySchema.default("0"),
@@ -42,6 +44,9 @@ const productFieldsSchema = z.object({
 
 export const productInputSchema = productFieldsSchema.superRefine((value, context) => {
   if (value.isProcessingEnabled && value.productType !== "MATERIAL") context.addIssue({ code: "custom", path: ["isProcessingEnabled"], message: "Material processing can only be enabled for MATERIAL products." });
+  if (Boolean(value.materialUnit) !== Boolean(value.materialUnitsPerBaseUnit)) context.addIssue({ code: "custom", path: ["materialUnit"], message: "Configure both the material unit and units per base unit." });
+  if (value.materialUnit && value.materialUnit === value.baseUnit) context.addIssue({ code: "custom", path: ["materialUnit"], message: "Material unit must differ from the base unit." });
+  if (value.productType === "STANDARD" && (value.materialUnit || value.materialUnitsPerBaseUnit)) context.addIssue({ code: "custom", path: ["materialUnit"], message: "Convert the product to MATERIAL before configuring a secondary material unit." });
   if ((value.barcodeType ?? (value.barcode ? "MANUFACTURER" : "INTERNAL")) === "MANUFACTURER" && !value.barcode) {
     context.addIssue({ code: "custom", path: ["barcode"], message: "Enter or scan the manufacturer barcode." });
   }
@@ -49,6 +54,9 @@ export const productInputSchema = productFieldsSchema.superRefine((value, contex
 
 export const productUpdateSchema = productFieldsSchema.partial().superRefine((value, context) => {
   if (value.isProcessingEnabled === true && value.productType !== undefined && value.productType !== "MATERIAL") context.addIssue({ code: "custom", path: ["isProcessingEnabled"], message: "Material processing can only be enabled for MATERIAL products." });
+  if (value.materialUnit !== undefined && value.materialUnitsPerBaseUnit !== undefined && Boolean(value.materialUnit) !== Boolean(value.materialUnitsPerBaseUnit)) context.addIssue({ code: "custom", path: ["materialUnit"], message: "Configure both the material unit and units per base unit." });
+  if (value.materialUnit && value.baseUnit && value.materialUnit === value.baseUnit) context.addIssue({ code: "custom", path: ["materialUnit"], message: "Material unit must differ from the base unit." });
+  if (value.productType === "STANDARD" && (value.materialUnit || value.materialUnitsPerBaseUnit)) context.addIssue({ code: "custom", path: ["materialUnit"], message: "Convert the product to MATERIAL before configuring a secondary material unit." });
   if (value.barcodeType === "MANUFACTURER" && !value.barcode) {
     context.addIssue({ code: "custom", path: ["barcode"], message: "Enter or scan the manufacturer barcode." });
   }

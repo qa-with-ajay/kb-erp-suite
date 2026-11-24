@@ -28,6 +28,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
         productType: true,
         isProcessingEnabled: true,
         baseUnit: true,
+        materialUnit: true,
+        materialUnitsPerBaseUnit: true,
         sellingPrice: true,
         gstPercentage: true,
         minimumStock: true,
@@ -92,7 +94,11 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       const nextBaseUnit = parsed.data.baseUnit ?? current.baseUnit;
       const nextProductType = parsed.data.productType ?? current.productType;
       const nextProcessingEnabled = parsed.data.isProcessingEnabled ?? current.isProcessingEnabled;
+      const nextMaterialUnit = parsed.data.materialUnit !== undefined ? parsed.data.materialUnit : current.materialUnit;
+      const nextMaterialFactor = parsed.data.materialUnitsPerBaseUnit !== undefined ? parsed.data.materialUnitsPerBaseUnit : current.materialUnitsPerBaseUnit?.toString() ?? null;
       if (nextProcessingEnabled && nextProductType !== "MATERIAL") return { error: "PROCESSING_REQUIRES_MATERIAL" as const };
+      if (Boolean(nextMaterialUnit) !== Boolean(nextMaterialFactor) || (nextMaterialUnit && nextMaterialUnit === nextBaseUnit) || (nextProductType === "STANDARD" && (nextMaterialUnit || nextMaterialFactor))) return { error: "MATERIAL_UNIT_CONFIG_INVALID" as const };
+      if (nextMaterialFactor && (!Number.isFinite(Number(nextMaterialFactor)) || Number(nextMaterialFactor) <= 0)) return { error: "MATERIAL_UNIT_CONFIG_INVALID" as const };
 
       if (nextBaseUnit !== current.baseUnit) {
         const [ledgerCount, conversionCount] = await Promise.all([
@@ -164,6 +170,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       if (result.error === "NOT_FOUND") return NextResponse.json({ error: "Product not found." }, { status: 404 });
       if (result.error === "MANUFACTURER_BARCODE_REQUIRED") return NextResponse.json({ error: "Enter or scan the manufacturer barcode." }, { status: 400 });
       if (result.error === "PROCESSING_REQUIRES_MATERIAL") return NextResponse.json({ error: "Material processing can only be enabled for MATERIAL products." }, { status: 400 });
+      if (result.error === "MATERIAL_UNIT_CONFIG_INVALID") return NextResponse.json({ error: "For MATERIAL products, choose a different material unit and a positive units-per-base-unit conversion factor. STANDARD products cannot use this configuration." }, { status: 400 });
       if (result.error === "BASE_UNIT_IN_USE") return NextResponse.json({ error: "Base unit cannot change after conversions or stock ledger entries exist." }, { status: 409 });
       if (result.error === "CATEGORY_NOT_AVAILABLE") return NextResponse.json({ error: "Select an active category." }, { status: 400 });
       if (result.error === "BRAND_NOT_AVAILABLE") return NextResponse.json({ error: "Select an active brand." }, { status: 400 });

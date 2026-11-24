@@ -28,6 +28,8 @@ type Product = {
   description: string | null;
   productType: "STANDARD" | "MATERIAL";
   baseUnit: string;
+  materialUnit: string | null;
+  materialUnitsPerBaseUnit: string | null;
   sellingPrice: string;
   gstPercentage: string;
   minimumStock: string;
@@ -359,6 +361,7 @@ export function ProductDetails({ productId, canManage }: Props) {
         <p><span className="block text-xs text-gray-500">Category</span>{product.category?.name ?? "—"}</p>
         <p><span className="block text-xs text-gray-500">Brand</span>{product.brand?.name ?? "—"}</p>
         <p><span className="block text-xs text-gray-500">Selling price / GST</span>{product.sellingPrice} / {product.gstPercentage}%</p>
+        {product.materialUnit && product.materialUnitsPerBaseUnit && <p><span className="block text-xs text-gray-500">Material conversion</span>1 {product.baseUnit} = {product.materialUnitsPerBaseUnit} {product.materialUnit}</p>}
         <p><span className="block text-xs text-gray-500">Minimum stock</span>{product.minimumStock} {product.baseUnit}<span className="mt-1 block text-xs text-gray-500">Threshold applies to combined stock across all locations</span></p>
         <p><span className="block text-xs text-gray-500">Status</span>{product.isActive ? "Active" : "Inactive"}</p>
         <div className="sm:col-span-2 lg:col-span-2">

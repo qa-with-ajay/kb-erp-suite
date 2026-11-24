@@ -15,6 +15,8 @@ type ProductData = {
   productType: "STANDARD" | "MATERIAL";
   isProcessingEnabled: boolean;
   baseUnit: string;
+  materialUnit: string | null;
+  materialUnitsPerBaseUnit: string | null;
   sellingPrice: string;
   gstPercentage: string;
   minimumStock: string;
@@ -40,6 +42,8 @@ type FormValues = Omit<
   | "imageUrl"
   | "categoryId"
   | "brandId"
+  | "materialUnit"
+  | "materialUnitsPerBaseUnit"
 > & {
   description: string;
   sellingPrice: string;
@@ -50,6 +54,8 @@ type FormValues = Omit<
   imageUrl: string;
   categoryId: string;
   brandId: string;
+  materialUnit: string;
+  materialUnitsPerBaseUnit: string;
 };
 
 const emptyValues: FormValues = {
@@ -59,6 +65,8 @@ const emptyValues: FormValues = {
   productType: "STANDARD",
   isProcessingEnabled: false,
   baseUnit: "PCS",
+  materialUnit: "",
+  materialUnitsPerBaseUnit: "",
   sellingPrice: "0",
   gstPercentage: "0",
   minimumStock: "0",
@@ -170,6 +178,8 @@ export function ProductForm({ productId }: Props) {
             productType: product.productType,
             isProcessingEnabled: product.isProcessingEnabled ?? false,
             baseUnit: product.baseUnit,
+            materialUnit: product.materialUnit ?? "",
+            materialUnitsPerBaseUnit: product.materialUnitsPerBaseUnit ?? "",
             sellingPrice: product.sellingPrice,
             gstPercentage: product.gstPercentage,
             minimumStock: product.minimumStock,
@@ -230,6 +240,8 @@ export function ProductForm({ productId }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...values,
+            materialUnit: values.materialUnit || null,
+            materialUnitsPerBaseUnit: values.materialUnitsPerBaseUnit || null,
             ...(productId ? {} : { requestId: formRequestId }),
             sku: values.sku.trim() || undefined,
             stockEntry: shouldSubmitStock ? { locationId: stockLocationId, variantId: stockVariantId || null, quantity: stockQuantity, unitCost: stockUnitCost, reference: stockReference || null, idempotencyKey: formRequestId } : undefined,
@@ -346,6 +358,8 @@ export function ProductForm({ productId }: Props) {
                   event.target.value === "MATERIAL" ? "MATERIAL" : "STANDARD",
                 baseUnit: current.baseUnit,
                 isProcessingEnabled: event.target.value === "MATERIAL" ? current.isProcessingEnabled : false,
+                materialUnit: event.target.value === "MATERIAL" ? current.materialUnit : "",
+                materialUnitsPerBaseUnit: event.target.value === "MATERIAL" ? current.materialUnitsPerBaseUnit : "",
               }))
             }
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
@@ -374,6 +388,25 @@ export function ProductForm({ productId }: Props) {
             </span>
           )}
         </label>
+
+        {values.productType === "MATERIAL" && (
+          <section className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 md:col-span-2">
+            <h3 className="font-semibold text-gray-900">Secondary material / sales unit</h3>
+            <p className="mt-1 text-xs text-gray-600">Keep the base stock in whole packs (for example BOX), and define the measurable quantity inside each pack (for example MTR).</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-medium">Material unit
+                <select value={values.materialUnit} onChange={(event) => update("materialUnit", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                  <option value="">Not configured</option>
+                  {units.filter((item) => item !== values.baseUnit).map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="text-sm font-medium">Material units per 1 {values.baseUnit}
+                <input type="number" min="0.00000001" step="0.00000001" value={values.materialUnitsPerBaseUnit} onChange={(event) => update("materialUnitsPerBaseUnit", event.target.value)} placeholder="e.g. 300" className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
+              </label>
+            </div>
+            {values.materialUnit && values.materialUnitsPerBaseUnit && <p className="mt-2 text-xs font-medium text-blue-900">1 {values.baseUnit} = {values.materialUnitsPerBaseUnit} {values.materialUnit}</p>}
+          </section>
+        )}
 
         {values.productType === "MATERIAL" && (
           <label className="flex items-start gap-2 text-sm md:col-span-2">
