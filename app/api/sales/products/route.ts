@@ -48,6 +48,7 @@ export async function GET(request: Request) {
         baseUnit: true,
         materialUnit: true,
         materialUnitsPerBaseUnit: true,
+        unitConversions: { where: { isSalesUnit: true }, select: { unit: true, conversionFactor: true }, orderBy: { unit: "asc" } },
         productType: true,
         sellingPrice: true,
         gstPercentage: true,
