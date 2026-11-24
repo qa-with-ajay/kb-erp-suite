@@ -37,8 +37,6 @@ export async function PATCH(request: Request, { params }: Context) {
       const current = await tx.materialRemnant.findFirst({ where: { id, businessUnitId: businessUnit.id } });
       if (!current) return { error: "NOT_FOUND" as const };
       if (current.status !== "AVAILABLE") return { error: "NOT_AVAILABLE" as const };
-      const quantity = input.action === "TRANSFER" ? current.quantity : new Prisma.Decimal(input.quantity ?? current.quantity);
-      if (quantity.lte(0) || quantity.gt(current.quantity)) return { error: "INVALID_QUANTITY" as const };
 
       const locationIds = input.action === "TRANSFER"
         ? [current.locationId, input.destinationLocationId ?? ""].sort()
@@ -57,7 +55,8 @@ export async function PATCH(request: Request, { params }: Context) {
       if (!lockedRemnant.length) return { error: "NOT_FOUND" as const };
       const fresh = await tx.materialRemnant.findFirst({ where: { id, businessUnitId: businessUnit.id } });
       if (!fresh || fresh.status !== "AVAILABLE") return { error: "NOT_AVAILABLE" as const };
-      if (quantity.gt(fresh.quantity)) return { error: "INVALID_QUANTITY" as const };
+      const quantity = input.action === "TRANSFER" ? fresh.quantity : new Prisma.Decimal(input.quantity ?? fresh.quantity);
+      if (quantity.lte(0) || quantity.gt(fresh.quantity)) return { error: "INVALID_QUANTITY" as const };
 
       const isTransfer = input.action === "TRANSFER";
       const destinationLocationId = isTransfer ? input.destinationLocationId! : null;

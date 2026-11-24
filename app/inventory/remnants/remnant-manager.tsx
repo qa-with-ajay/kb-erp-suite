@@ -24,6 +24,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [productId, setProductId] = useState("");
   const [variantId, setVariantId] = useState("");
+  const [variants, setVariants] = useState<{ id: string; code: string | null; attributes: Record<string, string> }[]>([]);
   const [locationId, setLocationId] = useState("");
   const [inputQuantity, setInputQuantity] = useState("");
   const [remnantQuantity, setRemnantQuantity] = useState("");
@@ -50,6 +51,15 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
     setLocations(locationResponse.items);
   }, []);
   useEffect(() => { void load().catch((e) => setError(e instanceof Error ? e.message : "Unable to load remnants.")); }, [load]);
+  useEffect(() => {
+    if (!productId) { setVariants([]); setVariantId(""); return; }
+    const controller = new AbortController();
+    fetch(`/api/inventory/products/${productId}/variants`, { signal: controller.signal })
+      .then((response) => json<{ items: { id: string; code: string | null; attributes: Record<string, string> }[] }>(response))
+      .then(({ items }) => { setVariants(items); setVariantId(""); })
+      .catch((e) => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Unable to load variants."); });
+    return () => controller.abort();
+  }, [productId]);
   const availableCount = useMemo(() => items.filter((item) => item.status === "AVAILABLE").length, [items]);
 
   async function createProcessing(event: React.FormEvent<HTMLFormElement>) {
@@ -77,6 +87,8 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
     try {
       const destinationLocationId = destinationById[item.id];
       const reference = action === "SOLD" ? window.prompt("Sale / invoice reference (optional):") || "" : "";
+      const confirmMessage = action === "SOLD" ? "Mark this remnant as sold in inventory? This does not create a sales invoice." : action === "WASTED" ? "Mark this remnant as waste?" : action === "CONSUMED" ? "Mark this remnant as consumed?" : "Transfer this remnant to the selected location?";
+      if (!window.confirm(confirmMessage)) return;
       await json(await fetch(`/api/inventory/remnants/${item.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -106,6 +118,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
         <p className="mb-4 mt-1 text-sm text-gray-600">Enter the quantity consumed and the reusable leftover. The difference is recorded as waste. Quantities use the product base unit.</p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <label className="text-sm">Material product<select required value={productId} onChange={(e) => { setProductId(e.target.value); setVariantId(""); }} className="mt-1 w-full rounded-lg border p-2"><option value="">Select product</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}</select></label>
+          {variants.length > 0 && <label className="text-sm">Variant<select required value={variantId} onChange={(e) => setVariantId(e.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="">Select variant</option>{variants.map((v) => <option key={v.id} value={v.id}>{v.code ?? Object.entries(v.attributes).map(([k, val]) => `${k}: ${val}`).join(", ")}</option>)}</select></label>}
           <label className="text-sm">Location<select required value={locationId} onChange={(e) => setLocationId(e.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="">Select location</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
           <label className="text-sm">Input quantity ({selectedProduct?.baseUnit ?? "unit"})<input required type="number" min="0.0001" step="0.0001" value={inputQuantity} onChange={(e) => setInputQuantity(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
           <label className="text-sm">Reusable remnant quantity ({selectedProduct?.baseUnit ?? "unit"})<input required type="number" min="0" step="0.0001" value={remnantQuantity} onChange={(e) => setRemnantQuantity(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>

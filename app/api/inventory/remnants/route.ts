@@ -115,7 +115,7 @@ export async function POST(request: Request) {
           inputLength: input.inputLength ? new Prisma.Decimal(input.inputLength) : null,
           inputWidth: input.inputWidth ? new Prisma.Decimal(input.inputWidth) : null,
           inputQuantity: inputQty, inputUnit: product.baseUnit,
-          wastedArea: inputQty.minus(remnantQty),
+          wastedArea: new Prisma.Decimal(0),
         },
       });
       const ledgerRows = [{
