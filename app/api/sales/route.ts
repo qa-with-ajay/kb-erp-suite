@@ -165,6 +165,9 @@ export async function POST(request: Request) {
     }
     return saleResponse(result.saleId, result.invoiceNumber, result.kind === "replayed");
   } catch (error) {
+    if (error instanceof Error && error.message === "SALE_STOCK_CHANGED") {
+      return NextResponse.json({ error: "Stock changed while completing the invoice. Refresh available stock sources and retry." }, { status: 409 });
+    }
     if (error instanceof PaymentRejected) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const prior = await prisma.stockMovement.findUnique({

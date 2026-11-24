@@ -198,7 +198,7 @@ export async function createSale(
     for (const allocation of line.allocations) {
       if (allocation.sourceType === "STANDARD") {
         const balance = await tx.stockBalance.findFirstOrThrow({ where: { id: allocation.sourceId, businessUnitId, stockKind: "STANDARD" } });
-        if (balance.quantity.lessThan(allocation.quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK", productName: line.product.name };
+        if (balance.quantity.lessThan(allocation.quantity)) throw new Error("SALE_STOCK_CHANGED");
         await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: allocation.quantity } } });
         await tx.stockLedgerEntry.create({ data: { businessUnitId, movementId: movement.id, productId: line.product.id, variantId: line.variant?.id ?? null,
           locationId: input.locationId, stockKind: "STANDARD", quantityDelta: allocation.quantity.negated(), unitCost: allocation.unitCost } });
@@ -206,13 +206,13 @@ export async function createSale(
         const locked = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT "id" FROM "Remnant" WHERE "id" = ${allocation.sourceId}::uuid AND "businessUnitId" = ${businessUnitId}::uuid FOR UPDATE
         `;
-        if (!locked.length) return { kind: "error", error: "REMNANT_NOT_AVAILABLE", productName: line.product.name };
+        if (!locked.length) throw new Error("SALE_STOCK_CHANGED");
         const remnant = await tx.materialRemnant.findFirst({ where: { id: allocation.sourceId, businessUnitId, locationId: input.locationId, productId: line.product.id, status: "AVAILABLE" } });
-        if (!remnant || remnant.quantity.lessThan(allocation.quantity)) return { kind: "error", error: "REMNANT_NOT_AVAILABLE", productName: line.product.name };
+        if (!remnant || remnant.quantity.lessThan(allocation.quantity)) throw new Error("SALE_STOCK_CHANGED");
         const remaining = remnant.quantity.minus(allocation.quantity);
         await tx.materialRemnant.update({ where: { id: remnant.id }, data: { quantity: remaining, status: remaining.isZero() ? "SOLD" : "AVAILABLE" } });
         const remnantBalance = await tx.stockBalance.findFirst({ where: { businessUnitId, locationId: input.locationId, productId: line.product.id, variantId: line.variant?.id ?? null, stockKind: "REMNANT" } });
-        if (!remnantBalance || remnantBalance.quantity.lessThan(allocation.quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK", productName: line.product.name };
+        if (!remnantBalance || remnantBalance.quantity.lessThan(allocation.quantity)) throw new Error("SALE_STOCK_CHANGED");
         await tx.stockBalance.update({ where: { id: remnantBalance.id }, data: { quantity: { decrement: allocation.quantity } } });
         await tx.stockLedgerEntry.create({ data: { businessUnitId, movementId: movement.id, productId: line.product.id, variantId: line.variant?.id ?? null,
           locationId: input.locationId, stockKind: "REMNANT", quantityDelta: allocation.quantity.negated(), unitCost: allocation.unitCost } });
