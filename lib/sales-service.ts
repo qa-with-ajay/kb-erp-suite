@@ -125,7 +125,7 @@ export async function createSale(
         where: { businessUnitId, locationId: input.locationId, productId: product.id, variantId: line.variantId || null, stockKind: "STANDARD" },
       });
       if (!balance || balance.quantity.lessThan(quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK", productName: product.name };
-      allocations.push({ sourceType: "STANDARD", sourceId: balance.id, quantity, unit: product.baseUnit, factor, baseQuantity: quantity, unitCost: balance.averageCost, lineCost: balance.averageCost.mul(quantity) });
+      allocations.push({ sourceType: "STANDARD", sourceId: balance.id, quantity, unit: product.baseUnit, factor, baseQuantity: quantity, unitCost: balance.averageCost, lineCost: balance.averageCost.mul(quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) });
     } else {
       const seen = new Set<string>();
       for (const requested of rawAllocations) {
@@ -142,7 +142,7 @@ export async function createSale(
           });
           if (!balance || balance.quantity.lessThan(sourceQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK", productName: product.name };
           const normalized = sourceQuantity.mul(factor).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
-          const cost = balance.averageCost.mul(sourceQuantity);
+          const cost = balance.averageCost.mul(sourceQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
           allocations.push({ sourceType: "STANDARD", sourceId, quantity: sourceQuantity, unit: product.baseUnit, factor, baseQuantity: normalized, unitCost: balance.averageCost, lineCost: cost });
         } else {
           const remnant = await tx.materialRemnant.findFirst({
@@ -151,7 +151,12 @@ export async function createSale(
           if (!remnant || remnant.quantity.lessThan(sourceQuantity)) return { kind: "error", error: "REMNANT_NOT_AVAILABLE", productName: product.name };
           const remnantUnit = remnant.unit ?? product.materialUnit ?? product.baseUnit;
           if (remnantUnit !== saleUnit) return { kind: "error", error: "UNIT_MISMATCH", productName: product.name };
-          allocations.push({ sourceType: "REMNANT", sourceId, quantity: sourceQuantity, unit: remnantUnit, factor: new Prisma.Decimal(1), baseQuantity: sourceQuantity, unitCost: remnant.unitCost, lineCost: remnant.unitCost.mul(sourceQuantity) });
+          const remnantBalance = await tx.stockBalance.findFirst({
+            where: { businessUnitId, locationId: input.locationId, productId: product.id, variantId: line.variantId || null, stockKind: "REMNANT" },
+          });
+          if (!remnantBalance || remnantBalance.quantity.lessThan(sourceQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK", productName: product.name };
+          const remnantUnitCost = remnant.unitCost.isPositive() ? remnant.unitCost : remnantBalance.averageCost;
+          allocations.push({ sourceType: "REMNANT", sourceId, quantity: sourceQuantity, unit: remnantUnit, factor: new Prisma.Decimal(1), baseQuantity: sourceQuantity, unitCost: remnantUnitCost, lineCost: remnantUnitCost.mul(sourceQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) });
         }
       }
     }
