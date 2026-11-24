@@ -87,7 +87,7 @@ type kb-interiors-backup.sql | docker exec -i kb-interiors-db psql -U kb_user -d
 - Measurement units include PCS, SQFT, BOX, RFT, ROLL, METER, KG, LITRE, BUNDLE and SET
 
 ## Phase 2 progress
-- Added inventory catalog, product/variant, unit conversion, stock ledger, location, panel operation and remnant schema.
+- Added inventory catalog, product/variant, unit conversion, stock ledger, location, material processing and remnant schema.
 - Added category and brand listing, search, filtering, pagination, create/edit, and activate/deactivate APIs and screens.
 - Added product CRUD, optional product variants, and product-specific unit conversion management.
 - Added the multi-unit foundation and data-preserving migration, assigning existing inventory and audit records to KB Interiors.
@@ -110,8 +110,8 @@ type kb-interiors-backup.sql | docker exec -i kb-interiors-db psql -U kb_user -d
 - Updated invoice/receipt balances and dashboard receivables, payables, sales, gross profit, and account credits to account for active returns.
 - Added the unit-scoped purchase screen for creating/searching/filtering purchase orders, viewing order and receipt history, and recording partial goods receipts.
 - Purchase orders snapshot the selected purchase unit, conversion factor, precision, and rounding mode. Receipts are always recorded in purchase units; stock balances and ledger entries update only when cumulative rounding produces a nonzero base-unit delta.
-- Invoice quantities must be whole numbers in the product base unit. Panel products must use PCS; cutting, partial-panel sales, and remnants are intentionally not supported.
+- Invoice quantities must be whole numbers in the product base unit. Material products can use any supported measurement unit. Material processing and reusable remnant tracking are optional.
 - Expenses, GST compliance validation, monthly financial trends, and broader profit-and-loss reporting are not implemented yet.
 
 ## Current limitations
-The application does not yet provide detailed consolidated reports, bank reconciliation, cash-refund processing, account-level statements, GST compliance checks, backup automation, or dedicated A4/thermal invoice layouts. Returns create account credit and do not automatically issue cash refunds. Sales are whole-unit only; panel cutting and remnant workflows are intentionally excluded. Complete and test remaining features before live shop use.
+The application does not yet provide detailed consolidated reports, bank reconciliation, cash-refund processing, account-level statements, GST compliance checks, backup automation, or dedicated A4/thermal invoice layouts. Returns create account credit and do not automatically issue cash refunds. Sales are whole-unit only; material processing and remnant workflows require operational UI and end-to-end testing before live use. Complete and test remaining features before live shop use.

@@ -273,7 +273,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       {canManage && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">Create invoice</h2>
-          <p className="mt-1 text-sm text-gray-600">Sales use whole quantities in each product’s base unit. Panels must be set up as PCS; cutting is not supported.</p>
+          <p className="mt-1 text-sm text-gray-600">Sales quantities use each product’s base unit. Material processing and remnant tracking are optional product capabilities.</p>
           <form onSubmit={submitSale} className="mt-5 space-y-5">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <label className="text-sm font-medium">

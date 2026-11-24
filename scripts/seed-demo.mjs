@@ -11,8 +11,8 @@ const demoUnits = {
     customer: "Demo Interiors Customer",
     supplier: "Demo Interiors Supplier",
     products: [
-      { name: "Demo Plywood Panel 18mm", sku: "DEMO-KBI-PLY-18", category: "Demo Plywood", brand: "Demo Century Surface", baseUnit: "PCS", productType: "PANEL", purchasePrice: "1850", sellingPrice: "2450", gstPercentage: "18", minimumStock: "5", openingQuantity: "24" },
-      { name: "Demo Matte Laminate Sheet", sku: "DEMO-KBI-LAM-01", category: "Demo Laminates", brand: "Demo Green Surface", baseUnit: "PCS", productType: "PANEL", purchasePrice: "680", sellingPrice: "950", gstPercentage: "18", minimumStock: "6", openingQuantity: "30" },
+      { name: "Demo Plywood Panel 18mm", sku: "DEMO-KBI-PLY-18", category: "Demo Plywood", brand: "Demo Century Surface", baseUnit: "PCS", productType: "MATERIAL", purchasePrice: "1850", sellingPrice: "2450", gstPercentage: "18", minimumStock: "5", openingQuantity: "24" },
+      { name: "Demo Matte Laminate Sheet", sku: "DEMO-KBI-LAM-01", category: "Demo Laminates", brand: "Demo Green Surface", baseUnit: "PCS", productType: "MATERIAL", purchasePrice: "680", sellingPrice: "950", gstPercentage: "18", minimumStock: "6", openingQuantity: "30" },
       { name: "Demo Soft-Close Hinge", sku: "DEMO-KBI-HNG-01", category: "Demo Hardware", brand: "Demo Hettich Hardware", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "110", sellingPrice: "175", gstPercentage: "18", minimumStock: "10", openingQuantity: "40" },
     ],
   },
