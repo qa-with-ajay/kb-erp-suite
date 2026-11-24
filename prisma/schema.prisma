@@ -532,8 +532,8 @@ model SaleLineStockAllocation {
   createdAt         DateTime         @default(now())
   businessUnit      BusinessUnit     @relation(fields: [businessUnitId], references: [id])
   saleLine          SaleLine         @relation(fields: [businessUnitId, saleLineId], references: [businessUnitId, id])
-  stockBalance      StockBalance?    @relation(fields: [businessUnitId, stockBalanceId], references: [businessUnitId, id])
-  remnant           MaterialRemnant? @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
+  stockBalance      StockBalance?    @relation(fields: [businessUnitId, stockBalanceId], references: [businessUnitId, id], onDelete: Restrict)
+  remnant           MaterialRemnant? @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id], onDelete: Restrict)
 
   @@unique([businessUnitId, id])
   @@index([businessUnitId, saleLineId])
