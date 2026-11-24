@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Product = { id: string; name: string; sku: string; baseUnit: string; productType: string; isProcessingEnabled?: boolean };
 type Location = { id: string; name: string; code: string };
@@ -38,6 +39,9 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pendingAction, setPendingAction] = useState<{ item: Remnant; action: "SOLD" | "CONSUMED" | "WASTED" | "TRANSFER" } | null>(null);
+  const [actionQuantity, setActionQuantity] = useState("");
+  const [actionReference, setActionReference] = useState("");
 
   const selectedProduct = products.find((item) => item.id === productId);
   const load = useCallback(async () => {
@@ -82,24 +86,37 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
     finally { setBusy(false); }
   }
 
-  async function act(item: Remnant, action: "SOLD" | "CONSUMED" | "WASTED" | "TRANSFER") {
+  function openAction(item: Remnant, action: "SOLD" | "CONSUMED" | "WASTED" | "TRANSFER") {
+    setActionQuantity(action === "TRANSFER" ? item.quantity : "");
+    setActionReference("");
+    setPendingAction({ item, action });
+  }
+
+  async function confirmAction() {
+    if (!pendingAction) return;
+    const { item, action } = pendingAction;
+    const destinationLocationId = destinationById[item.id];
+    const quantityText = action === "TRANSFER" ? item.quantity : actionQuantity.trim();
+    if (action !== "TRANSFER" && quantityText && (!Number.isFinite(Number(quantityText)) || Number(quantityText) <= 0 || Number(quantityText) > Number(item.quantity))) {
+      setError("Enter a valid quantity not exceeding the available remnant.");
+      return;
+    }
+    if (action === "TRANSFER" && !destinationLocationId) {
+      setError("Select a destination location.");
+      return;
+    }
     setBusy(true); setError(""); setNotice("");
     try {
-      const destinationLocationId = destinationById[item.id];
-      const reference = action === "SOLD" ? window.prompt("Sale / invoice reference (optional):") || "" : "";
-      const quantityText = action === "TRANSFER" ? "" : window.prompt(`Quantity to ${action.toLowerCase()} (leave blank for all ${item.quantity}):`) || "";
-      if (quantityText && (!Number.isFinite(Number(quantityText)) || Number(quantityText) <= 0 || Number(quantityText) > Number(item.quantity))) throw new Error("Enter a valid quantity not exceeding the available remnant.");
-      const confirmMessage = action === "SOLD" ? "Mark this remnant as sold in inventory? This does not create a sales invoice." : action === "WASTED" ? "Mark this remnant as waste?" : action === "CONSUMED" ? "Mark this remnant as consumed?" : "Transfer this remnant to the selected location?";
-      if (!window.confirm(confirmMessage)) return;
       await json(await fetch(`/api/inventory/remnants/${item.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action, ...(action === "TRANSFER" ? { destinationLocationId } : {}),
           ...(quantityText ? { quantity: quantityText } : {}),
-          ...(action === "SOLD" ? { reference } : {}),
+          ...(action === "SOLD" && actionReference.trim() ? { reference: actionReference.trim() } : {}),
           idempotencyKey: crypto.randomUUID(),
         }),
       }));
+      setPendingAction(null);
       setNotice(action === "SOLD" ? "Remnant marked sold in inventory. This action does not generate a sales invoice." : `Remnant ${action.toLowerCase()} recorded.`);
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to update remnant."); }
@@ -108,6 +125,24 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={Boolean(pendingAction)}
+        title={pendingAction ? ({ SOLD: "Mark remnant as sold", CONSUMED: "Consume remnant", WASTED: "Mark remnant as waste", TRANSFER: "Transfer remnant" }[pendingAction.action]) : "Confirm action"}
+        description={pendingAction ? `${pendingAction.item.code} · ${pendingAction.item.product.name} · Available: ${fmt(pendingAction.item.quantity)} ${pendingAction.item.unit ?? pendingAction.item.product.baseUnit}${pendingAction.action === "SOLD" ? ". This records an inventory disposition only; it does not create a sales invoice." : ""}` : ""}
+        confirmLabel={pendingAction ? ({ SOLD: "Mark sold", CONSUMED: "Consume", WASTED: "Mark waste", TRANSFER: "Transfer" }[pendingAction.action]) : "Confirm"}
+        destructive={pendingAction?.action === "WASTED"}
+        busy={busy}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={() => void confirmAction()}
+      >
+        {pendingAction && pendingAction.action !== "TRANSFER" && <label className="block text-sm font-medium">Quantity (leave blank to use all)
+          <input type="number" min="0.0001" max={pendingAction.item.quantity} step="0.0001" value={actionQuantity} onChange={(event) => setActionQuantity(event.target.value)} placeholder={pendingAction.item.quantity} className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
+        </label>}
+        {pendingAction?.action === "SOLD" && <label className="mt-3 block text-sm font-medium">Sale / invoice reference (optional)
+          <input maxLength={100} value={actionReference} onChange={(event) => setActionReference(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 p-2.5" />
+        </label>}
+        {pendingAction?.action === "TRANSFER" && <p className="text-sm text-gray-600">Destination: {locations.find((location) => location.id === destinationById[pendingAction.item.id])?.name ?? "Not selected"}</p>}
+      </ConfirmDialog>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       <div className="grid gap-3 sm:grid-cols-3">
@@ -148,11 +183,11 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
                 <td className="p-3"><span className={item.status === "AVAILABLE" ? "rounded-full bg-emerald-50 px-2 py-1 text-emerald-700" : "rounded-full bg-gray-100 px-2 py-1 text-gray-600"}>{item.status}</span></td>
                 <td className="p-3"><div className="flex flex-wrap gap-2">
                   {canManage && item.status === "AVAILABLE" && <>
-                    <button disabled={busy} onClick={() => void act(item, "SOLD")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Mark sold</button>
-                    <button disabled={busy} onClick={() => void act(item, "CONSUMED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Consume</button>
-                    <button disabled={busy} onClick={() => void act(item, "WASTED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Waste</button>
+                    <button disabled={busy} onClick={() => openAction(item, "SOLD")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Mark sold</button>
+                    <button disabled={busy} onClick={() => openAction(item, "CONSUMED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Consume</button>
+                    <button disabled={busy} onClick={() => openAction(item, "WASTED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Waste</button>
                     <select aria-label={`Transfer destination for ${item.code}`} value={destinationById[item.id] ?? ""} onChange={(e) => setDestinationById((current) => ({ ...current, [item.id]: e.target.value }))} className="max-w-36 rounded border px-2 py-1 text-xs"><option value="">Transfer to…</option>{locations.filter((l) => l.id !== item.location.id).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
-                    <button disabled={busy || !destinationById[item.id]} onClick={() => void act(item, "TRANSFER")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Transfer</button>
+                    <button disabled={busy || !destinationById[item.id]} onClick={() => openAction(item, "TRANSFER")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Transfer</button>
                   </>}
                 </div></td>
               </tr>)}

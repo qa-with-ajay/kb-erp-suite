@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Location = { id: string; name: string; code: string };
@@ -84,6 +85,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const loadSales = useCallback(async (signal?: AbortSignal) => {
     const query = new URLSearchParams({ search: saleSearch, page: String(page), pageSize: "20" });
@@ -232,8 +234,11 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Select or enter a customer to leave a balance due.");
       return;
     }
-    if (!window.confirm(`Confirm this sale for ${money(totals.total)}? Received ${money(receivedValue)}${dueAfterPayment > 0 ? `, balance due ${money(dueAfterPayment)}` : ""}. Stock will be deducted immediately.`)) return;
+    setConfirmOpen(true);
+  }
 
+  async function confirmSale() {
+    setConfirmOpen(false);
     setSaving(true);
     const idempotencyKey = requestKey || crypto.randomUUID();
     setRequestKey(idempotencyKey);
@@ -272,6 +277,15 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
 
   return (
     <div className="space-y-8">
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Confirm sale"
+        description={`Confirm this sale for ${money(totals.total)}? Received ${money(receivedValue)}${dueAfterPayment > 0 ? `, balance due ${money(dueAfterPayment)}` : ""}. Stock will be deducted immediately.`}
+        confirmLabel="Complete sale"
+        busy={saving}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => void confirmSale()}
+      />
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
 
       {canManage && (
