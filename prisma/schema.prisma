@@ -487,6 +487,7 @@ model SaleLine {
   productName       String
   sku               String
   baseUnit          MeasurementUnit
+  productType       ProductType        @default(STANDARD)
   variantCode       String?
   variantAttributes Json?
   quantity          Decimal          @db.Decimal(18, 4)

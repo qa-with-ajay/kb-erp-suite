@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const wholeQuantity = z.string()
   .trim()
-  .regex(/^\d{1,10}$/, "Enter a whole-number quantity.")
+  .regex(/^\d{1,10}(?:\.\d{1,4})?$/, "Enter a quantity with up to four decimal places.")
   .refine((value) => Number(value) > 0, "Quantity must be greater than zero.");
 
 const decimalQuantity = z.string()

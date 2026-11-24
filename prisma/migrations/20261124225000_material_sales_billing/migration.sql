@@ -1,0 +1,1 @@
+ALTER TABLE "SaleLine" ADD COLUMN "productType" "ProductType" NOT NULL DEFAULT 'STANDARD';

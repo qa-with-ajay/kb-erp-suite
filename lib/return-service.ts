@@ -35,6 +35,7 @@ export type ReturnResult =
         | "LOCATION_NOT_AVAILABLE"
         | "LINE_NOT_AVAILABLE"
         | "OVER_RETURN"
+        | "INVALID_QUANTITY"
         | "AMOUNT_LIMIT_EXCEEDED"
         | "INSUFFICIENT_STOCK"
         | "IDEMPOTENCY_CONFLICT"
@@ -170,7 +171,7 @@ export async function createSaleReturn(
       lines: {
         select: {
           id: true, productId: true, variantId: true, productName: true, sku: true,
-          baseUnit: true, variantCode: true, variantAttributes: true, quantity: true,
+          baseUnit: true, productType: true, variantCode: true, variantAttributes: true, quantity: true,
           unitPrice: true, gstPercentage: true, unitCost: true,
         },
       },
@@ -216,6 +217,9 @@ export async function createSaleReturn(
     const line = savedLines.get(inputLine.saleLineId);
     if (!line) return { kind: "error", error: "LINE_NOT_AVAILABLE" };
     const quantity = new Prisma.Decimal(inputLine.quantity);
+    if (!quantity.isPositive() || (line.productType === "STANDARD" && !quantity.isInteger())) {
+      return { kind: "error", error: "INVALID_QUANTITY" };
+    }
     if (returnedByLine.get(line.id)?.plus(quantity).greaterThan(line.quantity)) {
       return { kind: "error", error: "OVER_RETURN" };
     }

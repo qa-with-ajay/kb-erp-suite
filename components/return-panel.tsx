@@ -8,6 +8,7 @@ type ReturnLine = {
   productName: string;
   sku: string;
   unit: string;
+  productType?: "STANDARD" | "MATERIAL";
   quantity: string;
   returnedQuantity: string;
   availableQuantity: string;
@@ -292,7 +293,7 @@ export function ReturnPanel({
                               type="number"
                               min="0"
                               max={line.availableQuantity}
-                              step={kind === "sale" ? "1" : "0.0001"}
+                              step={kind === "sale" ? (line.productType === "MATERIAL" ? "0.0001" : "1") : "0.0001"}
                               value={quantities[line.id] || ""}
                               onChange={(event) => setQuantities((current) => ({ ...current, [line.id]: event.target.value }))}
                               disabled={available <= 0}

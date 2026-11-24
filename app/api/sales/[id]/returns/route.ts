@@ -23,7 +23,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       stockMovement: { select: { sourceLocationId: true } },
       lines: {
         select: {
-          id: true, productName: true, sku: true, baseUnit: true, quantity: true,
+          id: true, productName: true, sku: true, baseUnit: true, productType: true, quantity: true,
           unitPrice: true, variantCode: true, variantAttributes: true,
         },
         orderBy: { lineNumber: "asc" },
@@ -76,6 +76,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       productName: line.productName,
       sku: line.sku,
       unit: line.baseUnit,
+      productType: line.productType,
       quantity: line.quantity.toString(),
       returnedQuantity: (returnedByLine.get(line.id) ?? new Prisma.Decimal(0)).toString(),
       availableQuantity: line.quantity.minus(returnedByLine.get(line.id) ?? new Prisma.Decimal(0)).toString(),
@@ -138,6 +139,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       LOCATION_NOT_AVAILABLE: "Select an active stock location.",
       LINE_NOT_AVAILABLE: "One or more invoice lines are unavailable.",
       OVER_RETURN: "Return quantity exceeds the unreturned invoice quantity.",
+      INVALID_QUANTITY: "STANDARD products require whole return quantities. MATERIAL products may use up to four decimal places.",
       AMOUNT_LIMIT_EXCEEDED: "Return amount exceeds the supported limit.",
       INSUFFICIENT_STOCK: "Insufficient stock to complete this return.",
       IDEMPOTENCY_CONFLICT: "This request key was already used for a different return.",
