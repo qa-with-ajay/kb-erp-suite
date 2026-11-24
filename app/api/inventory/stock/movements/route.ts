@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       {
         ledgerEntries: {
           some: {
-            stockKind: "STANDARD",
+            stockType: "STANDARD",
             product: {
               is: {
                 OR: [
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
   }] : [];
   const where: Prisma.StockMovementWhereInput = {
     businessUnitId: access.context.businessUnit.id,
-    AND: [{ ledgerEntries: { some: { stockKind: "STANDARD" } } }, ...searchFilter],
+    AND: [{ ledgerEntries: { some: { stockType: "STANDARD" } } }, ...searchFilter],
   };
   const [items, total] = await prisma.$transaction([
     prisma.stockMovement.findMany({
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
       include: {
         actor: { select: { id: true, name: true } },
         ledgerEntries: {
-          where: { stockKind: "STANDARD" },
+          where: { stockType: "STANDARD" },
           include: {
             product: { select: { id: true, name: true, sku: true, baseUnit: true } },
             variant: { select: { id: true, code: true, attributes: true } },
