@@ -508,7 +508,7 @@ model RemnantMovement {
   locationId     String                 @db.Uuid
   actorId        String
   type           RemnantMovementType
-  quantityDelta  Decimal                @db.Decimal(14, 4)
+  quantityDelta  Decimal                @db.Decimal(18, 8)
   reason         String?
   createdAt      DateTime               @default(now())
   businessUnitId String                 @db.Uuid
