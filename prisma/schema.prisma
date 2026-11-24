@@ -123,6 +123,7 @@ model BusinessUnit {
   materialRemnantMovements        MaterialRemnantMovement[]
   sales                   Sale[]
   salesReturns            SaleReturn[]
+  saleStockAllocations    SaleLineStockAllocation[]
   stockBalances           StockBalance[]
   stockLedger             StockLedgerEntry[]
   stockLocations          StockLocation[]
@@ -529,6 +530,7 @@ model SaleLineStockAllocation {
   unitCost          Decimal          @db.Decimal(14, 4)
   lineCost          Decimal          @db.Decimal(14, 2)
   createdAt         DateTime         @default(now())
+  businessUnit      BusinessUnit     @relation(fields: [businessUnitId], references: [id])
   saleLine          SaleLine         @relation(fields: [businessUnitId, saleLineId], references: [businessUnitId, id])
   stockBalance      StockBalance?    @relation(fields: [businessUnitId, stockBalanceId], references: [businessUnitId, id])
   remnant           MaterialRemnant? @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
