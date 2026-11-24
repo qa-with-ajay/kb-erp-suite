@@ -29,7 +29,10 @@ const saleErrors: Record<SaleError, { message: string; status: number }> = {
   VARIANT_NOT_AVAILABLE: { message: "The selected variant is unavailable.", status: 400 },
   AMOUNT_LIMIT_EXCEEDED: { message: "The invoice exceeds the supported monetary amount.", status: 400 },
   INSUFFICIENT_STOCK: { message: "There is not enough stock for the requested quantity.", status: 409 },
-  INVALID_QUANTITY: { message: "STANDARD products require whole quantities. MATERIAL products may use up to four decimal places.", status: 400 },
+  INVALID_QUANTITY: { message: "STANDARD products and opened regular stock units require whole quantities. MATERIAL quantities may use up to four decimal places.", status: 400 },
+  INVALID_ALLOCATION: { message: "Select valid stock sources and ensure their combined quantity matches the invoice quantity.", status: 400 },
+  REMNANT_NOT_AVAILABLE: { message: "One or more selected remnants are no longer available in the selected location.", status: 409 },
+  UNIT_MISMATCH: { message: "The selected remnant uses a different measurement unit from this sale.", status: 400 },
 };
 
 function saleResponse(saleId: string, invoiceNumber: string, replayed: boolean) {
