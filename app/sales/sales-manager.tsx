@@ -153,7 +153,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   }, [locationId, productSearch]);
 
   const totals = useMemo(() => lines.reduce((result, line) => {
-    if (!line.product || !/^\d+$/.test(line.quantity)) return result;
+    if (!line.product || !/^\d+(?:\.\d{1,4})?$/.test(line.quantity)) return result;
     const quantity = Number(line.quantity);
     const lineSubtotal = roundMoney(Number(line.product.sellingPrice) * quantity);
     const lineTax = taxMode === "GST"
@@ -216,8 +216,12 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Select a variant for each product that has variants.");
       return;
     }
+    if (completeLines.some((line) => !/^\d+(?:\.\d{1,4})?$/.test(line.quantity) || Number(line.quantity) <= 0 || (line.product.productType === "STANDARD" && !Number.isInteger(Number(line.quantity))))) {
+      setError("Enter a positive quantity with up to four decimals for MATERIAL products; STANDARD products require whole quantities.");
+      return;
+    }
     if (completeLines.some((line) => Number(line.quantity) > availableQuantity(line))) {
-      setError("One or more quantities exceed the available whole-unit stock.");
+      setError("One or more quantities exceed the available stock.");
       return;
     }
     if (paymentInvalid) {
@@ -228,7 +232,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Select or enter a customer to leave a balance due.");
       return;
     }
-    if (!window.confirm(`Confirm this full-unit sale for ${money(totals.total)}? Received ${money(receivedValue)}${dueAfterPayment > 0 ? `, balance due ${money(dueAfterPayment)}` : ""}. Stock will be deducted immediately.`)) return;
+    if (!window.confirm(`Confirm this sale for ${money(totals.total)}? Received ${money(receivedValue)}${dueAfterPayment > 0 ? `, balance due ${money(dueAfterPayment)}` : ""}. Stock will be deducted immediately.`)) return;
 
     setSaving(true);
     const idempotencyKey = requestKey || crypto.randomUUID();
@@ -367,12 +371,12 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                       </select>
                     </label>
                     <label className="text-sm font-medium">
-                      Quantity (whole {line.product?.baseUnit ?? "units"})
+                      Quantity ({line.product?.baseUnit ?? "units"})
                       <input
                         required
                         type="number"
-                        min="1"
-                        step="1"
+                        min={line.product?.productType === "MATERIAL" ? "0.0001" : "1"}
+                        step={line.product?.productType === "MATERIAL" ? "0.0001" : "1"}
                         max={available}
                         value={line.quantity}
                         onChange={(event) => updateLine(line.key, { quantity: event.target.value })}
@@ -381,7 +385,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                       <span className="mt-1 block text-xs text-gray-500">Available: {available}</span>
                     </label>
                     <div className="text-sm">
-                      <span className="font-medium">Unit price</span>
+                      <span className="font-medium">Price / {line.product?.baseUnit ?? "unit"}</span>
                       <p className="mt-3">{line.product ? money(line.product.sellingPrice) : "—"}</p>
                     </div>
                     <button

@@ -20,7 +20,8 @@ export type SaleResult =
         | "VARIANT_REQUIRED"
         | "VARIANT_NOT_AVAILABLE"
         | "AMOUNT_LIMIT_EXCEEDED"
-        | "INSUFFICIENT_STOCK";
+        | "INSUFFICIENT_STOCK"
+        | "INVALID_QUANTITY";
       productName?: string;
     };
 
@@ -141,6 +142,9 @@ export async function createSale(
     }
 
     const quantity = new Prisma.Decimal(line.quantity);
+    if (!quantity.isPositive() || (product.productType === "STANDARD" && !quantity.isInteger())) {
+      return { kind: "error", error: "INVALID_QUANTITY", productName: product.name };
+    }
     const balance = await tx.stockBalance.findFirst({
       where: {
         businessUnitId,
@@ -265,6 +269,7 @@ export async function createSale(
         productName: line.product.name,
         sku: line.product.sku,
         baseUnit: line.product.baseUnit,
+        productType: line.product.productType,
         variantCode: line.variant?.code ?? null,
         variantAttributes: line.variant?.attributes ?? Prisma.DbNull,
         quantity: line.quantity,

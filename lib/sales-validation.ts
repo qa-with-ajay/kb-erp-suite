@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-const wholeQuantity = z.string()
+const saleQuantity = z.string()
   .trim()
-  .regex(/^\d{1,10}$/, "Enter a whole-number quantity.")
+  .regex(/^\d{1,10}(?:\.\d{1,4})?$/, "Enter a quantity with up to four decimal places.")
   .refine((value) => Number(value) > 0, "Quantity must be greater than zero.");
 
 export const saleInputSchema = z.object({
@@ -15,7 +15,7 @@ export const saleInputSchema = z.object({
   lines: z.array(z.object({
     productId: z.string().uuid(),
     variantId: z.string().uuid().nullable().optional(),
-    quantity: wholeQuantity,
+    quantity: saleQuantity,
   })).min(1).max(50),
 }).superRefine((value, context) => {
   const keys = new Set<string>();

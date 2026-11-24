@@ -28,7 +28,8 @@ const saleErrors: Record<SaleError, { message: string; status: number }> = {
   VARIANT_REQUIRED: { message: "Select a variant for the product.", status: 400 },
   VARIANT_NOT_AVAILABLE: { message: "The selected variant is unavailable.", status: 400 },
   AMOUNT_LIMIT_EXCEEDED: { message: "The invoice exceeds the supported monetary amount.", status: 400 },
-  INSUFFICIENT_STOCK: { message: "There is not enough stock for the requested full-unit sale.", status: 409 },
+  INSUFFICIENT_STOCK: { message: "There is not enough stock for the requested quantity.", status: 409 },
+  INVALID_QUANTITY: { message: "STANDARD products require whole quantities. MATERIAL products may use up to four decimal places.", status: 400 },
 };
 
 function saleResponse(saleId: string, invoiceNumber: string, replayed: boolean) {
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
   const payment = parsedPayment?.data ?? null;
   const parsed = saleInputSchema.safeParse(saleBody);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid full-unit sale.", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Invalid sale.", details: parsed.error.flatten() }, { status: 400 });
   }
   const input = parsed.data;
 
