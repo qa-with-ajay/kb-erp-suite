@@ -573,7 +573,7 @@ export async function reverseSaleReturn(
     include: { lines: { include: { sourceAllocation: { include: {
       stockBalance: { select: { id: true } },
       remnant: { select: { id: true, quantity: true, status: true } },
-    } } } },
+    } } } } },
   });
   if (!record) return { kind: "error", error: "RETURN_NOT_AVAILABLE" };
   if (record.reversedAt) return { kind: "error", error: "ALREADY_REVERSED" };
