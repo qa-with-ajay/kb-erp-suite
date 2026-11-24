@@ -12,7 +12,8 @@ type ProductData = {
   name: string;
   sku: string;
   description: string | null;
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
+  canBeProcessed: boolean;
   baseUnit: string;
   sellingPrice: string;
   gstPercentage: string;
@@ -56,6 +57,7 @@ const emptyValues: FormValues = {
   sku: "",
   description: "",
   productType: "STANDARD",
+  canBeProcessed: false,
   baseUnit: "PCS",
   sellingPrice: "0",
   gstPercentage: "0",
@@ -166,6 +168,7 @@ export function ProductForm({ productId }: Props) {
             sku: product.sku,
             description: product.description ?? "",
             productType: product.productType,
+            canBeProcessed: product.canBeProcessed ?? false,
             baseUnit: product.baseUnit,
             sellingPrice: product.sellingPrice,
             gstPercentage: product.gstPercentage,
@@ -340,18 +343,20 @@ export function ProductForm({ productId }: Props) {
               setValues((current) => ({
                 ...current,
                 productType:
-                  event.target.value === "PANEL" ? "PANEL" : "STANDARD",
-                baseUnit:
-                  event.target.value === "PANEL"
-                    ? "SQFT"
-                    : current.baseUnit,
+                  event.target.value === "MATERIAL" ? "MATERIAL" : "STANDARD",
               }))
             }
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
           >
             <option value="STANDARD">Standard</option>
-            <option value="PANEL">Panel</option>
+            <option value="MATERIAL">Material</option>
           </select>
+        </label>
+
+        <label className="flex items-center gap-2 text-sm font-medium md:col-span-2">
+          <input type="checkbox" checked={values.canBeProcessed} onChange={(event) => update("canBeProcessed", event.target.checked)} className="h-4 w-4 rounded border-gray-300" />
+          Can be processed into smaller units
+          <span className="text-xs font-normal text-gray-500">Enable for materials or standard products that support cutting, splitting or conversion.</span>
         </label>
 
         <label className="text-sm font-medium">
@@ -361,17 +366,12 @@ export function ProductForm({ productId }: Props) {
             onChange={(event) => update("baseUnit", event.target.value)}
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
           >
-            {units.filter((unit) => values.productType !== "PANEL" || unit === "PCS" || unit === "SQFT").map((unit) => (
+            {units.map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
               </option>
             ))}
           </select>
-          {values.productType === "PANEL" && (
-            <span className="mt-1 block text-xs text-gray-500">
-              Use PCS for selling whole sheets, or SQFT for cut-to-size stock. The normal sales screen sells full PCS units.
-            </span>
-          )}
         </label>
 
         <div className="border-b border-gray-100 pb-2 md:col-span-2"><h2 className="text-base font-semibold text-gray-900">Classification</h2><p className="mt-1 text-sm font-normal text-gray-500">Organize the product by category and brand.</p></div>
