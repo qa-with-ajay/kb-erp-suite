@@ -105,6 +105,36 @@ async function applyStockDelta(
   return true;
 }
 
+async function applyAllocationStockDelta(
+  tx: Prisma.TransactionClient,
+  movementId: string,
+  businessUnitId: string,
+  allocation: { stockBalanceId: string | null; unitCost: Prisma.Decimal },
+  line: { productId: string; variantId: string | null },
+  quantity: Prisma.Decimal,
+  direction: "IN" | "OUT",
+) {
+  if (!allocation.stockBalanceId) return false;
+  const balance = await tx.stockBalance.findFirst({
+    where: { id: allocation.stockBalanceId, businessUnitId, stockKind: "STANDARD" },
+  });
+  if (!balance) return false;
+  const delta = direction === "IN" ? quantity : quantity.negated();
+  const nextQuantity = balance.quantity.plus(delta);
+  if (nextQuantity.isNegative()) return false;
+  const ledgerUnitCost = direction === "IN" ? allocation.unitCost : balance.averageCost;
+  const nextAverageCost = direction === "IN"
+    ? (balance.quantity.mul(balance.averageCost).plus(delta.mul(ledgerUnitCost)).div(nextQuantity))
+      .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
+    : balance.averageCost;
+  await tx.stockLedgerEntry.create({ data: {
+    businessUnitId, movementId, productId: line.productId, variantId: line.variantId,
+    locationId: balance.locationId, stockKind: "STANDARD", quantityDelta: delta, unitCost: ledgerUnitCost,
+  } });
+  await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: nextQuantity, averageCost: nextAverageCost } });
+  return true;
+}
+
 async function lockLocation(tx: Prisma.TransactionClient, businessUnitId: string, locationId: string) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "StockLocation"
@@ -229,7 +259,8 @@ export async function createSaleReturn(
     if (!line || !allocation || allocation.saleLineId !== requested.saleLineId) return { kind: "error", error: "LINE_NOT_AVAILABLE" };
     if (legacyLineIds.has(line.id)) return { kind: "error", error: "SOURCE_ALLOCATION_MISMATCH" };
     const allocationQuantity = new Prisma.Decimal(requested.quantity);
-    if (!allocationQuantity.isPositive() || allocationQuantity.gt(allocation.quantity)) return { kind: "error", error: "INVALID_QUANTITY" };
+    if (!allocationQuantity.isPositive() || allocationQuantity.gt(allocation.quantity)
+      || (allocation.sourceType === "STANDARD" && !allocationQuantity.isInteger())) return { kind: "error", error: "INVALID_QUANTITY" };
     const alreadyReturned = returnedByAllocation.get(allocation.id) ?? new Prisma.Decimal(0);
     if (alreadyReturned.plus(allocationQuantity).gt(allocation.quantity)) return { kind: "error", error: "OVER_RETURN" };
 
@@ -272,7 +303,7 @@ export async function createSaleReturn(
           AND "locationId" = ${input.locationId}::uuid AND "productId" = ${item.line.productId}::uuid
           AND "variantId" IS NOT DISTINCT FROM ${item.line.variantId}::uuid AND "stockKind" = 'REMNANT' FOR UPDATE
       `;
-      if (!balances.length) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      if (balances.length !== 1) return { kind: "error", error: "INSUFFICIENT_STOCK" };
     }
   }
 
@@ -286,10 +317,9 @@ export async function createSaleReturn(
   for (const item of prepared) {
     if (item.disposition !== "RESTOCK") continue;
     if (item.allocation.sourceType === "STANDARD") {
-      const ok = await applyStockDelta(tx, movement.id, businessUnitId, input.locationId, {
+      const ok = await applyAllocationStockDelta(tx, movement.id, businessUnitId, item.allocation, {
         productId: item.line.productId, variantId: item.line.variantId,
-        quantity: item.allocationQuantity, unitCost: item.allocation.unitCost,
-      }, "IN");
+      }, item.allocationQuantity, "IN");
       if (!ok) return { kind: "error", error: "INSUFFICIENT_STOCK" };
     } else {
       const remnant = item.allocation.remnant!;
@@ -564,7 +594,7 @@ export async function reverseSaleReturn(
           AND "locationId" = ${record.locationId}::uuid AND "productId" = ${line.productId}::uuid
           AND "variantId" IS NOT DISTINCT FROM ${line.variantId}::uuid AND "stockKind" = 'REMNANT' FOR UPDATE
       `;
-      if (!balances.length || balances[0].quantity.lt(line.allocationQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      if (balances.length !== 1 || balances[0].quantity.lt(line.allocationQuantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
     }
   }
 
@@ -584,9 +614,9 @@ export async function reverseSaleReturn(
     const allocation = line.sourceAllocation!;
     const quantity = line.allocationQuantity!;
     if (allocation.sourceType === "STANDARD") {
-      const ok = await applyStockDelta(tx, movement.id, businessUnitId, record.locationId, {
-        productId: line.productId, variantId: line.variantId, quantity, unitCost: allocation.unitCost,
-      }, "OUT");
+      const ok = await applyAllocationStockDelta(tx, movement.id, businessUnitId, allocation, {
+        productId: line.productId, variantId: line.variantId,
+      }, quantity, "OUT");
       if (!ok) return { kind: "error", error: "INSUFFICIENT_STOCK" };
     } else {
       const remnant = allocation.remnant!;
@@ -605,7 +635,7 @@ export async function reverseSaleReturn(
         locationId: record.locationId, stockKind: "REMNANT", quantityDelta: quantity.negated(), unitCost: allocation.unitCost,
       } });
       await tx.materialRemnantMovement.create({ data: {
-        businessUnitId, remnantId: remnant.id, locationId: record.locationId, actorId, type: "ADJUSTED",
+        businessUnitId, remnantId: remnant.id, locationId: record.locationId, actorId, type: "RETURN_REVERSED",
         quantityDelta: quantity.negated(), reason: `Reversed returned quantity on ${record.creditNoteNumber}`,
       } });
     }
