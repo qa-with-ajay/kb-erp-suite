@@ -27,6 +27,7 @@ type Product = {
   sku: string;
   description: string | null;
   productType: "STANDARD" | "MATERIAL";
+  canBeProcessed: boolean;
   baseUnit: string;
   sellingPrice: string;
   gstPercentage: string;
