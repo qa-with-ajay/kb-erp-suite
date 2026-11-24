@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
         sku: true,
         description: true,
         productType: true,
-      canBeProcessed: true,
+        canBeProcessed: true,
         baseUnit: true,
         sellingPrice: true,
         gstPercentage: true,
