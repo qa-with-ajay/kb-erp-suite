@@ -46,7 +46,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
           orderBy: { unit: "asc" },
         },
         stockBalances: {
-          where: { stockKind: "STANDARD" },
+          where: { stockType: "STANDARD" },
           select: {
             id: true,
             quantity: true,
@@ -90,8 +90,6 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       const current = await tx.product.findFirst({ where: { id, businessUnitId: businessUnit.id } });
       if (!current) return { error: "NOT_FOUND" as const };
       const nextBaseUnit = parsed.data.baseUnit ?? current.baseUnit;
-      const nextProductType = parsed.data.productType ?? current.productType;
-      if (nextProductType === "PANEL" && !["PCS", "SQFT"].includes(nextBaseUnit)) return { error: "PANEL_BASE_UNIT" as const };
 
       if (nextBaseUnit !== current.baseUnit) {
         const [ledgerCount, conversionCount] = await Promise.all([
@@ -162,7 +160,6 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if ("error" in result) {
       if (result.error === "NOT_FOUND") return NextResponse.json({ error: "Product not found." }, { status: 404 });
       if (result.error === "MANUFACTURER_BARCODE_REQUIRED") return NextResponse.json({ error: "Enter or scan the manufacturer barcode." }, { status: 400 });
-      if (result.error === "PANEL_BASE_UNIT") return NextResponse.json({ error: "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock." }, { status: 400 });
       if (result.error === "BASE_UNIT_IN_USE") return NextResponse.json({ error: "Base unit cannot change after conversions or stock ledger entries exist." }, { status: 409 });
       if (result.error === "CATEGORY_NOT_AVAILABLE") return NextResponse.json({ error: "Select an active category." }, { status: 400 });
       if (result.error === "BRAND_NOT_AVAILABLE") return NextResponse.json({ error: "Select an active brand." }, { status: 400 });
