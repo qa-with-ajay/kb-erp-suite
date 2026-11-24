@@ -30,7 +30,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
   const [sourceType, setSourceType] = useState<"STANDARD" | "REMNANT">("STANDARD");
   const [sourceRemnantId, setSourceRemnantId] = useState("");
   const [inputQuantity, setInputQuantity] = useState("");
-  const [consumedQuantity, setConsumedQuantity] = useState("");
+  const [consumedQuantity, setConsumedQuantity] = useState("0");
   const [outputs, setOutputs] = useState([{ key: "output-1", quantity: "", length: "", width: "" }]);
   const [inputLength, setInputLength] = useState("");
   const [inputWidth, setInputWidth] = useState("");
@@ -90,7 +90,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
         }),
       }));
       setNotice("Processing recorded. Standard stock was consumed and reusable remnant stock was created.");
-      setInputQuantity(""); setConsumedQuantity(""); setOutputs([{ key: "output-1", quantity: "", length: "", width: "" }]); setSourceRemnantId(""); setReason("");
+      setInputQuantity(""); setConsumedQuantity("0"); setOutputs([{ key: "output-1", quantity: "", length: "", width: "" }]); setSourceRemnantId(""); setReason("");
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to record processing."); }
     finally { setBusy(false); }

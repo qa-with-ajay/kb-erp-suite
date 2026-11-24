@@ -142,7 +142,6 @@ export async function POST(request: Request) {
       const consumedQty = new Prisma.Decimal(input.consumedQuantity);
       const outputTotal = input.outputs.reduce((sum, output) => sum.plus(new Prisma.Decimal(output.quantity)), new Prisma.Decimal(0));
       if (consumedQty.plus(outputTotal).gt(inputMaterialQty)) return { error: "OUTPUT_QUANTITY_EXCEEDED" as const };
-      if (consumedQty.isZero() && outputTotal.isZero()) return { error: "NO_PROCESSING_OUTPUT" as const };
       const wastedQty = inputMaterialQty.minus(consumedQty).minus(outputTotal);
       const totalCost = inputMaterialQty.mul(materialUnitCost);
       const outputCount = input.outputs.length;
@@ -274,7 +273,6 @@ export async function POST(request: Request) {
         SOURCE_REMNANT_NOT_AVAILABLE: { message: "The selected remnant is no longer available in this location or does not match the selected product/variant.", status: 409 },
         STOCK_BALANCE_MISMATCH: { message: "Remnant stock balance does not match its individual records. Reconcile inventory before processing.", status: 409 },
         OUTPUT_QUANTITY_EXCEEDED: { message: "Consumed quantity plus all remnant outputs cannot exceed the source quantity.", status: 400 },
-        NO_PROCESSING_OUTPUT: { message: "Enter a consumed quantity or at least one remnant output.", status: 400 },
       };
       return NextResponse.json({ error: errors[result.error].message }, { status: errors[result.error].status });
     }
