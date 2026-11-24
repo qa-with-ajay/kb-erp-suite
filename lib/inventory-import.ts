@@ -173,9 +173,6 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
       const conversionCount = await db.productUnitConversion.count({ where: { businessUnitId, productId: existing.id } });
       if (ledgerCount || conversionCount) addIssue(rowNumber, "baseUnit", "Base unit cannot change after stock ledger entries or unit conversions exist.");
     }
-    if (existing && existing.productType !== productType && productType === "PANEL" && !["PCS", "SQFT"].includes(baseUnit)) {
-      addIssue(rowNumber, "productType", "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock.");
-    }
     if (barcode) {
       const duplicateBarcode = await db.product.findFirst({ where: { businessUnitId, barcode, ...(existing ? { id: { not: existing.id } } : {}) }, select: { id: true } });
       if (duplicateBarcode) addIssue(rowNumber, "barcode", "Barcode is already assigned to another product in this business unit.");
@@ -201,7 +198,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     }
 
     rows.push({
-      rowNumber, sku, name, description, productType: productType as InventoryImportRow["productType"],
+      rowNumber, sku, name, description, productType: productType as InventoryImportRow["productType"], canBeProcessed,
       baseUnit: baseUnit as InventoryImportRow["baseUnit"], sellingPrice,
       gstPercentage, minimumStock, category, brand, barcode,
       barcodeType: barcodeType as InventoryImportRow["barcodeType"],
@@ -256,7 +253,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       sku: row.sku,
       description: row.description,
       productType: row.productType,
-        canBeProcessed: row.canBeProcessed,
+      canBeProcessed: row.canBeProcessed,
       baseUnit: row.baseUnit,
       sellingPrice: new Prisma.Decimal(row.sellingPrice),
       gstPercentage: new Prisma.Decimal(row.gstPercentage),
