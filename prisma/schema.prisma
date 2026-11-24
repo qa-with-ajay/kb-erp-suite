@@ -14,7 +14,6 @@ model User {
   passwordHash            String
   passwordVersion         Int                    @default(0)
   passwordResetTokens     PasswordResetToken[]
-  role                    UserRole               @default(CASHIER)
   isActive                Boolean                @default(true)
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
@@ -909,12 +908,6 @@ model LowStockNotification {
 enum BarcodeType {
   INTERNAL
   MANUFACTURER
-}
-
-enum UserRole {
-  ADMIN
-  MANAGER
-  CASHIER
 }
 
 enum RoleScope {
