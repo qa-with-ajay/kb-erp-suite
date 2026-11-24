@@ -6,7 +6,7 @@ export const MAX_IMPORT_ROWS = 500;
 export const MAX_IMPORT_BYTES = 1_000_000;
 
 export const IMPORT_HEADERS = [
-  "sku", "name", "description", "productType", "baseUnit", "sellingPrice",
+  "sku", "name", "description", "productType", "canBeProcessed", "baseUnit", "sellingPrice",
   "gstPercentage", "minimumStock", "category", "brand", "barcode",
   "barcodeType", "inwardQuantity", "inwardUnitCost", "inwardLocation", "inwardReference",
 ] as const;
@@ -16,7 +16,8 @@ export type InventoryImportRow = {
   sku: string;
   name: string;
   description: string | null;
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
+  canBeProcessed: boolean;
   baseUnit: "PCS" | "SQFT" | "BOX" | "RFT" | "ROLL" | "METER" | "KG" | "LITRE" | "BUNDLE" | "SET";
   sellingPrice: string;
   gstPercentage: string;
@@ -95,7 +96,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
   const barcodeValues = parsed.map(({ record }) => record.barcode?.trim()).filter(Boolean);
 
   const [products, categories, brands, locations] = await Promise.all([
-    db.product.findMany({ where: { businessUnitId, OR: skuValues.map((sku: string) => ({ sku: { equals: sku, mode: "insensitive" } })) }, select: { id: true, sku: true, barcode: true, baseUnit: true, productType: true } }),
+    db.product.findMany({ where: { businessUnitId, OR: skuValues.map((sku: string) => ({ sku: { equals: sku, mode: "insensitive" } })) }, select: { id: true, sku: true, barcode: true, baseUnit: true, productType: true, canBeProcessed: true } }),
     db.category.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
     db.brand.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
     db.stockLocation.findMany({ where: { businessUnitId, isActive: true }, select: { id: true, name: true } }),
@@ -112,6 +113,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     const name = (record.name ?? "").trim();
     const description = (record.description ?? "").trim() || null;
     const productType = (record.producttype || "STANDARD").trim().toUpperCase();
+    const canBeProcessed = ["true", "1", "yes"].includes((record.canbeprocessed || "false").trim().toLowerCase());
     const baseUnit = (record.baseunit || "PCS").trim().toUpperCase();
     const sellingPrice = (record.sellingprice ?? "").trim();
     const gstPercentage = (record.gstpercentage || "0").trim();
@@ -128,7 +130,7 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (!skuPattern.test(sku)) addIssue(rowNumber, "sku", "SKU is required; use up to 80 letters, numbers, dot, dash, slash or underscore.");
     const normalizedSku = sku.toLowerCase();
     const productFingerprint = JSON.stringify({
-      name: name.toLowerCase(), description, productType, baseUnit, sellingPrice, gstPercentage,
+      name: name.toLowerCase(), description, productType, canBeProcessed, baseUnit, sellingPrice, gstPercentage,
       minimumStock, category: category?.toLowerCase() ?? null, brand: brand?.toLowerCase() ?? null,
       barcode: barcode?.toLowerCase() ?? null, barcodeType,
     });
@@ -140,9 +142,8 @@ export async function validateInventoryImport(db: any, businessUnitId: string, t
     if (sku && !priorSkuRow) seenSkus.set(normalizedSku, { rowNumber, fingerprint: productFingerprint });
     if (!name || name.length > 160) addIssue(rowNumber, "name", "Product name is required and must be at most 160 characters.");
     if (description && description.length > 2000) addIssue(rowNumber, "description", "Description must be at most 2,000 characters.");
-    if (!["STANDARD", "PANEL"].includes(productType)) addIssue(rowNumber, "productType", "Use STANDARD or PANEL.");
+    if (!["STANDARD", "MATERIAL"].includes(productType)) addIssue(rowNumber, "productType", "Use STANDARD or MATERIAL.");
     if (!allowedUnits.has(baseUnit)) addIssue(rowNumber, "baseUnit", "Unsupported unit of measurement.");
-    if (productType === "PANEL" && !["PCS", "SQFT"].includes(baseUnit)) addIssue(rowNumber, "baseUnit", "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock.");
     if (!money.test(sellingPrice)) addIssue(rowNumber, "sellingPrice", "Enter a non-negative price with up to 2 decimal places.");
     if (!/^\d{1,2}(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/.test(gstPercentage) || Number(gstPercentage) > 100) addIssue(rowNumber, "gstPercentage", "GST must be between 0 and 100.");
     if (!quantity.test(minimumStock)) addIssue(rowNumber, "minimumStock", "Enter a non-negative quantity with up to 4 decimal places.");
@@ -255,6 +256,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
       sku: row.sku,
       description: row.description,
       productType: row.productType,
+        canBeProcessed: row.canBeProcessed,
       baseUnit: row.baseUnit,
       sellingPrice: new Prisma.Decimal(row.sellingPrice),
       gstPercentage: new Prisma.Decimal(row.gstPercentage),
