@@ -86,6 +86,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingSaleLines, setPendingSaleLines] = useState<Array<DraftLine & { product: Product }>>([]);
 
   const loadSales = useCallback(async (signal?: AbortSignal) => {
     const query = new URLSearchParams({ search: saleSearch, page: String(page), pageSize: "20" });
@@ -234,10 +235,12 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Select or enter a customer to leave a balance due.");
       return;
     }
+    setPendingSaleLines(completeLines);
     setConfirmOpen(true);
   }
 
   async function confirmSale() {
+    if (!pendingSaleLines.length) return;
     setConfirmOpen(false);
     setSaving(true);
     const idempotencyKey = requestKey || crypto.randomUUID();
@@ -258,7 +261,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             method: paymentMethod,
             reference: paymentReference.trim() || undefined,
           },
-          lines: completeLines.map((line) => ({
+          lines: pendingSaleLines.map((line) => ({
             productId: line.product.id,
             variantId: line.variantId || null,
             quantity: line.quantity,
