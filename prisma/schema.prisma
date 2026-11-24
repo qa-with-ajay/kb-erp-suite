@@ -52,7 +52,6 @@ model BusinessProfile {
   id             String             @id @default(cuid())
   legalName      String?
   tradeName      String             @default("KB Interiors")
-  unit           LegacyBusinessUnit @default(KB_INTERIORS)
   gstin          String?
   phone          String?
   email          String?
@@ -916,15 +915,6 @@ enum UserRole {
   ADMIN
   MANAGER
   CASHIER
-}
-
-enum LegacyBusinessUnit {
-  KB_INTERIORS
-  KB_ELECTRICALS
-  KB_FURNITURE
-  KB_KITCHEN_BATH
-  KB_TOOLS
-  KB_TECH
 }
 
 enum RoleScope {
