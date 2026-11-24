@@ -17,6 +17,18 @@ type ReturnLine = {
   baseUnit?: string;
   conversionFactor?: string;
   conversionPrecision?: number;
+  allocations?: Array<{
+    id: string;
+    sourceType: "STANDARD" | "REMNANT";
+    sourceCode: string;
+    unit: string;
+    quantity: string;
+    returnedQuantity: string;
+    availableQuantity: string;
+    locationId: string | null;
+    locationName?: string;
+    remnantStatus?: string | null;
+  }>;
 };
 
 type ReturnHistory = {
@@ -40,6 +52,10 @@ type ReturnHistory = {
     quantity: string;
     lineTotal: string;
     disposition?: "RESTOCK" | "DAMAGED";
+    sourceType?: "STANDARD" | "REMNANT" | null;
+    sourceCode?: string | null;
+    allocationQuantity?: string | null;
+    allocationUnit?: string | null;
   }>;
 };
 
@@ -56,7 +72,7 @@ type ReturnData = {
 };
 
 type ReturnRequestLine =
-  | { saleLineId: string; quantity: string; disposition: "RESTOCK" | "DAMAGED" }
+  | { saleLineId: string; sourceAllocationId: string; quantity: string; disposition: "RESTOCK" | "DAMAGED" }
   | { receiptLineId: string; purchaseQuantity: string };
 
 function money(value: string, currency: string) {
@@ -106,6 +122,8 @@ export function ReturnPanel({
   const [reason, setReason] = useState("");
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [dispositions, setDispositions] = useState<Record<string, "RESTOCK" | "DAMAGED">>({});
+  const [allocationQuantities, setAllocationQuantities] = useState<Record<string, string>>({});
+  const [allocationDispositions, setAllocationDispositions] = useState<Record<string, "RESTOCK" | "DAMAGED">>({});
   const [requestKey, setRequestKey] = useState("");
   const [reversingId, setReversingId] = useState("");
   const [reversalReason, setReversalReason] = useState("");
@@ -143,11 +161,14 @@ export function ReturnPanel({
     setError("");
     setNotice("");
     const lines = data.lines.flatMap((line): ReturnRequestLine[] => {
+      if (kind === "sale") return (line.allocations ?? []).flatMap((allocation) => {
+        const quantity = allocationQuantities[allocation.id]?.trim();
+        return quantity && Number(quantity) > 0
+          ? [{ saleLineId: line.id, sourceAllocationId: allocation.id, quantity, disposition: allocationDispositions[allocation.id] || "RESTOCK" }]
+          : [];
+      });
       const quantity = quantities[line.id]?.trim();
-      if (!quantity || Number(quantity) <= 0) return [];
-      return kind === "sale"
-        ? [{ saleLineId: line.id, quantity, disposition: dispositions[line.id] || "RESTOCK" }]
-        : [{ receiptLineId: line.id, purchaseQuantity: quantity }];
+      return quantity && Number(quantity) > 0 ? [{ receiptLineId: line.id, purchaseQuantity: quantity }] : [];
     });
     if (!lines.length) {
       setSaving(false);
@@ -167,6 +188,8 @@ export function ReturnPanel({
       setReason("");
       setQuantities({});
       setDispositions({});
+      setAllocationQuantities({});
+      setAllocationDispositions({});
       setFormOpen(false);
       setNotice(result.replayed ? `${result.number} was already recorded.` : `${result.number} recorded.`);
       router.refresh(); // re-render the invoice with updated returns / balance
@@ -218,7 +241,9 @@ export function ReturnPanel({
 
   const title = kind === "sale" ? "Sales returns" : "Purchase returns";
   const noteLabel = kind === "sale" ? "Credit notes" : "Debit notes";
-  const hasAvailableLines = Boolean(data?.lines.some((line) => Number(line.availableQuantity) > 0));
+  const hasAvailableLines = Boolean(data?.lines.some((line) => kind === "sale"
+    ? (line.allocations ?? []).some((allocation) => Number(allocation.availableQuantity) > 0)
+    : Number(line.availableQuantity) > 0));
 
   return (
     <section className="mb-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -272,56 +297,45 @@ export function ReturnPanel({
                 </label>
               </div>
               <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <table className="w-full min-w-[42rem] text-left text-sm">
-                  <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-                    <tr><th className="p-3">Item</th><th className="p-3">Available</th><th className="p-3">Return qty</th>{kind === "sale" && <th className="p-3">Stock status</th>}</tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {data.lines.map((line) => {
-                      const variant = formatVariant(line);
-                      const available = Number(line.availableQuantity);
-                      return (
-                        <tr key={line.id} className={available <= 0 ? "text-gray-400" : ""}>
-                          <td className="p-3">
-                            <p className="font-medium">{line.productName}</p>
-                            <p className="mt-1 text-xs text-gray-500">{line.sku}{variant ? ` · ${variant}` : ""}</p>
-                          </td>
-                          <td className="p-3">{line.availableQuantity} {line.unit}{kind === "purchase" && line.baseUnit && line.baseUnit !== line.unit && <span className="block text-xs text-gray-500">base unit: {line.baseUnit}</span>}</td>
-                          <td className="p-3">
-                            <input
-                              aria-label={`Return quantity for ${line.productName}`}
-                              type="number"
-                              min="0"
-                              max={line.availableQuantity}
-                              step={kind === "sale" ? (line.productType === "MATERIAL" ? "0.0001" : "1") : "0.0001"}
-                              value={quantities[line.id] || ""}
-                              onChange={(event) => setQuantities((current) => ({ ...current, [line.id]: event.target.value }))}
-                              disabled={available <= 0}
-                              className="w-32 rounded-lg border border-gray-300 p-2 disabled:bg-gray-100"
-                            />
-                          </td>
-                          {kind === "sale" && (
-                            <td className="p-3">
-                              <select
-                                aria-label={`Stock status for ${line.productName}`}
-                                value={dispositions[line.id] || "RESTOCK"}
-                                onChange={(event) => setDispositions((current) => ({
-                                  ...current,
-                                  [line.id]: event.target.value === "DAMAGED" ? "DAMAGED" : "RESTOCK",
-                                }))}
-                                disabled={available <= 0}
-                                className="rounded-lg border border-gray-300 bg-white p-2 disabled:bg-gray-100"
-                              >
-                                <option value="RESTOCK">Restock</option>
-                                <option value="DAMAGED">Damaged / do not restock</option>
-                              </select>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {kind === "sale" ? (
+                  <table className="w-full min-w-[58rem] text-left text-sm">
+                    <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+                      <tr><th className="p-3">Invoice item</th><th className="p-3">Original source</th><th className="p-3">Sold</th><th className="p-3">Returned</th><th className="p-3">Available</th><th className="p-3">Return qty</th><th className="p-3">Disposition</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {data.lines.flatMap((line) => (line.allocations ?? []).map((allocation) => {
+                        const available = Number(allocation.availableQuantity);
+                        return (
+                          <tr key={allocation.id} className={available <= 0 ? "text-gray-400" : ""}>
+                            <td className="p-3"><p className="font-medium">{line.productName}</p><p className="mt-1 text-xs text-gray-500">{line.sku}</p></td>
+                            <td className="p-3"><p className="font-medium">{allocation.sourceType === "STANDARD" ? "STANDARD stock" : allocation.sourceCode}</p><p className="mt-1 text-xs text-gray-500">{allocation.locationName || "Original location"} · {allocation.sourceType}</p></td>
+                            <td className="p-3">{allocation.quantity} {allocation.unit}</td>
+                            <td className="p-3">{allocation.returnedQuantity} {allocation.unit}</td>
+                            <td className="p-3">{allocation.availableQuantity} {allocation.unit}</td>
+                            <td className="p-3"><input aria-label={`Return quantity from ${allocation.sourceCode}`} type="number" min="0" max={allocation.availableQuantity} step="0.0001" value={allocationQuantities[allocation.id] || ""} onChange={(event) => setAllocationQuantities((current) => ({ ...current, [allocation.id]: event.target.value }))} disabled={available <= 0} className="w-32 rounded-lg border border-gray-300 p-2 disabled:bg-gray-100" /></td>
+                            <td className="p-3"><select aria-label={`Disposition for ${allocation.sourceCode}`} value={allocationDispositions[allocation.id] || "RESTOCK"} onChange={(event) => setAllocationDispositions((current) => ({ ...current, [allocation.id]: event.target.value === "DAMAGED" ? "DAMAGED" : "RESTOCK" }))} disabled={available <= 0} className="rounded-lg border border-gray-300 bg-white p-2 disabled:bg-gray-100"><option value="RESTOCK">Restore original source</option><option value="DAMAGED">Damaged / do not restock</option></select></td>
+                          </tr>
+                        );
+                      }))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full min-w-[42rem] text-left text-sm">
+                    <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+                      <tr><th className="p-3">Item</th><th className="p-3">Available</th><th className="p-3">Return qty</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {data.lines.map((line) => {
+                        const available = Number(line.availableQuantity);
+                        return <tr key={line.id} className={available <= 0 ? "text-gray-400" : ""}>
+                          <td className="p-3"><p className="font-medium">{line.productName}</p><p className="mt-1 text-xs text-gray-500">{line.sku}</p></td>
+                          <td className="p-3">{line.availableQuantity} {line.unit}</td>
+                          <td className="p-3"><input aria-label={`Return quantity for ${line.productName}`} type="number" min="0" max={line.availableQuantity} step="0.0001" value={quantities[line.id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [line.id]: event.target.value }))} disabled={available <= 0} className="w-32 rounded-lg border border-gray-300 p-2 disabled:bg-gray-100" /></td>
+                        </tr>;
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setFormOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Cancel</button>
@@ -347,7 +361,7 @@ export function ReturnPanel({
                   <ul className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-sm">
                     {item.lines.map((line) => (
                       <li key={line.id} className="flex flex-wrap justify-between gap-2">
-                        <span>{line.productName} · {line.quantity} {line.unit}{line.disposition ? ` · ${line.disposition === "RESTOCK" ? "Restocked" : "Damaged"}` : ""}</span>
+                        <span>{line.productName} · {line.allocationQuantity ?? line.quantity} {line.allocationUnit ?? line.unit}{line.sourceType ? ` · ${line.sourceType === "STANDARD" ? "STANDARD stock" : "REMNANT"}` : ""}{line.disposition ? ` · ${line.disposition === "RESTOCK" ? "Restored" : "Damaged"}` : ""}</span>
                         <span>{money(line.lineTotal, currency)}</span>
                       </li>
                     ))}
