@@ -453,10 +453,9 @@ model StockProcessing {
   variantId       String?              @db.Uuid
   sourceRemnantId String?              @unique @db.Uuid
   type            StockProcessingType
-  inputLength     Decimal              @db.Decimal(12, 4)
-  inputWidth      Decimal              @db.Decimal(12, 4)
-  processedArea   Decimal              @default(0) @db.Decimal(14, 4)
-  wastedArea      Decimal              @default(0) @db.Decimal(14, 4)
+  inputQuantity   Decimal              @db.Decimal(18, 8)
+  processedQuantity Decimal            @default(0) @db.Decimal(18, 8)
+  wastedQuantity  Decimal              @default(0) @db.Decimal(18, 8)
   createdAt       DateTime             @default(now())
   businessUnitId  String               @db.Uuid
   businessUnit    BusinessUnit         @relation(fields: [businessUnitId], references: [id])
@@ -480,9 +479,10 @@ model Remnant {
   variantId         String?            @db.Uuid
   locationId        String             @db.Uuid
   sourceProcessingId String            @db.Uuid
-  length            Decimal            @db.Decimal(12, 4)
-  width             Decimal            @db.Decimal(12, 4)
-  area              Decimal            @db.Decimal(14, 4)
+  quantity          Decimal            @db.Decimal(18, 8)
+  length            Decimal?           @db.Decimal(12, 4)
+  width             Decimal?           @db.Decimal(12, 4)
+  area              Decimal?           @db.Decimal(14, 4)
   status            RemnantStatus      @default(AVAILABLE)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
