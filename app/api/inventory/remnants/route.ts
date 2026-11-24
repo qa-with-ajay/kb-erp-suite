@@ -106,6 +106,7 @@ export async function POST(request: Request) {
       const remnantWhere = { ...standardWhere, stockKind: "REMNANT" as const };
       let sourceRemnant: { id: string; quantity: Prisma.Decimal; unit: typeof outputUnit | null; unitCost: Prisma.Decimal; length: Prisma.Decimal | null; width: Prisma.Decimal | null } | null = null;
       let sourceBalance: { id: string; quantity: Prisma.Decimal; averageCost: Prisma.Decimal } | null = null;
+      let sourceRemnantBalance: { id: string; quantity: Prisma.Decimal; averageCost: Prisma.Decimal } | null = null;
       const requestedInput = new Prisma.Decimal(input.inputQuantity);
       let inputMaterialQty: Prisma.Decimal;
       let materialUnitCost: Prisma.Decimal;
@@ -135,6 +136,15 @@ export async function POST(request: Request) {
         if (!sourceRemnant || sourceRemnant.variantId !== (input.variantId ?? null) || (sourceRemnant.unit ?? outputUnit) !== outputUnit || !sourceRemnant.quantity.equals(requestedInput)) {
           return { error: "SOURCE_REMNANT_NOT_AVAILABLE" as const };
         }
+        const lockedBalance = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnit.id}::uuid
+          AND "locationId" = ${input.locationId}::uuid AND "productId" = ${product.id}::uuid
+          AND "variantId" IS NOT DISTINCT FROM ${input.variantId ?? null}::uuid AND "stockKind" = 'REMNANT'
+          FOR UPDATE
+        `;
+        if (!lockedBalance.length) return { error: "STOCK_BALANCE_MISMATCH" as const };
+        sourceRemnantBalance = await tx.stockBalance.findFirst({ where: { ...remnantWhere, id: lockedBalance[0].id } });
+        if (!sourceRemnantBalance || sourceRemnantBalance.quantity.lt(requestedInput)) return { error: "STOCK_BALANCE_MISMATCH" as const };
         inputMaterialQty = requestedInput;
         materialUnitCost = sourceRemnant.unitCost;
       }
@@ -176,18 +186,9 @@ export async function POST(request: Request) {
           data: { quantity: { decrement: requestedInput } },
         });
         if (changed.count !== 1) throw new Error("MATERIAL_SOURCE_STOCK_CHANGED");
-      } else if (sourceRemnant) {
-        const lockedBalance = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT "id" FROM "StockBalance" WHERE "businessUnitId" = ${businessUnit.id}::uuid
-          AND "locationId" = ${input.locationId}::uuid AND "productId" = ${product.id}::uuid
-          AND "variantId" IS NOT DISTINCT FROM ${input.variantId ?? null}::uuid AND "stockKind" = 'REMNANT'
-          FOR UPDATE
-        `;
-        if (!lockedBalance.length) return { error: "STOCK_BALANCE_MISMATCH" as const };
-        const balance = await tx.stockBalance.findFirst({ where: { ...remnantWhere, id: lockedBalance[0].id } });
-        if (!balance || balance.quantity.lt(requestedInput)) return { error: "STOCK_BALANCE_MISMATCH" as const };
+      } else if (sourceRemnant && sourceRemnantBalance) {
         const changed = await tx.stockBalance.updateMany({
-          where: { id: balance.id, businessUnitId: businessUnit.id, quantity: { gte: requestedInput } },
+          where: { id: sourceRemnantBalance.id, businessUnitId: businessUnit.id, quantity: { gte: requestedInput } },
           data: { quantity: { decrement: requestedInput } },
         });
         if (changed.count !== 1) throw new Error("MATERIAL_SOURCE_STOCK_CHANGED");
