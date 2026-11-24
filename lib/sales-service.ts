@@ -221,6 +221,51 @@ export async function createSale(
   });
 
   for (const [index, line] of preparedLines.entries()) {
+    if (line.createRemnant) {
+      const standard = line.allocations.filter((allocation) => allocation.sourceType === "STANDARD");
+      const existingRemnantAllocations = line.allocations.filter((allocation) => allocation.sourceType === "REMNANT");
+      const packageCount = standard.reduce((sum, allocation) => sum.plus(allocation.quantity), new Prisma.Decimal(0));
+      const packageContents = packageCount.mul(new Prisma.Decimal(line.product.materialUnitsPerBaseUnit ?? 1))
+        .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+      const soldFromStandard = line.quantity.minus(existingRemnantAllocations.reduce((sum, allocation) => sum.plus(allocation.baseQuantity), new Prisma.Decimal(0)));
+      const packageCost = standard.reduce((sum, allocation) => sum.plus(allocation.unitCost.mul(allocation.quantity)), new Prisma.Decimal(0));
+      const remnantUnitCost = packageCost.div(packageContents).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+      for (const allocation of standard) {
+        const changed = await tx.stockBalance.updateMany({
+          where: { id: allocation.sourceId, businessUnitId, stockKind: "STANDARD", quantity: { gte: allocation.quantity } },
+          data: { quantity: { decrement: allocation.quantity } },
+        });
+        if (changed.count !== 1) throw new Error("SALE_STOCK_CHANGED");
+        await tx.stockLedgerEntry.create({ data: { businessUnitId, movementId: movement.id, productId: line.product.id,
+          variantId: line.variant?.id ?? null, locationId: input.locationId, stockKind: "STANDARD",
+          quantityDelta: allocation.quantity.negated(), unitCost: allocation.unitCost } });
+      }
+      const openedRemnant = await tx.materialRemnant.create({ data: {
+        businessUnitId, productId: line.product.id, variantId: line.variant?.id ?? null, locationId: input.locationId,
+        code: `RM-${randomUUID().slice(0, 8).toUpperCase()}`, quantity: packageContents,
+        unit: line.product.materialUnit!, unitCost: remnantUnitCost, status: "AVAILABLE",
+      } });
+      const balance = await tx.stockBalance.findFirst({ where: { businessUnitId, locationId: input.locationId,
+        productId: line.product.id, variantId: line.variant?.id ?? null, stockKind: "REMNANT" } });
+      const oldQuantity = balance?.quantity ?? new Prisma.Decimal(0);
+      const nextQuantity = oldQuantity.plus(packageContents);
+      const nextAverageCost = balance && nextQuantity.isPositive()
+        ? oldQuantity.mul(balance.averageCost).plus(packageContents.mul(remnantUnitCost)).div(nextQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
+        : remnantUnitCost;
+      if (balance) await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: nextQuantity, averageCost: nextAverageCost } });
+      else await tx.stockBalance.create({ data: { businessUnitId, locationId: input.locationId, productId: line.product.id,
+        variantId: line.variant?.id ?? null, stockKind: "REMNANT", quantity: packageContents, averageCost: remnantUnitCost } });
+      await tx.stockLedgerEntry.create({ data: { businessUnitId, movementId: movement.id, productId: line.product.id,
+        variantId: line.variant?.id ?? null, locationId: input.locationId, stockKind: "REMNANT",
+        quantityDelta: packageContents, unitCost: remnantUnitCost } });
+      await tx.materialRemnantMovement.create({ data: { businessUnitId, remnantId: openedRemnant.id, locationId: input.locationId,
+        actorId, type: "CREATED", quantityDelta: packageContents, reason: `Opened from regular stock on invoice ${invoiceNumber}` } });
+      line.allocations = [...existingRemnantAllocations, {
+        sourceType: "REMNANT", sourceId: openedRemnant.id, quantity: soldFromStandard,
+        unit: line.product.materialUnit!, factor: new Prisma.Decimal(1), baseQuantity: soldFromStandard,
+        unitCost: remnantUnitCost, lineCost: soldFromStandard.mul(remnantUnitCost).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+      }];
+    }
     const saleLine = await tx.saleLine.create({
       data: { businessUnitId, saleId: sale.id, lineNumber: index + 1, productId: line.product.id, variantId: line.variant?.id ?? null,
         productName: line.product.name, sku: line.product.sku, baseUnit: line.saleUnit, productType: line.product.productType,
@@ -263,32 +308,6 @@ export async function createSale(
         remnantId: allocation.sourceType === "REMNANT" ? allocation.sourceId : null,
         quantity: allocation.quantity, unit: allocation.unit, conversionFactor: allocation.factor,
         baseQuantity: allocation.baseQuantity, unitCost: allocation.unitCost, lineCost: allocation.lineCost.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) } });
-    }
-    if (line.createRemnant) {
-      const standard = line.allocations.filter((allocation) => allocation.sourceType === "STANDARD");
-      const packageCount = standard.reduce((sum, allocation) => sum.plus(allocation.quantity), new Prisma.Decimal(0));
-      const remnantQuantity = packageCount.mul(new Prisma.Decimal(line.product.materialUnitsPerBaseUnit ?? 1))
-        .minus(line.quantity.minus(line.allocations.filter((allocation) => allocation.sourceType === "REMNANT")
-          .reduce((sum, allocation) => sum.plus(allocation.baseQuantity), new Prisma.Decimal(0))))
-        .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
-      const packageCost = standard.reduce((sum, allocation) => sum.plus(allocation.unitCost.mul(allocation.quantity)), new Prisma.Decimal(0));
-      const soldCost = standard.reduce((sum, allocation) => sum.plus(allocation.lineCost), new Prisma.Decimal(0));
-      const remnantUnitCost = packageCost.minus(soldCost).div(remnantQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
-      const remnant = await tx.materialRemnant.create({ data: {
-        businessUnitId, productId: line.product.id, variantId: line.variant?.id ?? null, locationId: input.locationId,
-        code: `RM-${randomUUID().slice(0, 8).toUpperCase()}`, quantity: remnantQuantity,
-        unit: line.product.materialUnit!, unitCost: remnantUnitCost, status: "AVAILABLE",
-      } });
-      const balance = await tx.stockBalance.findFirst({ where: { businessUnitId, locationId: input.locationId, productId: line.product.id, variantId: line.variant?.id ?? null, stockKind: "REMNANT" } });
-      const oldQuantity = balance?.quantity ?? new Prisma.Decimal(0);
-      const nextQuantity = oldQuantity.plus(remnantQuantity);
-      const nextAverageCost = balance && nextQuantity.isPositive()
-        ? oldQuantity.mul(balance.averageCost).plus(remnantQuantity.mul(remnantUnitCost)).div(nextQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
-        : remnantUnitCost;
-      if (balance) await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: nextQuantity, averageCost: nextAverageCost } });
-      else await tx.stockBalance.create({ data: { businessUnitId, locationId: input.locationId, productId: line.product.id, variantId: line.variant?.id ?? null, stockKind: "REMNANT", quantity: remnantQuantity, averageCost: remnantUnitCost } });
-      await tx.stockLedgerEntry.create({ data: { businessUnitId, movementId: movement.id, productId: line.product.id, variantId: line.variant?.id ?? null, locationId: input.locationId, stockKind: "REMNANT", quantityDelta: remnantQuantity, unitCost: remnantUnitCost } });
-      await tx.materialRemnantMovement.create({ data: { businessUnitId, remnantId: remnant.id, locationId: input.locationId, actorId, type: "CREATED", quantityDelta: remnantQuantity, reason: `Created from opened package on invoice ${invoiceNumber}` } });
     }
   }
 
