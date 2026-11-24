@@ -843,6 +843,7 @@ model MaterialProcessing {
   @@unique([businessUnitId, movementId])
   @@unique([businessUnitId, sourceRemnantId])
   @@index([businessUnitId, productId, createdAt])
+  @@map("PanelOperation")
 }
 
 model MaterialRemnant {
@@ -873,6 +874,7 @@ model MaterialRemnant {
   @@unique([businessUnitId, id])
   @@index([businessUnitId, productId, variantId, status])
   @@index([businessUnitId, locationId, status])
+  @@map("Remnant")
 }
 
 model MaterialRemnantMovement {
@@ -1017,7 +1019,8 @@ enum MaterialProcessingType {
   CUT
   REMNANT_SALE
   WASTAGE
-  ADJUSTMENT\n  @@map("PanelOperationType")
+  ADJUSTMENT
+  @@map("PanelOperationType")
 }
 
 enum MaterialRemnantStatus {
@@ -1025,7 +1028,8 @@ enum MaterialRemnantStatus {
   SOLD
   CONSUMED
   WASTED
-  ADJUSTED\n  @@map("RemnantStatus")
+  ADJUSTED
+  @@map("RemnantStatus")
 }
 
 enum MaterialRemnantMovementType {
@@ -1033,5 +1037,6 @@ enum MaterialRemnantMovementType {
   SOLD
   CONSUMED
   WASTED
-  ADJUSTED\n  @@map("RemnantMovementType")
+  ADJUSTED
+  @@map("RemnantMovementType")
 }

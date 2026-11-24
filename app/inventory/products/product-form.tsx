@@ -344,10 +344,7 @@ export function ProductForm({ productId }: Props) {
                 ...current,
                 productType:
                   event.target.value === "MATERIAL" ? "MATERIAL" : "STANDARD",
-                baseUnit:
-                  event.target.value === "MATERIAL"
-                    ? "SQFT"
-                    : current.baseUnit,
+                baseUnit: current.baseUnit,
               }))
             }
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
@@ -372,7 +369,7 @@ export function ProductForm({ productId }: Props) {
           </select>
           {values.productType === "MATERIAL" && (
             <span className="mt-1 block text-xs text-gray-500">
-              Use PCS for selling whole sheets, or SQFT for cut-to-size stock. The normal sales screen sells full PCS units.
+              Choose the unit that matches how this material is purchased, stocked and sold (for example PCS, SQFT, RFT, ROLL or KG).
             </span>
           )}
         </label>
