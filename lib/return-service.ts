@@ -648,6 +648,14 @@ export async function reverseSaleReturn(
     sourceLocationId: record.locationId, reference: `${record.creditNoteNumber}-REV`,
     idempotencyKey: `${input.idempotencyKey}:sale-return-reversal`, reason: input.reason,
   } });
+  for (const [remnantId, quantity] of remnantRequired) {
+    const remnant = await tx.materialRemnant.findFirst({ where: { id: remnantId, businessUnitId } });
+    if (!remnant) throw new Error("SALE_RETURN_STOCK_CHANGED");
+    const remaining = remnant.quantity.minus(quantity);
+    await tx.materialRemnant.update({ where: { id: remnantId }, data: {
+      quantity: remaining, status: remaining.isZero() ? "SOLD" : "AVAILABLE",
+    } });
+  }
   for (const line of restockLines) {
     if (!line.sourceAllocationId) {
       const ok = await applyStockDelta(tx, movement.id, businessUnitId, record.locationId, {
@@ -665,10 +673,6 @@ export async function reverseSaleReturn(
       if (!ok) throw new Error("SALE_RETURN_STOCK_CHANGED");
     } else {
       const remnant = allocation.remnant!;
-      const remaining = remnant.quantity.minus(quantity);
-      await tx.materialRemnant.update({ where: { id: remnant.id }, data: {
-        quantity: remaining, status: remaining.isZero() ? "SOLD" : "AVAILABLE",
-      } });
       const balance = await tx.stockBalance.findFirst({ where: {
         businessUnitId, locationId: record.locationId, productId: line.productId,
         variantId: line.variantId, stockKind: "REMNANT",
