@@ -173,6 +173,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       LINE_NOT_AVAILABLE: "One or more invoice lines or original stock allocations are unavailable.",
       SOURCE_ALLOCATION_MISMATCH: "This invoice line has an earlier return without source-allocation details. Reconcile that return before posting another source-specific return.",
       SOURCE_NOT_RESTORABLE: "The original remnant has been consumed or changed and cannot be safely restored. Mark it damaged or reconcile the source first.",
+      SOURCE_ALLOCATION_MISMATCH: "This invoice line has an earlier return without source-allocation details. Reconcile that return before posting another source-specific return.",
+      SOURCE_NOT_RESTORABLE: "The original remnant has been consumed or changed and cannot be safely restored. Mark it damaged or reconcile the source first.",
       OVER_RETURN: "Return quantity exceeds the unreturned invoice quantity.",
       INVALID_QUANTITY: "Return quantity must be positive and cannot exceed the remaining quantity of the selected original allocation.",
       AMOUNT_LIMIT_EXCEEDED: "Return amount exceeds the supported limit.",

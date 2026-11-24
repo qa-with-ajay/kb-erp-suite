@@ -121,7 +121,6 @@ export function ReturnPanel({
   const [locationId, setLocationId] = useState("");
   const [reason, setReason] = useState("");
   const [quantities, setQuantities] = useState<Record<string, string>>({});
-  const [dispositions, setDispositions] = useState<Record<string, "RESTOCK" | "DAMAGED">>({});
   const [allocationQuantities, setAllocationQuantities] = useState<Record<string, string>>({});
   const [allocationDispositions, setAllocationDispositions] = useState<Record<string, "RESTOCK" | "DAMAGED">>({});
   const [requestKey, setRequestKey] = useState("");
@@ -187,7 +186,6 @@ export function ReturnPanel({
       setRequestKey("");
       setReason("");
       setQuantities({});
-      setDispositions({});
       setAllocationQuantities({});
       setAllocationDispositions({});
       setFormOpen(false);

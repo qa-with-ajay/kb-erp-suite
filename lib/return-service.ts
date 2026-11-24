@@ -34,6 +34,8 @@ export type ReturnResult =
         | "RETURN_NOT_AVAILABLE"
         | "LOCATION_NOT_AVAILABLE"
         | "LINE_NOT_AVAILABLE"
+        | "SOURCE_ALLOCATION_MISMATCH"
+        | "SOURCE_NOT_RESTORABLE"
         | "OVER_RETURN"
         | "INVALID_QUANTITY"
         | "AMOUNT_LIMIT_EXCEEDED"
@@ -277,7 +279,8 @@ export async function createSaleReturn(
     const lineSubtotal = line.unitPrice.mul(baseQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const lineTax = sale.taxMode === "GST" ? lineSubtotal.mul(line.gstPercentage).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) : new Prisma.Decimal(0);
     const lineTotal = lineSubtotal.plus(lineTax);
-    const lineCost = line.unitCost.mul(baseQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const lineCost = allocation.unitCost.mul(allocationQuantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const returnUnitCost = lineCost.div(baseQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
     if ([lineSubtotal, lineTax, lineTotal, lineCost].some((amount) => amount.greaterThan(maximumAmount))) return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
     prepared.push({ line, allocation, allocationQuantity, baseQuantity, subtotal: lineSubtotal, tax: lineTax, total: lineTotal, cost: lineCost, disposition: requested.disposition });
     subtotal = subtotal.plus(lineSubtotal); taxAmount = taxAmount.plus(lineTax); total = total.plus(lineTotal); cost = cost.plus(lineCost);
@@ -360,7 +363,7 @@ export async function createSaleReturn(
       allocationQuantity: item.allocationQuantity, allocationUnit: item.allocation.unit,
       baseQuantity: item.baseQuantity, unitPrice: item.line.unitPrice,
       gstPercentage: item.line.gstPercentage, lineSubtotal: item.subtotal, lineTax: item.tax,
-      lineTotal: item.total, unitCost: item.line.unitCost, lineCost: item.cost,
+      lineTotal: item.total, unitCost: item.cost.div(item.baseQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP), lineCost: item.cost,
     })) },
   } });
   await tx.auditLog.create({ data: {
