@@ -9,7 +9,7 @@ type ProductItem = {
   sku: string;
   barcode: string | null;
   barcodeType: "INTERNAL" | "MANUFACTURER";
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
   baseUnit: string;
   sellingPrice: string;
   gstPercentage: string;
@@ -126,7 +126,7 @@ export function ProductList({ canManage }: Props) {
         <label className="text-sm font-medium">
           Type
           <select value={productType} onChange={(event) => { setProductType(event.target.value); resetPage(); }} className="mt-1 block rounded-lg border border-gray-300 bg-white p-2.5">
-            <option value="">All types</option><option value="STANDARD">Standard</option><option value="PANEL">Panel</option>
+            <option value="">All types</option><option value="STANDARD">Standard</option><option value="MATERIAL">Material</option>
           </select>
         </label>
         <label className="text-sm font-medium">
@@ -171,7 +171,7 @@ export function ProductList({ canManage }: Props) {
               <tr key={item.id}>
                 <td className="py-3 pr-4"><p className="font-medium">{item.name}</p><p className="text-xs text-gray-500">{item.sku}</p><p className="text-xs text-gray-400">{item.barcode ? `${item.barcode} · ${item.barcodeType === "MANUFACTURER" ? "Manufacturer" : "KB"}` : "No barcode"}</p></td>
                 <td className="py-3 pr-4">{item.category?.name ?? "—"} / {item.brand?.name ?? "—"}</td>
-                <td className="py-3 pr-4">{item.productType === "PANEL" ? "Panel" : "Standard"} / {item.baseUnit}</td>
+                <td className="py-3 pr-4">{item.productType === "MATERIAL" ? "Material" : "Standard"} / {item.baseUnit}</td>
                 <td className="py-3 pr-4">{item.sellingPrice} <span className="text-xs text-gray-500">+ {item.gstPercentage}% GST</span></td>
                 <td className="py-3 pr-4">{item._count.variants}</td>
                 <td className="py-3 pr-4">{item.isActive ? "Active" : "Inactive"}</td>

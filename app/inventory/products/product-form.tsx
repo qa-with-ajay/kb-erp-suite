@@ -12,7 +12,8 @@ type ProductData = {
   name: string;
   sku: string;
   description: string | null;
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
+  isProcessingEnabled: boolean;
   baseUnit: string;
   sellingPrice: string;
   gstPercentage: string;
@@ -56,6 +57,7 @@ const emptyValues: FormValues = {
   sku: "",
   description: "",
   productType: "STANDARD",
+  isProcessingEnabled: false,
   baseUnit: "PCS",
   sellingPrice: "0",
   gstPercentage: "0",
@@ -166,6 +168,7 @@ export function ProductForm({ productId }: Props) {
             sku: product.sku,
             description: product.description ?? "",
             productType: product.productType,
+            isProcessingEnabled: product.isProcessingEnabled ?? false,
             baseUnit: product.baseUnit,
             sellingPrice: product.sellingPrice,
             gstPercentage: product.gstPercentage,
@@ -340,9 +343,9 @@ export function ProductForm({ productId }: Props) {
               setValues((current) => ({
                 ...current,
                 productType:
-                  event.target.value === "PANEL" ? "PANEL" : "STANDARD",
+                  event.target.value === "MATERIAL" ? "MATERIAL" : "STANDARD",
                 baseUnit:
-                  event.target.value === "PANEL"
+                  event.target.value === "MATERIAL"
                     ? "SQFT"
                     : current.baseUnit,
               }))
@@ -350,7 +353,7 @@ export function ProductForm({ productId }: Props) {
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
           >
             <option value="STANDARD">Standard</option>
-            <option value="PANEL">Panel</option>
+            <option value="MATERIAL">Material</option>
           </select>
         </label>
 
@@ -361,19 +364,25 @@ export function ProductForm({ productId }: Props) {
             onChange={(event) => update("baseUnit", event.target.value)}
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
           >
-            {units.filter((unit) => values.productType !== "PANEL" || unit === "PCS" || unit === "SQFT").map((unit) => (
+            {units.map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
               </option>
             ))}
           </select>
-          {values.productType === "PANEL" && (
+          {values.productType === "MATERIAL" && (
             <span className="mt-1 block text-xs text-gray-500">
               Use PCS for selling whole sheets, or SQFT for cut-to-size stock. The normal sales screen sells full PCS units.
             </span>
           )}
         </label>
 
+        {values.productType === "MATERIAL" && (
+          <label className="flex items-start gap-2 text-sm md:col-span-2">
+            <input type="checkbox" checked={values.isProcessingEnabled} onChange={(event) => update("isProcessingEnabled", event.target.checked)} className="mt-1 rounded border-gray-300" />
+            <span><span className="font-medium">Enable material processing and remnant tracking</span><span className="block text-xs font-normal text-gray-500">Optional. Use when material is cut or processed and reusable leftovers need individual tracking.</span></span>
+          </label>
+        )}
         <div className="border-b border-gray-100 pb-2 md:col-span-2"><h2 className="text-base font-semibold text-gray-900">Classification</h2><p className="mt-1 text-sm font-normal text-gray-500">Organize the product by category and brand.</p></div>
         <label className="text-sm font-medium">
           Category
