@@ -75,7 +75,7 @@ export async function PATCH(request: Request, { params }: Context) {
       const destinationBalance = isTransfer ? await tx.stockBalance.findFirst({
         where: { ...sourceWhere, locationId: destinationLocationId! },
       }) : null;
-      const entries = [{
+      const entries: Prisma.StockLedgerEntryCreateManyInput[] = [{
         businessUnitId: businessUnit.id, movementId: movement.id, productId: fresh.productId,
         variantId: fresh.variantId, locationId: fresh.locationId, stockKind: "REMNANT" as const,
         quantityDelta: quantity.negated(), unitCost: sourceBalance.averageCost,
@@ -88,9 +88,13 @@ export async function PATCH(request: Request, { params }: Context) {
       await tx.stockLedgerEntry.createMany({ data: entries });
       if (isTransfer) {
         await tx.stockBalance.update({ where: { id: sourceBalance.id }, data: { quantity: sourceBalance.quantity.minus(quantity) } });
-        const destNext = (destinationBalance?.quantity ?? new Prisma.Decimal(0)).plus(quantity);
-        if (destinationBalance) await tx.stockBalance.update({ where: { id: destinationBalance.id }, data: { quantity: destNext } });
-        else await tx.stockBalance.create({ data: { ...sourceWhere, locationId: destinationLocationId!, quantity: quantity, averageCost: sourceBalance.averageCost } });
+        const destCurrent = destinationBalance?.quantity ?? new Prisma.Decimal(0);
+        const destNext = destCurrent.plus(quantity);
+        const destAverage = destinationBalance && destNext.isPositive()
+          ? destCurrent.mul(destinationBalance.averageCost).plus(quantity.mul(sourceBalance.averageCost)).div(destNext).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
+          : sourceBalance.averageCost;
+        if (destinationBalance) await tx.stockBalance.update({ where: { id: destinationBalance.id }, data: { quantity: destNext, averageCost: destAverage } });
+        else await tx.stockBalance.create({ data: { ...sourceWhere, locationId: destinationLocationId!, quantity: quantity, averageCost: destAverage } });
         await tx.materialRemnant.update({ where: { id: fresh.id }, data: { locationId: destinationLocationId! } });
         await tx.materialRemnantMovement.createMany({
           data: [

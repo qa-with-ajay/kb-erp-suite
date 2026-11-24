@@ -87,12 +87,15 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
     try {
       const destinationLocationId = destinationById[item.id];
       const reference = action === "SOLD" ? window.prompt("Sale / invoice reference (optional):") || "" : "";
+      const quantityText = action === "TRANSFER" ? "" : window.prompt(`Quantity to ${action.toLowerCase()} (leave blank for all ${item.quantity}):`) || "";
+      if (quantityText && (!Number.isFinite(Number(quantityText)) || Number(quantityText) <= 0 || Number(quantityText) > Number(item.quantity))) throw new Error("Enter a valid quantity not exceeding the available remnant.");
       const confirmMessage = action === "SOLD" ? "Mark this remnant as sold in inventory? This does not create a sales invoice." : action === "WASTED" ? "Mark this remnant as waste?" : action === "CONSUMED" ? "Mark this remnant as consumed?" : "Transfer this remnant to the selected location?";
       if (!window.confirm(confirmMessage)) return;
       await json(await fetch(`/api/inventory/remnants/${item.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action, ...(action === "TRANSFER" ? { destinationLocationId } : {}),
+          ...(quantityText ? { quantity: quantityText } : {}),
           ...(action === "SOLD" ? { reference } : {}),
           idempotencyKey: crypto.randomUUID(),
         }),

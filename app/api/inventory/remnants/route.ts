@@ -118,7 +118,7 @@ export async function POST(request: Request) {
           wastedArea: new Prisma.Decimal(0),
         },
       });
-      const ledgerRows = [{
+      const ledgerRows: Prisma.StockLedgerEntryCreateManyInput[] = [{
         businessUnitId: businessUnit.id, movementId: movement.id, productId: product.id,
         variantId: input.variantId ?? null, locationId: input.locationId, stockKind: "STANDARD" as const,
         quantityDelta: inputQty.negated(), unitCost,
