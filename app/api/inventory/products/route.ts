@@ -45,7 +45,7 @@ export async function GET(request: Request) {
         sku: true,
         description: true,
         productType: true,
-      canBeProcessed: true,
+        canBeProcessed: true,
         baseUnit: true,
         sellingPrice: true,
         gstPercentage: true,
