@@ -432,7 +432,15 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                     <div className="space-y-2 text-sm sm:col-span-2 xl:col-span-1">
                       <p className="font-semibold">Stock source allocation</p>
                       {product && <label className="block text-xs font-medium">Sales unit
-                        <select value={line.saleUnit || saleUnit(product)} onChange={(event) => updateLine(line.key, { saleUnit: event.target.value, createRemnant: false, saleQuantity: "", allocations: Object.fromEntries(Object.entries(line.allocations).filter(([key]) => key.startsWith("STANDARD:") || (key.startsWith("REMNANT:") && selectedRemnants.some((remnant) => `REMNANT:${remnant.id}` === key && (remnant.unit ?? product?.materialUnit ?? product?.baseUnit) === event.target.value))) }) })} className="mt-1 w-full rounded border p-2">
+                        <select value={line.saleUnit || saleUnit(product)} onChange={(event) => {
+                          const nextUnit = event.target.value;
+                          const nextAllocations = Object.fromEntries(Object.entries(line.allocations).filter(([key]) => {
+                            if (key.startsWith("STANDARD:")) return true;
+                            const remnant = selectedRemnants.find((item) => `REMNANT:${item.id}` === key);
+                            return Boolean(remnant && (remnant.unit ?? product.materialUnit ?? product.baseUnit) === nextUnit);
+                          }));
+                          updateLine(line.key, { saleUnit: nextUnit, createRemnant: false, saleQuantity: "", allocations: nextAllocations });
+                        }} className="mt-1 w-full rounded border p-2">
                           {[product.baseUnit, ...(product.materialUnit ? [product.materialUnit] : []), ...(product.unitConversions ?? []).filter((item) => item.isSalesUnit !== false).map((item) => item.unit)].filter((unit, i, all) => all.indexOf(unit) === i).map((unit) => <option key={unit} value={unit}>{unit}</option>)}
                         </select>
                       </label>}
