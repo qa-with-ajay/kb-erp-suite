@@ -10,6 +10,7 @@ type ProductItem = {
   barcode: string | null;
   barcodeType: "INTERNAL" | "MANUFACTURER";
   productType: "STANDARD" | "MATERIAL";
+  canBeProcessed: boolean;
   baseUnit: string;
   sellingPrice: string;
   gstPercentage: string;
