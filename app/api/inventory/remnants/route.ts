@@ -102,7 +102,6 @@ export async function POST(request: Request) {
       }
       const outputUnit = product.materialUnit ?? product.baseUnit;
       const factor = product.materialUnitsPerBaseUnit ?? new Prisma.Decimal(1);
-      const sourceKind = input.sourceType === "STANDARD" ? "STANDARD" as const : "REMNANT" as const;
       const standardWhere = { businessUnitId: businessUnit.id, locationId: input.locationId, productId: product.id, variantId: input.variantId ?? null, stockKind: "STANDARD" as const };
       const remnantWhere = { ...standardWhere, stockKind: "REMNANT" as const };
       let sourceRemnant: { id: string; quantity: Prisma.Decimal; unit: typeof outputUnit | null; unitCost: Prisma.Decimal; length: Prisma.Decimal | null; width: Prisma.Decimal | null } | null = null;
