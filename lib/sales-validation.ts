@@ -29,7 +29,7 @@ export const saleInputSchema = z.object({
   value.lines.forEach((line, index) => {
     const key = `${line.productId}:${line.variantId || ""}:${line.saleUnit || ""}`;
     if (keys.has(key)) {
-      context.addIssue({ code: "custom", path: ["lines", index], message: "Each product and variant may appear only once per invoice." });
+      context.addIssue({ code: "custom", path: ["lines", index], message: "Each product, variant and sales-unit combination may appear only once per invoice." });
     }
     keys.add(key);
   });
