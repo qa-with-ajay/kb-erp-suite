@@ -19,7 +19,7 @@ export async function GET() {
   });
   const firstLocation = locations[0]?.name ?? "";
   const secondLocation = locations[1]?.name ?? firstLocation;
-  const product = ["KB-SAMPLE-001", "Sample PVC Panel", "", "PANEL", "PCS", "650.00", "18", "10", "Wall Panels", "Sample Brand", "", "INTERNAL"];
+  const product = ["KB-SAMPLE-001", "Sample Processable Material", "", "MATERIAL", "true", "PCS", "650.00", "18", "10", "Wall Panels", "Sample Brand", "", "INTERNAL"];
   const rows = [
     [...product, "100", "450.00", firstLocation, "SUP-INV-001"],
     ...(secondLocation && secondLocation !== firstLocation
