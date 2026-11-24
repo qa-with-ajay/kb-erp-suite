@@ -673,7 +673,7 @@ export async function reverseSaleReturn(
         businessUnitId, locationId: record.locationId, productId: line.productId,
         variantId: line.variantId, stockKind: "REMNANT",
       } });
-      if (!balance || balance.quantity.lt(quantity)) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      if (!balance || balance.quantity.lt(quantity)) throw new Error("SALE_RETURN_STOCK_CHANGED");
       await tx.stockBalance.update({ where: { id: balance.id }, data: { quantity: { decrement: quantity } } });
       await tx.stockLedgerEntry.create({ data: {
         businessUnitId, movementId: movement.id, productId: line.productId, variantId: line.variantId,
