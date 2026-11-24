@@ -16,6 +16,8 @@ export const saleInputSchema = z.object({
     productId: z.string().uuid(),
     variantId: z.string().uuid().nullable().optional(),
     quantity: saleQuantity,
+    saleUnit: z.enum(["PCS", "SQFT", "BOX", "RFT", "ROLL", "METER", "KG", "LITRE", "BUNDLE", "SET"]).optional(),
+    createRemnant: z.boolean().optional().default(false),
     allocations: z.array(z.object({
       sourceType: z.enum(["STANDARD", "REMNANT"]),
       sourceId: z.string().uuid().nullable().optional(),
@@ -25,7 +27,7 @@ export const saleInputSchema = z.object({
 }).superRefine((value, context) => {
   const keys = new Set<string>();
   value.lines.forEach((line, index) => {
-    const key = `${line.productId}:${line.variantId || ""}`;
+    const key = `${line.productId}:${line.variantId || ""}:${line.saleUnit || ""}`;
     if (keys.has(key)) {
       context.addIssue({ code: "custom", path: ["lines", index], message: "Each product and variant may appear only once per invoice." });
     }
