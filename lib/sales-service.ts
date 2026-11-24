@@ -87,7 +87,7 @@ export async function createSale(
     where: { businessUnitId, id: { in: productIds }, isActive: true },
     select: {
       id: true, name: true, sku: true, baseUnit: true, materialUnit: true,
-      materialUnitsPerBaseUnit: true, unitConversions: { where: { isSalesUnit: true }, select: { unit: true, conversionFactor: true } }, productType: true, sellingPrice: true, gstPercentage: true,
+      materialUnitsPerBaseUnit: true, isProcessingEnabled: true, unitConversions: { where: { isSalesUnit: true }, select: { unit: true, conversionFactor: true } }, productType: true, sellingPrice: true, gstPercentage: true,
       variants: { where: { isActive: true }, select: { id: true, code: true, attributes: true } },
     },
   });
@@ -126,7 +126,7 @@ export async function createSale(
     const factor = saleUnit === product.baseUnit ? new Prisma.Decimal(1)
       : usesMaterialUnit ? new Prisma.Decimal(1).div(materialFactor)
       : configuredUnit ? new Prisma.Decimal(configuredUnit.conversionFactor) : null;
-    if (!factor || !factor.isPositive() || (line.createRemnant && (!usesMaterialUnit || product.productType !== "MATERIAL")))
+    if (!factor || !factor.isPositive() || (line.createRemnant && (!usesMaterialUnit || product.productType !== "MATERIAL" || !product.isProcessingEnabled)))
       return { kind: "error", error: "INVALID_ALLOCATION", productName: product.name };
     const rawAllocations: AllocationInput[] = line.allocations ?? [];
     const allocations: PreparedAllocation[] = [];
