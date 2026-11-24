@@ -60,6 +60,91 @@ const demoUnits = {
       { name: "Demo Wireless Keyboard", sku: "DEMO-KBTECH-KBD-01", category: "Demo Peripherals", brand: "Demo Logitech", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "850", sellingPrice: "1299", gstPercentage: "18", minimumStock: "5", openingQuantity: "20" },
     ],
   },
+  KB_FURNITURE: {
+  categories: [
+    "Demo Sofas",
+    "Demo Dining",
+    "Demo Bedroom Furniture"
+  ],
+
+  brands: [
+    "Demo WoodenCraft",
+    "Demo ComfortPlus",
+    "Demo HomeStyle"
+  ],
+
+  customer: "Demo Furniture Customer",
+
+  supplier: "Demo Furniture Supplier",
+
+  products: [
+    {
+      name: "Demo 3-Seater Sofa",
+      sku: "DEMO-KBFUR-SOF-01",
+      category: "Demo Sofas",
+      brand: "Demo ComfortPlus",
+      baseUnit: "PCS",
+      productType: "STANDARD",
+      purchasePrice: "18500",
+      sellingPrice: "24999",
+      gstPercentage: "18",
+      minimumStock: "2",
+      openingQuantity: "5"
+    },
+    {
+      name: "Demo 6-Seater Dining Table",
+      sku: "DEMO-KBFUR-DIN-01",
+      category: "Demo Dining",
+      brand: "Demo WoodenCraft",
+      baseUnit: "PCS",
+      productType: "STANDARD",
+      purchasePrice: "22000",
+      sellingPrice: "31999",
+      gstPercentage: "18",
+      minimumStock: "1",
+      openingQuantity: "3"
+    },
+    {
+      name: "Demo Queen Size Bed",
+      sku: "DEMO-KBFUR-BED-01",
+      category: "Demo Bedroom Furniture",
+      brand: "Demo HomeStyle",
+      baseUnit: "PCS",
+      productType: "STANDARD",
+      purchasePrice: "26000",
+      sellingPrice: "37999",
+      gstPercentage: "18",
+      minimumStock: "1",
+      openingQuantity: "4"
+    },
+    {
+      name: "Demo Coffee Table",
+      sku: "DEMO-KBFUR-CFT-01",
+      category: "Demo Sofas",
+      brand: "Demo WoodenCraft",
+      baseUnit: "PCS",
+      productType: "STANDARD",
+      purchasePrice: "2800",
+      sellingPrice: "4499",
+      gstPercentage: "18",
+      minimumStock: "3",
+      openingQuantity: "10"
+    },
+    {
+      name: "Demo 3-Door Wardrobe",
+      sku: "DEMO-KBFUR-WRD-01",
+      category: "Demo Bedroom Furniture",
+      brand: "Demo HomeStyle",
+      baseUnit: "PCS",
+      productType: "STANDARD",
+      purchasePrice: "17500",
+      sellingPrice: "25999",
+      gstPercentage: "18",
+      minimumStock: "1",
+      openingQuantity: "3"
+    }
+  ]
+},
 };
 
 function demoUuid(key) {
