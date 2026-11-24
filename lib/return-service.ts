@@ -220,8 +220,8 @@ export async function createSaleReturn(
   const allocations = await tx.saleLineStockAllocation.findMany({
     where: { businessUnitId, id: { in: allocationIds } },
     include: {
-      stockBalance: { select: { id: true, locationId: true } },
-      remnant: { select: { id: true, locationId: true, quantity: true, unit: true, unitCost: true, status: true } },
+      stockBalance: { select: { id: true, locationId: true, productId: true, variantId: true, stockKind: true } },
+      remnant: { select: { id: true, locationId: true, productId: true, variantId: true, quantity: true, unit: true, unitCost: true, status: true } },
     },
   });
   const allocationById = new Map(allocations.map((allocation) => [allocation.id, allocation]));
@@ -268,8 +268,15 @@ export async function createSaleReturn(
 
     const sourceLocationId = allocation.sourceType === "STANDARD" ? allocation.stockBalance?.locationId : allocation.remnant?.locationId;
     if (!sourceLocationId || sourceLocationId !== input.locationId) return { kind: "error", error: "LOCATION_NOT_AVAILABLE" };
-    if (allocation.sourceType === "STANDARD" && !allocation.stockBalance) return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
-    if (requested.disposition === "RESTOCK" && allocation.sourceType === "REMNANT" && (!allocation.remnant || !["AVAILABLE", "SOLD"].includes(allocation.remnant.status))) {
+    if (allocation.sourceType === "STANDARD" && (!allocation.stockBalance
+      || allocation.stockBalance.productId !== line.productId
+      || allocation.stockBalance.variantId !== line.variantId
+      || allocation.stockBalance.stockKind !== "STANDARD")) return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
+    if (allocation.sourceType === "REMNANT" && (!allocation.remnant
+      || allocation.remnant.productId !== line.productId
+      || allocation.remnant.variantId !== line.variantId
+      || (allocation.remnant.unit && allocation.remnant.unit !== allocation.unit))) return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
+    if (requested.disposition === "RESTOCK" && allocation.sourceType === "REMNANT" && (!["AVAILABLE", "SOLD"].includes(allocation.remnant!.status))) {
       return { kind: "error", error: "SOURCE_NOT_RESTORABLE" };
     }
 
