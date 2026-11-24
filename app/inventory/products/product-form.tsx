@@ -345,6 +345,7 @@ export function ProductForm({ productId }: Props) {
                 productType:
                   event.target.value === "MATERIAL" ? "MATERIAL" : "STANDARD",
                 baseUnit: current.baseUnit,
+                isProcessingEnabled: event.target.value === "MATERIAL" ? current.isProcessingEnabled : false,
               }))
             }
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2.5"
