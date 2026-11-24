@@ -898,7 +898,7 @@ model MaterialRemnant {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   businessUnitId    String            @db.Uuid
-  usedAsSource      MaterialProcessing?   @relation("RemnantSource")
+  usedAsSource      MaterialProcessing[]  @relation("RemnantSource")
   businessUnit      BusinessUnit      @relation(fields: [businessUnitId], references: [id])
   location          StockLocation     @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id])
   product           Product           @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])

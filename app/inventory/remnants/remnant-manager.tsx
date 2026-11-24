@@ -47,7 +47,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
   const selectedProduct = products.find((item) => item.id === productId);
   const availableSourceRemnants = items.filter((item) =>
     item.status === "AVAILABLE" && item.product.id === productId &&
-    item.location.id === locationId && item.variant?.id === (variantId || null) &&
+    item.location.id === locationId && (item.variant?.id ?? null) === (variantId || null) &&
     (item.unit ?? item.product.materialUnit ?? item.product.baseUnit) === (selectedProduct?.materialUnit ?? selectedProduct?.baseUnit)
   );
   const load = useCallback(async () => {
