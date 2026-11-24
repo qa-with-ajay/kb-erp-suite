@@ -54,7 +54,7 @@ export async function GET(request: Request) {
       product: { select: { id: true, name: true, sku: true, baseUnit: true, materialUnit: true, materialUnitsPerBaseUnit: true, productType: true } },
       variant: { select: { id: true, code: true, attributes: true } },
       location: { select: { id: true, name: true, code: true } },
-      sourceOperation: { select: { id: true, type: true, inputQuantity: true, inputUnit: true, createdAt: true } },
+      sourceOperation: { select: { id: true, type: true, inputQuantity: true, inputUnit: true, sourceRemnant: { select: { code: true } }, createdAt: true } },
       usedAsSource: { select: { id: true, type: true, createdAt: true } },
       movements: { orderBy: { createdAt: "desc" }, take: 10, select: { id: true, type: true, quantityDelta: true, reason: true, createdAt: true } },
     },

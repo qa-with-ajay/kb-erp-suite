@@ -7,7 +7,9 @@ type Product = { id: string; name: string; sku: string; baseUnit: string; materi
 type Location = { id: string; name: string; code: string };
 type Remnant = {
   id: string; code: string; quantity: string; unit: string | null; length: string | null; width: string | null;
-  status: string; createdAt: string; usedAsSource?: { id: string; type: string; createdAt: string } | null;
+  status: string; createdAt: string;
+  sourceOperation?: { id: string; type: string; inputQuantity: string; inputUnit: string | null; sourceRemnant: { code: string } | null; createdAt: string } | null;
+  usedAsSource?: { id: string; type: string; createdAt: string }[];
   product: Product; variant: { id: string; code: string | null; attributes: Record<string, string> } | null;
   location: Location;
   movements: { id: string; type: string; quantityDelta: string; reason: string | null; createdAt: string }[];
@@ -196,7 +198,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
             <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="p-3">Code / Product</th><th className="p-3">Quantity</th><th className="p-3">Dimensions</th><th className="p-3">Location</th><th className="p-3">Status</th><th className="p-3">Actions</th></tr></thead>
             <tbody className="divide-y">
               {items.map((item) => <tr key={item.id}>
-                <td className="p-3"><p className="font-medium">{item.code}</p><p>{item.product.name} · {item.product.sku}</p>{item.variant?.code && <p className="text-xs text-gray-500">{item.variant.code}</p>}</td>
+                <td className="p-3"><p className="font-medium">{item.code}</p><p>{item.product.name} · {item.product.sku}</p>{item.variant?.code && <p className="text-xs text-gray-500">{item.variant.code}</p>}{item.sourceOperation && <p className="text-xs text-gray-500">From: {item.sourceOperation.sourceRemnant?.code ?? "Regular stock"} · {item.sourceOperation.type}</p>}{Boolean(item.usedAsSource?.length) && <p className="text-xs text-amber-700">Reprocessed {item.usedAsSource!.length} time(s)</p>}</td>
                 <td className="p-3 tabular-nums">{fmt(item.quantity)} {item.unit ?? item.product.baseUnit}</td>
                 <td className="p-3 text-gray-600">{item.length && item.width ? `${fmt(item.length)} × ${fmt(item.width)}` : "—"}</td>
                 <td className="p-3">{item.location.name}</td>
