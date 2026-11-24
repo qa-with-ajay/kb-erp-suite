@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       const outputUnit = product.materialUnit ?? product.baseUnit;
       const materialInputQty = inputQty.mul(conversionFactor).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
       const currentQty = sourceBalance?.quantity ?? new Prisma.Decimal(0);
-      if (conversionFactor.greaterThan(1) && !inputQty.isInteger()) return { error: "INVALID_INPUT_QUANTITY" as const };
+      if (product.materialUnit && !inputQty.isInteger()) return { error: "INVALID_INPUT_QUANTITY" as const };
       if (currentQty.lt(inputQty)) return { error: "INSUFFICIENT_STOCK" as const };
       if (consumedQty.plus(remnantQty).greaterThan(materialInputQty)) return { error: "OUTPUT_QUANTITY_EXCEEDED" as const };
       const unitCost = sourceBalance?.averageCost ?? new Prisma.Decimal(0);
