@@ -653,7 +653,7 @@ export async function reverseSaleReturn(
       const ok = await applyStockDelta(tx, movement.id, businessUnitId, record.locationId, {
         productId: line.productId, variantId: line.variantId, quantity: line.quantity, unitCost: line.unitCost,
       }, "OUT");
-      if (!ok) return { kind: "error", error: "INSUFFICIENT_STOCK" };
+      if (!ok) throw new Error("SALE_RETURN_STOCK_CHANGED");
       continue;
     }
     const allocation = line.sourceAllocation!;

@@ -159,6 +159,9 @@ export async function POST(request: Request, { params }: RouteContext) {
       createSaleReturn(tx, access.context.businessUnit.id, access.context.businessUnit.code, access.context.session.user.id, id, parsed.data),
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "SALE_RETURN_STOCK_CHANGED") {
+      return NextResponse.json({ error: "The original stock source changed while posting this return. Refresh the invoice and retry." }, { status: 409 });
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "This return request was already recorded." }, { status: 409 });
     }

@@ -27,6 +27,9 @@ export async function POST(request: Request, { params }: RouteContext) {
       reverseSaleReturn(tx, access.context.businessUnit.id, access.context.session.user.id, id, returnId, parsed.data),
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "SALE_RETURN_STOCK_CHANGED") {
+      return NextResponse.json({ error: "Stock changed while reversing this return. Refresh inventory and retry." }, { status: 409 });
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "This reversal request was already recorded." }, { status: 409 });
     }
