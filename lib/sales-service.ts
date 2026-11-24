@@ -110,7 +110,7 @@ export async function createSale(
     if (line.variantId && !variant) return { kind: "error", error: "VARIANT_NOT_AVAILABLE", productName: product.name };
 
     const quantity = new Prisma.Decimal(line.quantity);
-    if (!quantity.isPositive() || (product.productType === "STANDARD" && !quantity.isInteger()))
+    if (!quantity.isPositive())
       return { kind: "error", error: "INVALID_QUANTITY", productName: product.name };
 
     const saleUnit = line.saleUnit ?? product.materialUnit ?? product.baseUnit;
@@ -126,7 +126,7 @@ export async function createSale(
     const rawAllocations: AllocationInput[] = line.allocations ?? [];
     const allocations: PreparedAllocation[] = [];
     if (!rawAllocations.length) {
-      if (product.materialUnit) return { kind: "error", error: "INVALID_ALLOCATION", productName: product.name };
+      if (product.materialUnit || saleUnit !== product.baseUnit) return { kind: "error", error: "INVALID_ALLOCATION", productName: product.name };
       const balance = await tx.stockBalance.findFirst({
         where: { businessUnitId, locationId: input.locationId, productId: product.id, variantId: line.variantId || null, stockKind: "STANDARD" },
       });
