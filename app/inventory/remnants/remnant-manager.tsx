@@ -7,7 +7,7 @@ type Product = { id: string; name: string; sku: string; baseUnit: string; materi
 type Location = { id: string; name: string; code: string };
 type Remnant = {
   id: string; code: string; quantity: string; unit: string | null; length: string | null; width: string | null;
-  status: string; createdAt: string;
+  status: string; createdAt: string; usedAsSource?: { id: string; type: string; createdAt: string } | null;
   product: Product; variant: { id: string; code: string | null; attributes: Record<string, string> } | null;
   location: Location;
   movements: { id: string; type: string; quantityDelta: string; reason: string | null; createdAt: string }[];
@@ -27,13 +27,13 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
   const [variantId, setVariantId] = useState("");
   const [variants, setVariants] = useState<{ id: string; code: string | null; attributes: Record<string, string> }[]>([]);
   const [locationId, setLocationId] = useState("");
+  const [sourceType, setSourceType] = useState<"STANDARD" | "REMNANT">("STANDARD");
+  const [sourceRemnantId, setSourceRemnantId] = useState("");
   const [inputQuantity, setInputQuantity] = useState("");
   const [consumedQuantity, setConsumedQuantity] = useState("");
-  const [remnantQuantity, setRemnantQuantity] = useState("");
+  const [outputs, setOutputs] = useState([{ key: "output-1", quantity: "", length: "", width: "" }]);
   const [inputLength, setInputLength] = useState("");
   const [inputWidth, setInputWidth] = useState("");
-  const [remnantLength, setRemnantLength] = useState("");
-  const [remnantWidth, setRemnantWidth] = useState("");
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState("AVAILABLE");
   const [destinationById, setDestinationById] = useState<Record<string, string>>({});
@@ -45,6 +45,11 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
   const [actionReference, setActionReference] = useState("");
 
   const selectedProduct = products.find((item) => item.id === productId);
+  const availableSourceRemnants = items.filter((item) =>
+    item.status === "AVAILABLE" && item.product.id === productId &&
+    item.location.id === locationId && item.variant?.id === (variantId || null) &&
+    (item.unit ?? item.product.materialUnit ?? item.product.baseUnit) === (selectedProduct?.materialUnit ?? selectedProduct?.baseUnit)
+  );
   const load = useCallback(async () => {
     const [remnants, productResponse, locationResponse] = await Promise.all([
       fetch("/api/inventory/remnants").then((r) => json<{ items: Remnant[] }>(r)),
@@ -73,15 +78,19 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
       await json(await fetch("/api/inventory/remnants", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId, variantId: variantId || null, locationId,
-          inputQuantity, consumedQuantity: consumedQuantity || "0", remnantQuantity,
+          productId, variantId: variantId || null, locationId, sourceType,
+          ...(sourceType === "REMNANT" ? { sourceRemnantId } : {}),
+          inputQuantity, consumedQuantity: consumedQuantity || "0",
+          outputs: outputs.filter((output) => output.quantity.trim()).map((output) => ({
+            quantity: output.quantity,
+            ...(output.length && output.width ? { length: output.length, width: output.width } : {}),
+          })),
           ...(inputLength && inputWidth ? { inputLength, inputWidth } : {}),
-          ...(remnantLength && remnantWidth ? { remnantLength, remnantWidth } : {}),
           reason, idempotencyKey: crypto.randomUUID(),
         }),
       }));
       setNotice("Processing recorded. Standard stock was consumed and reusable remnant stock was created.");
-      setInputQuantity(""); setConsumedQuantity(""); setRemnantQuantity(""); setReason("");
+      setInputQuantity(""); setConsumedQuantity(""); setOutputs([{ key: "output-1", quantity: "", length: "", width: "" }]); setSourceRemnantId(""); setReason("");
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to record processing."); }
     finally { setBusy(false); }
@@ -154,7 +163,7 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
 
       {canManage && <form onSubmit={createProcessing} className="rounded-xl border bg-white p-5">
         <h2 className="text-lg font-semibold">Record material processing</h2>
-        <p className="mb-4 mt-1 text-sm text-gray-600">Open whole regular stock units. Input quantity uses the base stock unit; consumed, remnant and waste quantities use the material unit. Their total cannot exceed the material quantity contained in the opened stock.</p>
+        <p className="mb-4 mt-1 text-sm text-gray-600">Process regular stock or an existing remnant. Record consumed quantity, multiple reusable outputs and calculated waste. Every output receives its own traceable remnant record.</p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <label className="text-sm">Material product<select required value={productId} onChange={(e) => { setProductId(e.target.value); setVariantId(""); }} className="mt-1 w-full rounded-lg border p-2"><option value="">Select product</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}</select></label>
           {variants.length > 0 && <label className="text-sm">Variant<select required value={variantId} onChange={(e) => setVariantId(e.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="">Select variant</option>{variants.map((v) => <option key={v.id} value={v.id}>{v.code ?? Object.entries(v.attributes).map(([k, val]) => `${k}: ${val}`).join(", ")}</option>)}</select></label>}
