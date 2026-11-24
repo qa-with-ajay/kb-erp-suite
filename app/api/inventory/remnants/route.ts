@@ -132,7 +132,7 @@ export async function POST(request: Request) {
         `;
         if (!locked.length) return { error: "SOURCE_REMNANT_NOT_AVAILABLE" as const };
         sourceRemnant = await tx.materialRemnant.findFirst({ where: { id: locked[0].id, businessUnitId: businessUnit.id } });
-        if (!sourceRemnant || sourceRemnant.variantId !== (input.variantId ?? null) || (sourceRemnant.unit ?? outputUnit) !== outputUnit || sourceRemnant.quantity.lt(requestedInput)) {
+        if (!sourceRemnant || sourceRemnant.variantId !== (input.variantId ?? null) || (sourceRemnant.unit ?? outputUnit) !== outputUnit || !sourceRemnant.quantity.equals(requestedInput)) {
           return { error: "SOURCE_REMNANT_NOT_AVAILABLE" as const };
         }
         inputMaterialQty = requestedInput;
@@ -270,7 +270,7 @@ export async function POST(request: Request) {
         VARIANT_NOT_AVAILABLE: { message: "Select a valid active variant.", status: 400 },
         INSUFFICIENT_STOCK: { message: "There is not enough standard stock at this location.", status: 409 },
         INVALID_INPUT_QUANTITY: { message: "When a material conversion is configured, open whole regular stock units only.", status: 400 },
-        SOURCE_REMNANT_NOT_AVAILABLE: { message: "The selected remnant is no longer available in this location or does not match the selected product/variant.", status: 409 },
+        SOURCE_REMNANT_NOT_AVAILABLE: { message: "The selected remnant is no longer available, does not match the product/variant, or its full remaining quantity was not selected.", status: 409 },
         STOCK_BALANCE_MISMATCH: { message: "Remnant stock balance does not match its individual records. Reconcile inventory before processing.", status: 409 },
         OUTPUT_QUANTITY_EXCEEDED: { message: "Consumed quantity plus all remnant outputs cannot exceed the source quantity.", status: 400 },
       };
