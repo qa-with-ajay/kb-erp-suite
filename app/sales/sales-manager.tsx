@@ -14,6 +14,7 @@ type Product = {
   baseUnit: string;
   materialUnit?: string | null;
   materialUnitsPerBaseUnit?: string | null;
+  unitConversions?: Array<{ unit: string; conversionFactor: string }>;
   productType: "STANDARD" | "MATERIAL";
   sellingPrice: string;
   gstPercentage: string;
@@ -21,7 +22,7 @@ type Product = {
   stockBalances: Array<{ id: string; variantId: string | null; quantity: string; averageCost?: string }>;
   materialRemnants?: Array<{ id: string; code: string; variantId: string | null; quantity: string; unit: string | null; unitCost: string }>;
 };
-type DraftLine = { key: string; product: Product | null; variantId: string; allocations: Record<string, string> };
+type DraftLine = { key: string; product: Product | null; variantId: string; saleUnit: string; createRemnant: boolean; saleQuantity: string; allocations: Record<string, string> };
 type SaleRow = {
   id: string;
   invoiceNumber: string;
@@ -57,13 +58,26 @@ function variantLabel(variant: Product["variants"][number]) {
 }
 
 function saleUnit(product: Product | null) { return product?.materialUnit ?? product?.baseUnit ?? "unit"; }
-function conversionFactor(product: Product | null) { return product?.materialUnit ? Number(product.materialUnitsPerBaseUnit ?? 1) : 1; }
+function saleUnitPrice(product: Product | null, unit: string) {
+  if (!product) return 0;
+  if (product.materialUnit && unit === product.materialUnit) return Number(product.sellingPrice) / Number(product.materialUnitsPerBaseUnit || 1);
+  if (unit === product.baseUnit) return Number(product.sellingPrice);
+  const conversion = product.unitConversions?.find((item) => item.unit === unit);
+  return conversion ? Number(product.sellingPrice) * Number(conversion.conversionFactor) : Number(product.sellingPrice);
+}
 function lineQuantity(line: DraftLine) {
   if (!line.product) return 0;
-  const factor = conversionFactor(line.product);
+  const remnantQty = Object.entries(line.allocations).filter(([key]) => key.startsWith("REMNANT:")).reduce((sum, [, raw]) => sum + Number(raw || 0), 0);
+  if (line.createRemnant) return Number(line.saleQuantity || 0) + remnantQty;
+  const materialFactor = Number(line.product.materialUnitsPerBaseUnit || 1);
+  const conversion = line.product.unitConversions?.find((item) => item.unit === line.saleUnit);
   return Object.entries(line.allocations).reduce((sum, [key, raw]) => {
     const quantity = Number(raw || 0);
-    const normalized = key.startsWith("STANDARD:") ? Math.round((quantity * factor + Number.EPSILON) * 10000) / 10000 : quantity;
+    if (key.startsWith("REMNANT:")) return sum + quantity;
+    const normalized = line.product?.materialUnit && line.saleUnit === line.product.materialUnit
+      ? quantity * materialFactor
+      : line.saleUnit === line.product?.baseUnit ? quantity
+      : conversion ? quantity / Number(conversion.conversionFactor) : quantity;
     return sum + normalized;
   }, 0);
 }
@@ -92,7 +106,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", allocations: {} }]);
+  const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]);
   const [requestKey, setRequestKey] = useState("");
   // null = "not edited": the amount follows the invoice total (full payment).
   const [amountReceived, setAmountReceived] = useState<string | null>(null);
@@ -174,7 +188,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const totals = useMemo(() => lines.reduce((result, line) => {
     if (!line.product || lineQuantity(line) <= 0) return result;
     const quantity = lineQuantity(line);
-    const lineSubtotal = roundMoney(roundMoney(Number(line.product.sellingPrice) / conversionFactor(line.product)) * quantity);
+    const lineSubtotal = roundMoney(roundMoney(saleUnitPrice(line.product, line.saleUnit || saleUnit(line.product))) * quantity);
     const lineTax = taxMode === "GST"
       ? roundMoney(lineSubtotal * Number(line.product.gstPercentage) / 100)
       : 0;
@@ -219,8 +233,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             : line);
         }
         const empty = current.find((line) => !line.product);
-        if (empty) return current.map((line) => line.key === empty.key ? { ...line, product, variantId, allocations: defaultAllocations(product, variantId) } : line);
-        return [...current, { key: crypto.randomUUID(), product, variantId, allocations: defaultAllocations(product, variantId) }];
+        if (empty) return current.map((line) => line.key === empty.key ? { ...line, product, variantId, saleUnit: saleUnit(product), createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, variantId) } : line);
+        return [...current, { key: crypto.randomUUID(), product, variantId, saleUnit: saleUnit(product), createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, variantId) }];
       });
       setError("");
     } catch (cause) {
@@ -282,6 +296,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             productId: line.product.id,
             variantId: line.variantId || null,
             quantity: lineQuantity(line).toFixed(4).replace(/0+$/, "").replace(/\.$/, ""),
+            saleUnit: line.saleUnit || saleUnit(line.product),
+            createRemnant: line.createRemnant,
             allocations: Object.entries(line.allocations).filter(([, quantity]) => Number(quantity) > 0).map(([key, quantity]) => ({
               sourceType: key.startsWith("STANDARD:") ? "STANDARD" : "REMNANT",
               sourceId: key.split(":")[1],
@@ -375,7 +391,6 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 const product = line.product;
                 const selectedBalances = product?.stockBalances.filter((item) => item.variantId === (line.variantId || null)) ?? [];
                 const selectedRemnants = (product?.materialRemnants ?? []).filter((item) => item.variantId === (line.variantId || null));
-                const factor = conversionFactor(product);
                 const quantity = lineQuantity(line);
                 return (
                   <div key={line.key} className="grid gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-2 xl:grid-cols-[2fr_1.5fr_1fr_1fr_auto]">
@@ -386,7 +401,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         value={line.product?.id ?? ""}
                         onChange={(event) => {
                           const product = products.find((candidate) => candidate.id === event.target.value) ?? null;
-                          updateLine(line.key, { product, variantId: "", allocations: defaultAllocations(product, "") });
+                          updateLine(line.key, { product, variantId: "", saleUnit: saleUnit(product), createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, "") });
                         }}
                         className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
                       >
@@ -415,6 +430,11 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                     </label>
                     <div className="space-y-2 text-sm sm:col-span-2 xl:col-span-1">
                       <p className="font-semibold">Stock source allocation</p>
+                      {product && <label className="block text-xs font-medium">Sales unit
+                        <select value={line.saleUnit || saleUnit(product)} onChange={(event) => updateLine(line.key, { saleUnit: event.target.value, createRemnant: false, saleQuantity: "" })} className="mt-1 w-full rounded border p-2">
+                          {[product.baseUnit, ...(product.materialUnit ? [product.materialUnit] : []), ...(product.unitConversions ?? []).map((item) => item.unit)].filter((unit, i, all) => all.indexOf(unit) === i).map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                        </select>
+                      </label>}
                       {selectedBalances.map((balance) => {
                         const key = `STANDARD:${balance.id}`;
                         return <label key={key} className="block rounded-lg border border-gray-200 p-2">
@@ -429,13 +449,20 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                           <input type="number" min="0" step="0.0001" max={remnant.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder={`Quantity in ${remnant.unit ?? saleUnit(product)}`} className="mt-1 w-full rounded border p-2" />
                         </label>;
                       })}
+                      {product?.materialUnit && line.saleUnit === product.materialUnit && selectedBalances.length > 0 && <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs">
+                        <input type="checkbox" checked={line.createRemnant} onChange={(event) => updateLine(line.key, { createRemnant: event.target.checked, saleQuantity: event.target.checked ? line.saleQuantity : "" })} className="mt-0.5" />
+                        <span><strong>Create a remnant from opened package</strong><span className="block text-gray-600">Deduct the selected whole package(s), sell the quantity entered, and register the reusable balance as a separate remnant.</span></span>
+                      </label>}
+                      {line.createRemnant && product && <label className="block text-xs font-medium">Quantity to sell ({line.saleUnit})
+                        <input type="number" min="0.0001" step="0.0001" value={line.saleQuantity} onChange={(event) => updateLine(line.key, { saleQuantity: event.target.value })} className="mt-1 w-full rounded border p-2" placeholder="Enter quantity sold from opened package(s)" />
+                      </label>}
                       {!selectedBalances.length && !selectedRemnants.length && <p className="text-amber-700">No available stock sources for this variant.</p>}
                     </div>
                     <div className="text-sm">
-                      <span className="font-medium">Invoice quantity ({saleUnit(product)})</span>
+                      <span className="font-medium">Invoice quantity ({line.saleUnit || saleUnit(product)})</span>
                       <p className="mt-2 text-lg font-semibold">{quantity.toFixed(4).replace(/0+$/, "").replace(/\.$/, "") || "0"}</p>
-                      <span className="text-xs text-gray-500">Price / {saleUnit(product)}</span>
-                      <p className="mt-1">{product ? money(Number(product.sellingPrice) / factor) : "—"}</p>
+                      <span className="text-xs text-gray-500">Price / {line.saleUnit || saleUnit(product)}</span>
+                      <p className="mt-1">{product ? money(saleUnitPrice(product, line.saleUnit || saleUnit(product))) : "—"}</p>
                     </div>
                     <button
                       type="button"
@@ -450,7 +477,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 );
               })}
             </div>
-            <button type="button" onClick={() => { invalidateRequestKey(); setLines((current) => [...current, { key: crypto.randomUUID(), product: null, variantId: "", allocations: {} }]); }} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-900">
+            <button type="button" onClick={() => { invalidateRequestKey(); setLines((current) => [...current, { key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]); }} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-900">
               Add product
             </button>
 
