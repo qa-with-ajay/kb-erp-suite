@@ -511,6 +511,7 @@ model SaleLine {
   stockAllocations  SaleLineStockAllocation[]
 
   @@unique([businessUnitId, saleId, lineNumber])
+  @@unique([businessUnitId, id])
   @@unique([businessUnitId, saleId, id])
   @@index([businessUnitId, saleId])
   @@index([businessUnitId, productId])

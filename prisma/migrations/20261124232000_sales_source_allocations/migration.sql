@@ -1,3 +1,8 @@
+-- The allocation relation is tenant-scoped and references SaleLine by (businessUnitId, id).
+-- SaleLine.id is globally unique, so this composite key is guaranteed unique as well.
+CREATE UNIQUE INDEX IF NOT EXISTS "SaleLine_businessUnitId_id_key"
+  ON "SaleLine"("businessUnitId", "id");
+
 CREATE TABLE "SaleLineStockAllocation" (
   "id" UUID NOT NULL,
   "businessUnitId" UUID NOT NULL,
