@@ -25,6 +25,7 @@ model User {
   purchaseReceipts        PurchaseReceipt[]      @relation("PurchaseReceiptCreator")
   purchaseReturns         PurchaseReturn[]       @relation("PurchaseReturnCreator")
   purchaseReturnReversals PurchaseReturn[]       @relation("PurchaseReturnReverser")
+  remnantMovements        RemnantMovement[]
   sales                   Sale[]                 @relation("SaleCreator")
   salesReturns            SaleReturn[]           @relation("SaleReturnCreator")
   salesReturnReversals    SaleReturn[]           @relation("SaleReturnReverser")
@@ -121,6 +122,9 @@ model BusinessUnit {
   stockLedger             StockLedgerEntry[]
   stockLocations          StockLocation[]
   stockMovements          StockMovement[]
+  stockProcessingRecords  StockProcessing[]
+  remnants                Remnant[]
+  remnantMovements        RemnantMovement[]
   suppliers               Supplier[]
   userAssignments         UserBusinessUnitRole[]
 
@@ -259,6 +263,10 @@ model Supplier {
 model Product {
   id                    String                  @id @default(uuid()) @db.Uuid
   name                  String
+  productType             ProductType              @default(STANDARD)
+  canBeProcessed          Boolean                  @default(false)
+  stockProcessingRecords StockProcessing[]
+  remnants               Remnant[]
   sku                   String
   description           String?
   baseUnit              MeasurementUnit
@@ -300,6 +308,8 @@ model Product {
 model ProductVariant {
   id                   String                @id @default(uuid()) @db.Uuid
   productId            String                @db.Uuid
+  stockProcessingRecords StockProcessing[]
+  remnants              Remnant[]
   code                 String?
   barcode              String?
   attributes           Json
@@ -352,6 +362,8 @@ model StockLocation {
   businessUnitId       String             @db.Uuid
   purchaseReceipts     PurchaseReceipt[]
   purchaseReturns      PurchaseReturn[]
+  remnants             Remnant[]
+  remnantMovements     RemnantMovement[]
   salesReturns         SaleReturn[]
   stockBalances        StockBalance[]
   stockLedger          StockLedgerEntry[]
@@ -369,6 +381,7 @@ model StockMovement {
   type                   StockMovementType
   actorId                String
   sourceLocationId       String?            @db.Uuid
+  stockProcessing StockProcessing?
   destinationLocationId  String?            @db.Uuid
   reference              String?
   idempotencyKey         String?
@@ -399,6 +412,7 @@ model StockLedgerEntry {
   productId      String          @db.Uuid
   variantId      String?         @db.Uuid
   locationId     String          @db.Uuid
+  stockType      StockType       @default(STANDARD)
   quantityDelta  Decimal         @db.Decimal(18, 8)
   unitCost       Decimal         @db.Decimal(14, 4)
   createdAt      DateTime        @default(now())
@@ -418,6 +432,7 @@ model StockBalance {
   locationId     String          @db.Uuid
   productId      String          @db.Uuid
   variantId      String?         @db.Uuid
+  stockType      StockType       @default(STANDARD)
   quantity       Decimal         @default(0) @db.Decimal(18, 8)
   averageCost    Decimal         @default(0) @db.Decimal(14, 4)
   updatedAt      DateTime        @updatedAt
@@ -427,6 +442,83 @@ model StockBalance {
   product        Product         @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])
   variant        ProductVariant? @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
 
+
+  @@index([businessUnitId, locationId, productId, variantId, stockType])
+}
+
+model StockProcessing {
+  id              String               @id @default(uuid()) @db.Uuid
+  movementId      String               @unique @db.Uuid
+  productId       String               @db.Uuid
+  variantId       String?              @db.Uuid
+  sourceRemnantId String?              @unique @db.Uuid
+  type            StockProcessingType
+  inputLength     Decimal              @db.Decimal(12, 4)
+  inputWidth      Decimal              @db.Decimal(12, 4)
+  processedArea   Decimal              @default(0) @db.Decimal(14, 4)
+  wastedArea      Decimal              @default(0) @db.Decimal(14, 4)
+  createdAt       DateTime             @default(now())
+  businessUnitId  String               @db.Uuid
+  businessUnit    BusinessUnit         @relation(fields: [businessUnitId], references: [id])
+  movement        StockMovement        @relation(fields: [businessUnitId, movementId], references: [businessUnitId, id])
+  product         Product              @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])
+  sourceRemnant   Remnant?             @relation("RemnantSource", fields: [businessUnitId, sourceRemnantId], references: [businessUnitId, id])
+  variant         ProductVariant?      @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
+  outputRemnants  Remnant[]            @relation("RemnantOutput")
+  remnantHistory  RemnantMovement[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, movementId])
+  @@unique([businessUnitId, sourceRemnantId])
+  @@index([businessUnitId, productId, createdAt])
+}
+
+model Remnant {
+  id                String             @id @default(uuid()) @db.Uuid
+  code              String
+  productId         String             @db.Uuid
+  variantId         String?            @db.Uuid
+  locationId        String             @db.Uuid
+  sourceProcessingId String            @db.Uuid
+  length            Decimal            @db.Decimal(12, 4)
+  width             Decimal            @db.Decimal(12, 4)
+  area              Decimal            @db.Decimal(14, 4)
+  status            RemnantStatus      @default(AVAILABLE)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  businessUnitId    String             @db.Uuid
+  usedAsSource      StockProcessing?   @relation("RemnantSource")
+  businessUnit      BusinessUnit       @relation(fields: [businessUnitId], references: [id])
+  location          StockLocation      @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id])
+  product           Product            @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])
+  sourceProcessing  StockProcessing   @relation("RemnantOutput", fields: [businessUnitId, sourceProcessingId], references: [businessUnitId, id])
+  variant           ProductVariant?    @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
+  movements         RemnantMovement[]
+
+  @@unique([businessUnitId, code])
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, productId, variantId, status])
+  @@index([businessUnitId, locationId, status])
+}
+
+model RemnantMovement {
+  id             String                 @id @default(uuid()) @db.Uuid
+  remnantId      String                 @db.Uuid
+  processingId   String?                @db.Uuid
+  locationId     String                 @db.Uuid
+  actorId        String
+  type           RemnantMovementType
+  quantityDelta  Decimal                @db.Decimal(14, 4)
+  reason         String?
+  createdAt      DateTime               @default(now())
+  businessUnitId String                 @db.Uuid
+  actor          User                   @relation(fields: [actorId], references: [id])
+  businessUnit   BusinessUnit           @relation(fields: [businessUnitId], references: [id])
+  location       StockLocation          @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id])
+  processing     StockProcessing?       @relation(fields: [businessUnitId, processingId], references: [businessUnitId, id])
+  remnant        Remnant                @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
+
+  @@index([businessUnitId, remnantId, createdAt])
 }
 
 model Sale {
@@ -818,6 +910,40 @@ model LowStockNotification {
   @@index([userId, businessUnitId, isRead])
 }
 
+enum ProductType {
+  STANDARD
+  MATERIAL
+}
+
+enum StockType {
+  STANDARD
+  REMNANT
+}
+
+enum StockProcessingType {
+  CUTTING
+  SPLITTING
+  CONVERSION
+  WASTAGE
+  ADJUSTMENT
+}
+
+enum RemnantStatus {
+  AVAILABLE
+  SOLD
+  CONSUMED
+  WASTED
+  ADJUSTED
+}
+
+enum RemnantMovementType {
+  CREATED
+  SOLD
+  CONSUMED
+  WASTED
+  ADJUSTED
+}
+
 enum BarcodeType {
   INTERNAL
   MANUFACTURER
@@ -856,6 +982,7 @@ enum StockMovementType {
   OUTWARD
   ADJUSTMENT
   TRANSFER
+  STOCK_PROCESSING
   SALE
   PURCHASE_RETURN
   PURCHASE_RETURN_REVERSAL
