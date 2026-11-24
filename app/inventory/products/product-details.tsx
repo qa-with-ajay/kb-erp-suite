@@ -26,7 +26,7 @@ type Product = {
   name: string;
   sku: string;
   description: string | null;
-  productType: "STANDARD" | "PANEL";
+  productType: "STANDARD" | "MATERIAL";
   baseUnit: string;
   sellingPrice: string;
   gstPercentage: string;
