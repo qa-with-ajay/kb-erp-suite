@@ -26,7 +26,7 @@ model User {
   purchaseReceipts        PurchaseReceipt[]      @relation("PurchaseReceiptCreator")
   purchaseReturns         PurchaseReturn[]       @relation("PurchaseReturnCreator")
   purchaseReturnReversals PurchaseReturn[]       @relation("PurchaseReturnReverser")
-  remnantMovements        RemnantMovement[]
+  materialRemnantMovements        MaterialRemnantMovement[]
   sales                   Sale[]                 @relation("SaleCreator")
   salesReturns            SaleReturn[]           @relation("SaleReturnCreator")
   salesReturnReversals    SaleReturn[]           @relation("SaleReturnReverser")
@@ -111,7 +111,7 @@ model BusinessUnit {
   categories              Category[]
   customers               Customer[]
   lowStockNotifications   LowStockNotification[]
-  panelOperations         PanelOperation[]
+  materialProcessings         MaterialProcessing[]
   payments                Payment[]
   products                Product[]
   unitConversions         ProductUnitConversion[]
@@ -119,8 +119,8 @@ model BusinessUnit {
   purchaseOrders          PurchaseOrder[]
   purchaseReceipts        PurchaseReceipt[]
   purchaseReturns         PurchaseReturn[]
-  remnants                Remnant[]
-  remnantMovements        RemnantMovement[]
+  materialRemnants                MaterialRemnant[]
+  materialRemnantMovements        MaterialRemnantMovement[]
   sales                   Sale[]
   salesReturns            SaleReturn[]
   stockBalances           StockBalance[]
@@ -268,6 +268,7 @@ model Product {
   sku                   String
   description           String?
   productType           ProductType             @default(STANDARD)
+  isProcessingEnabled   Boolean                 @default(false)
   baseUnit              MeasurementUnit
   purchasePrice         Decimal                 @db.Decimal(14, 2)
   sellingPrice          Decimal                 @db.Decimal(14, 2)
@@ -283,7 +284,7 @@ model Product {
   updatedAt             DateTime                @updatedAt
   businessUnitId        String                  @db.Uuid
   lowStockNotifications LowStockNotification[]
-  panelOperations       PanelOperation[]
+  materialProcessings       MaterialProcessing[]
   brand                 Brand?                  @relation(fields: [businessUnitId, brandId], references: [businessUnitId, id])
   category              Category?               @relation(fields: [businessUnitId, categoryId], references: [businessUnitId, id])
   businessUnit          BusinessUnit            @relation(fields: [businessUnitId], references: [id])
@@ -292,7 +293,7 @@ model Product {
   purchaseOrderLines    PurchaseOrderLine[]
   purchaseReceiptLines  PurchaseReceiptLine[]
   purchaseReturnLines   PurchaseReturnLine[]
-  remnants              Remnant[]
+  materialRemnants              MaterialRemnant[]
   saleLines             SaleLine[]
   saleReturnLines       SaleReturnLine[]
   stockBalances         StockBalance[]
@@ -316,13 +317,13 @@ model ProductVariant {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   businessUnitId       String                @db.Uuid
-  panelOperations      PanelOperation[]
+  materialProcessings      MaterialProcessing[]
   businessUnit         BusinessUnit          @relation(fields: [businessUnitId], references: [id])
   product              Product               @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])
   purchaseOrderLines   PurchaseOrderLine[]
   purchaseReceiptLines PurchaseReceiptLine[]
   purchaseReturnLines  PurchaseReturnLine[]
-  remnants             Remnant[]
+  materialRemnants             MaterialRemnant[]
   saleLines            SaleLine[]
   saleReturnLines      SaleReturnLine[]
   stockBalances        StockBalance[]
@@ -363,8 +364,8 @@ model StockLocation {
   businessUnitId       String             @db.Uuid
   purchaseReceipts     PurchaseReceipt[]
   purchaseReturns      PurchaseReturn[]
-  remnants             Remnant[]
-  remnantMovements     RemnantMovement[]
+  materialRemnants             MaterialRemnant[]
+  materialRemnantMovements     MaterialRemnantMovement[]
   salesReturns         SaleReturn[]
   stockBalances        StockBalance[]
   stockLedger          StockLedgerEntry[]
@@ -388,7 +389,7 @@ model StockMovement {
   reason                 String?
   createdAt              DateTime           @default(now())
   businessUnitId         String             @db.Uuid
-  panelOperation         PanelOperation?
+  materialProcessing         MaterialProcessing?
   purchaseReceipt        PurchaseReceipt?
   purchaseReturnReversal PurchaseReturn?    @relation("PurchaseReturnReversalMovement")
   purchaseReturn         PurchaseReturn?
@@ -815,15 +816,17 @@ model PurchaseReturnLine {
   @@index([businessUnitId, receiptLineId])
 }
 
-model PanelOperation {
+model MaterialProcessing {
   id              String             @id @default(uuid()) @db.Uuid
   movementId      String             @unique @db.Uuid
   productId       String             @db.Uuid
   variantId       String?            @db.Uuid
   sourceRemnantId String?            @unique @db.Uuid
-  type            PanelOperationType
-  inputLength     Decimal            @db.Decimal(12, 4)
-  inputWidth      Decimal            @db.Decimal(12, 4)
+  type            MaterialProcessingType
+  inputLength     Decimal?           @db.Decimal(12, 4)
+  inputWidth      Decimal?           @db.Decimal(12, 4)
+  inputQuantity   Decimal             @default(0) @db.Decimal(14, 4)
+  inputUnit       MeasurementUnit?
   soldArea        Decimal            @default(0) @db.Decimal(14, 4)
   wastedArea      Decimal            @default(0) @db.Decimal(14, 4)
   createdAt       DateTime           @default(now())
@@ -831,10 +834,10 @@ model PanelOperation {
   businessUnit    BusinessUnit       @relation(fields: [businessUnitId], references: [id])
   movement        StockMovement      @relation(fields: [businessUnitId, movementId], references: [businessUnitId, id])
   product         Product            @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])
-  sourceRemnant   Remnant?           @relation("RemnantSource", fields: [businessUnitId, sourceRemnantId], references: [businessUnitId, id])
+  sourceRemnant   MaterialRemnant?           @relation("RemnantSource", fields: [businessUnitId, sourceRemnantId], references: [businessUnitId, id])
   variant         ProductVariant?    @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
-  outputRemnants  Remnant[]          @relation("RemnantOutput")
-  remnantHistory  RemnantMovement[]
+  outputRemnants  MaterialRemnant[]          @relation("RemnantOutput")
+  remnantHistory  MaterialRemnantMovement[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, movementId])
@@ -842,27 +845,29 @@ model PanelOperation {
   @@index([businessUnitId, productId, createdAt])
 }
 
-model Remnant {
+model MaterialRemnant {
   id                String            @id @default(uuid()) @db.Uuid
   code              String
   productId         String            @db.Uuid
   variantId         String?           @db.Uuid
   locationId        String            @db.Uuid
-  sourceOperationId String            @db.Uuid
-  length            Decimal           @db.Decimal(12, 4)
-  width             Decimal           @db.Decimal(12, 4)
-  area              Decimal           @db.Decimal(14, 4)
-  status            RemnantStatus     @default(AVAILABLE)
+  sourceOperationId String?           @db.Uuid
+  length            Decimal?          @db.Decimal(12, 4)
+  width             Decimal?          @db.Decimal(12, 4)
+  area              Decimal?          @db.Decimal(14, 4)
+  quantity          Decimal           @default(0) @db.Decimal(14, 4)
+  unit              MeasurementUnit?
+  status            MaterialRemnantStatus     @default(AVAILABLE)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   businessUnitId    String            @db.Uuid
-  usedAsSource      PanelOperation?   @relation("RemnantSource")
+  usedAsSource      MaterialProcessing?   @relation("RemnantSource")
   businessUnit      BusinessUnit      @relation(fields: [businessUnitId], references: [id])
   location          StockLocation     @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id])
   product           Product           @relation(fields: [businessUnitId, productId], references: [businessUnitId, id])
-  sourceOperation   PanelOperation    @relation("RemnantOutput", fields: [businessUnitId, sourceOperationId], references: [businessUnitId, id])
+  sourceOperation   MaterialProcessing?   @relation("RemnantOutput", fields: [businessUnitId, sourceOperationId], references: [businessUnitId, id])
   variant           ProductVariant?   @relation(fields: [businessUnitId, variantId], references: [businessUnitId, id])
-  movements         RemnantMovement[]
+  movements         MaterialRemnantMovement[]
 
   @@unique([businessUnitId, code])
   @@unique([businessUnitId, id])
@@ -870,13 +875,13 @@ model Remnant {
   @@index([businessUnitId, locationId, status])
 }
 
-model RemnantMovement {
+model MaterialRemnantMovement {
   id             String              @id @default(uuid()) @db.Uuid
   remnantId      String              @db.Uuid
   operationId    String?             @db.Uuid
   locationId     String              @db.Uuid
   actorId        String
-  type           RemnantMovementType
+  type           MaterialRemnantMovementType
   quantityDelta  Decimal             @db.Decimal(14, 4)
   reason         String?
   createdAt      DateTime            @default(now())
@@ -884,10 +889,11 @@ model RemnantMovement {
   actor          User                @relation(fields: [actorId], references: [id])
   businessUnit   BusinessUnit        @relation(fields: [businessUnitId], references: [id])
   location       StockLocation       @relation(fields: [businessUnitId, locationId], references: [businessUnitId, id])
-  operation      PanelOperation?     @relation(fields: [businessUnitId, operationId], references: [businessUnitId, id])
-  remnant        Remnant             @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
+  operation      MaterialProcessing?     @relation(fields: [businessUnitId, operationId], references: [businessUnitId, id])
+  materialRemnant        MaterialRemnant             @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
 
   @@index([businessUnitId, remnantId, createdAt])
+  @@map("RemnantMovement")
 }
 
 model LowStockNotification {
@@ -947,7 +953,7 @@ enum MeasurementUnit {
 
 enum ProductType {
   STANDARD
-  PANEL
+  MATERIAL @map("PANEL")
 }
 
 enum RoundingMode {
@@ -964,7 +970,7 @@ enum StockMovementType {
   OUTWARD
   ADJUSTMENT
   TRANSFER
-  PANEL_OPERATION
+  MATERIAL_PROCESSING @map("PANEL_OPERATION")
   SALE
   PURCHASE_RETURN
   PURCHASE_RETURN_REVERSAL
@@ -1007,25 +1013,25 @@ enum StockKind {
   REMNANT
 }
 
-enum PanelOperationType {
+enum MaterialProcessingType {
   CUT
   REMNANT_SALE
   WASTAGE
-  ADJUSTMENT
+  ADJUSTMENT\n  @@map("PanelOperationType")
 }
 
-enum RemnantStatus {
+enum MaterialRemnantStatus {
   AVAILABLE
   SOLD
   CONSUMED
   WASTED
-  ADJUSTED
+  ADJUSTED\n  @@map("RemnantStatus")
 }
 
-enum RemnantMovementType {
+enum MaterialRemnantMovementType {
   CREATED
   SOLD
   CONSUMED
   WASTED
-  ADJUSTED
+  ADJUSTED\n  @@map("RemnantMovementType")
 }

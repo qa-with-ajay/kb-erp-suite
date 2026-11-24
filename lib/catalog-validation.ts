@@ -17,7 +17,7 @@ export const catalogListSchema = z.object({
 });
 
 const measurementUnits = ["PCS", "SQFT", "BOX", "RFT", "ROLL", "METER", "KG", "LITRE", "BUNDLE", "SET"] as const;
-const productTypes = ["STANDARD", "PANEL"] as const;
+const productTypes = ["STANDARD", "MATERIAL"] as const;
 const roundingModes = ["HALF_UP", "HALF_EVEN", "DOWN", "UP"] as const;
 
 const moneySchema = z.string().trim().regex(/^\d{1,12}(?:\.\d{1,2})?$/, "Enter a non-negative amount with up to 2 decimal places.");
@@ -28,6 +28,7 @@ const productFieldsSchema = z.object({
   sku: z.string().trim().max(80).regex(/^[A-Za-z0-9._/-]+$/, "Use letters, numbers, dot, dash, slash, or underscore for SKU.").optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   productType: z.enum(productTypes),
+  isProcessingEnabled: z.boolean().default(false),
   baseUnit: z.enum(measurementUnits),
   sellingPrice: moneySchema,
   gstPercentage: z.string().trim().regex(/^(?:\d{1,2})(?:\.\d{1,2})?$|^100(?:\.0{1,2})?$/).default("0"),
@@ -40,15 +41,14 @@ const productFieldsSchema = z.object({
 });
 
 export const productInputSchema = productFieldsSchema.superRefine((value, context) => {
+  if (value.isProcessingEnabled && value.productType !== "MATERIAL") context.addIssue({ code: "custom", path: ["isProcessingEnabled"], message: "Material processing can only be enabled for MATERIAL products." });
   if ((value.barcodeType ?? (value.barcode ? "MANUFACTURER" : "INTERNAL")) === "MANUFACTURER" && !value.barcode) {
     context.addIssue({ code: "custom", path: ["barcode"], message: "Enter or scan the manufacturer barcode." });
-  }
-  if (value.productType === "PANEL" && !["PCS", "SQFT"].includes(value.baseUnit)) {
-    context.addIssue({ code: "custom", path: ["baseUnit"], message: "Panel products must use PCS for whole-sheet sales or SQFT for cut-to-size stock." });
   }
 });
 
 export const productUpdateSchema = productFieldsSchema.partial().superRefine((value, context) => {
+  if (value.isProcessingEnabled === true && value.productType !== undefined && value.productType !== "MATERIAL") context.addIssue({ code: "custom", path: ["isProcessingEnabled"], message: "Material processing can only be enabled for MATERIAL products." });
   if (value.barcodeType === "MANUFACTURER" && !value.barcode) {
     context.addIssue({ code: "custom", path: ["barcode"], message: "Enter or scan the manufacturer barcode." });
   }
