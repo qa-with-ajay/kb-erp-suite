@@ -174,7 +174,7 @@ export async function POST(request: Request) {
             idempotencyKey: input.idempotencyKey,
           },
         },
-        include: { sale: { include: { lines: true } } },
+        include: { sale: { include: { lines: { include: { stockAllocations: true } } } } },
       });
       if (prior?.sale && isSameSaleRequest(prior, input, access.context.businessUnit.id)) {
         return saleResponse(prior.sale.id, prior.sale.invoiceNumber, true);

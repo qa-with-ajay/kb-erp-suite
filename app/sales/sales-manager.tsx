@@ -170,7 +170,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const totals = useMemo(() => lines.reduce((result, line) => {
     if (!line.product || lineQuantity(line) <= 0) return result;
     const quantity = lineQuantity(line);
-    const lineSubtotal = roundMoney((Number(line.product.sellingPrice) / conversionFactor(line.product)) * quantity);
+    const lineSubtotal = roundMoney(roundMoney(Number(line.product.sellingPrice) / conversionFactor(line.product)) * quantity);
     const lineTax = taxMode === "GST"
       ? roundMoney(lineSubtotal * Number(line.product.gstPercentage) / 100)
       : 0;
