@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const normalized = normalizePhone(phone);
     if (!/^\d{10}$/.test(normalized)) return NextResponse.json({ items: [] });
     const candidates = await prisma.customer.findMany({
-      where: { businessUnitId: access.context.businessUnit.id, isActive: true, phone: { contains: normalized } },
+      where: { businessUnitId: access.context.businessUnit.id, isActive: true, phone: { contains: normalized.slice(-4) } },
       select: { id: true, name: true, phone: true }, take: 50,
     });
     const items = candidates.filter((item) => item.phone && normalizePhone(item.phone) === normalized);
