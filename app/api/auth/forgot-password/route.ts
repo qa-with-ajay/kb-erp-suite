@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   const baseUrl = (process.env.AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
   const resetUrl = `${baseUrl}/reset-password?token=${rawToken}`;
 
-  let transporter: nodemailer.Transporter | undefined;
+  let transporter: ReturnType<typeof nodemailer.createTransport> | undefined;
   try {
     const mail = createMailTransport();
     transporter = mail.transporter;
