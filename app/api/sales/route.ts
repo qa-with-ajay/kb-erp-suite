@@ -24,6 +24,8 @@ const saleErrors: Record<SaleError, { message: string; status: number }> = {
   IDEMPOTENCY_CONFLICT: { message: "This request key was already used for a different sale.", status: 409 },
   LOCATION_NOT_AVAILABLE: { message: "Select an active stock location in this business unit.", status: 400 },
   CUSTOMER_NOT_AVAILABLE: { message: "Select an active customer in this business unit.", status: 400 },
+  CUSTOMER_DUPLICATE: { message: "Multiple customer records match this phone or the name conflicts with another record. Resolve the duplicate in Customer Master first.", status: 409 },
+  CUSTOMER_PHONE_REQUIRED: { message: "Enter a valid 10-digit phone number to save this customer to Customer Master.", status: 400 },
   PRODUCT_NOT_AVAILABLE: { message: "One or more selected products are unavailable.", status: 400 },
   VARIANT_REQUIRED: { message: "Select a variant for the product.", status: 400 },
   VARIANT_NOT_AVAILABLE: { message: "The selected variant is unavailable.", status: 400 },
