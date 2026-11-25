@@ -142,6 +142,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       RETURN_NOT_AVAILABLE: "Return not found.",
       LOCATION_NOT_AVAILABLE: "Select an active stock location.",
       LINE_NOT_AVAILABLE: "One or more receipt lines are unavailable.",
+      SOURCE_ALLOCATION_MISMATCH: "The original stock allocation could not be verified. Review the source sale allocation before returning.",
+      SOURCE_NOT_RESTORABLE: "The original stock source is no longer available for restoration.",
       INVALID_QUANTITY: "Return quantity must be greater than zero and within the allowed precision.",
       OVER_RETURN: "Return quantity exceeds the unreturned receipt quantity.",
       AMOUNT_LIMIT_EXCEEDED: "Return amount exceeds the supported limit.",
