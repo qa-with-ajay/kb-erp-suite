@@ -97,7 +97,8 @@ function roundMoney(value: number) {
 export function SalesManager({ canManage, canSelectCustomer }: { canManage: boolean; canSelectCustomer: boolean }) {
   const [sales, setSales] = useState<PageResponse<SaleRow>>({ items: [], total: 0, page: 1, pageSize: 20 });
   const [locations, setLocations] = useState<Location[]>([]);
-  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [customerMatches, setCustomerMatches] = useState<CustomerOption[]>([]);
+  const [customerLookup, setCustomerLookup] = useState<"idle" | "searching" | "found" | "not-found" | "error">("idle");
   const [products, setProducts] = useState<Product[]>([]);
   const [locationId, setLocationId] = useState("");
   const [productSearch, setProductSearch] = useState("");
@@ -156,15 +157,41 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
 
   useEffect(() => {
     if (!canSelectCustomer) return;
+    const digits = customerPhone.replace(/\D/g, "");
+    const normalized = digits.startsWith("0091") ? digits.slice(4)
+      : digits.startsWith("91") && digits.length === 12 ? digits.slice(2)
+      : digits.startsWith("0") && digits.length === 11 ? digits.slice(1) : digits;
+    if (!/^\d{10}$/.test(normalized)) {
+      setCustomerMatches([]);
+      setCustomerLookup("idle");
+      return;
+    }
     const controller = new AbortController();
-    fetch("/api/customers?active=true&page=1&pageSize=100", { signal: controller.signal })
-      .then((response) => readJson<{ items: CustomerOption[] }>(response))
-      .then(({ items }) => setCustomers(items))
-      .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load customers.");
-      });
-    return () => controller.abort();
-  }, [canSelectCustomer]);
+    setCustomerLookup("searching");
+    const timer = window.setTimeout(() => {
+      fetch(`/api/customers?phone=${encodeURIComponent(normalized)}`, { signal: controller.signal })
+        .then((response) => readJson<{ items: CustomerOption[] }>(response))
+        .then(({ items }) => {
+          setCustomerMatches(items);
+          if (items.length === 1) {
+            setCustomerId(items[0].id);
+            setCustomerName(items[0].name);
+            setCustomerPhone(items[0].phone ?? customerPhone);
+            setCustomerLookup("found");
+          } else {
+            setCustomerId("");
+            setCustomerLookup(items.length ? "found" : "not-found");
+          }
+        })
+        .catch((cause: unknown) => {
+          if (!controller.signal.aborted) {
+            setCustomerLookup("error");
+            setError(cause instanceof Error ? cause.message : "Unable to search customer by phone.");
+          }
+        });
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [canSelectCustomer, customerPhone]);
 
   useEffect(() => {
     if (!locationId) {
@@ -264,6 +291,18 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Amount received must be a valid amount (max 2 decimals) and cannot exceed the invoice total.");
       return;
     }
+    if (canSelectCustomer && customerMatches.length > 1 && !customerId) {
+      setError("Select the correct existing customer for this phone number.");
+      return;
+    }
+    if (canSelectCustomer && customerLookup === "searching") {
+      setError("Wait for the customer phone lookup to finish.");
+      return;
+    }
+    if (canSelectCustomer && customerLookup === "not-found" && saveCustomerToMaster && !customerName.trim()) {
+      setError("Enter the customer name to create a Customer Master record.");
+      return;
+    }
     if (needsCustomer) {
       setError("Select or enter a customer to leave a balance due.");
       return;
@@ -353,37 +392,61 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 </select>
               </label>
               <label className="text-sm font-medium">
-                Customer name (optional)
-                <input value={customerName} maxLength={120} disabled={Boolean(customerId)} onChange={(event) => { setCustomerName(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5 disabled:bg-gray-100" />
+                Customer phone {canSelectCustomer ? "(search first)" : "(optional)"}
+                <input
+                  value={customerPhone}
+                  maxLength={30}
+                  disabled={Boolean(customerId)}
+                  onChange={(event) => {
+                    setCustomerPhone(event.target.value);
+                    setCustomerId("");
+                    setCustomerMatches([]);
+                    setCustomerName("");
+                    setCustomerLookup("idle");
+                    invalidateRequestKey();
+                  }}
+                  placeholder="Enter 10-digit mobile number"
+                  inputMode="tel"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5 disabled:bg-gray-100"
+                />
+                {canSelectCustomer && customerLookup === "searching" && <span className="mt-1 block text-xs text-gray-500">Searching Customer Master…</span>}
+                {canSelectCustomer && customerLookup === "not-found" && <span className="mt-1 block text-xs text-amber-700">No customer found. Enter the name below to create a new customer.</span>}
+                {canSelectCustomer && customerLookup === "found" && customerId && <span className="mt-1 block text-xs text-green-700">Existing customer selected from Customer Master.</span>}
               </label>
               <label className="text-sm font-medium">
-                Customer phone (optional)
-                <input value={customerPhone} maxLength={30} disabled={Boolean(customerId)} onChange={(event) => { setCustomerPhone(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5 disabled:bg-gray-100" />
+                Customer name {canSelectCustomer && customerLookup === "not-found" ? "(required for new customer)" : "(optional)"}
+                <input
+                  value={customerName}
+                  maxLength={120}
+                  disabled={Boolean(customerId)}
+                  required={canSelectCustomer && customerLookup === "not-found"}
+                  onChange={(event) => { setCustomerName(event.target.value); invalidateRequestKey(); }}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5 disabled:bg-gray-100"
+                />
               </label>
             </div>
 
-            {canSelectCustomer && (
+            {canSelectCustomer && customerMatches.length > 1 && (
               <label className="block max-w-lg text-sm font-medium">
-                Customer record
+                Multiple customers use this phone number — select the correct record
                 <select
                   value={customerId}
                   onChange={(event) => {
-                    const selectedId = event.target.value;
-                    const customer = customers.find((item) => item.id === selectedId);
-                    setCustomerId(selectedId);
-                    setCustomerName(customer?.name ?? "");
-                    setCustomerPhone(customer?.phone ?? "");
+                    const selected = customerMatches.find((item) => item.id === event.target.value);
+                    setCustomerId(selected?.id ?? "");
+                    setCustomerName(selected?.name ?? "");
+                    setCustomerPhone(selected?.phone ?? customerPhone);
                     invalidateRequestKey();
                   }}
                   className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
                 >
-                  <option value="">Walk-in / enter customer details</option>
-                  {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}{customer.phone ? ` · ${customer.phone}` : ""}</option>)}
+                  <option value="">Select customer</option>
+                  {customerMatches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </label>
             )}
 
-            {canSelectCustomer && !customerId && (
+            {canSelectCustomer && !customerId && customerLookup === "not-found" && (
               <label className="flex max-w-lg items-start gap-2 text-sm text-gray-700">
                 <input
                   type="checkbox"
@@ -392,8 +455,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                   className="mt-0.5"
                 />
                 <span>
-                  <span className="font-medium">Save this customer to Customer Master</span>
-                  <span className="block text-xs text-gray-500">When a customer name is entered, create or reuse the matching customer record and link it to this invoice. Leave unchecked for a one-time customer.</span>
+                  <span className="font-medium">Save new customer to Customer Master</span>
+                  <span className="block text-xs text-gray-500">The customer will be created and linked only when this sale succeeds. Uncheck for a one-time customer.</span>
                 </span>
               </label>
             )}
