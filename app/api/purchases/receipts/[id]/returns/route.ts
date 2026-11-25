@@ -135,12 +135,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     throw error;
   }
   if (result.kind === "error") {
-    const status = result.error === "TARGET_NOT_AVAILABLE" ? 404 : result.error === "LINE_NOT_AVAILABLE" ? 400 : 409;
+    const status = result.error === "TARGET_NOT_AVAILABLE" ? 404
+      : result.error === "LINE_NOT_AVAILABLE" || result.error === "INVALID_QUANTITY" ? 400 : 409;
     const messages = {
       TARGET_NOT_AVAILABLE: "Supplier invoice not found.",
       RETURN_NOT_AVAILABLE: "Return not found.",
       LOCATION_NOT_AVAILABLE: "Select an active stock location.",
       LINE_NOT_AVAILABLE: "One or more receipt lines are unavailable.",
+      INVALID_QUANTITY: "Return quantity must be greater than zero and within the allowed precision.",
       OVER_RETURN: "Return quantity exceeds the unreturned receipt quantity.",
       AMOUNT_LIMIT_EXCEEDED: "Return amount exceeds the supported limit.",
       INSUFFICIENT_STOCK: "Insufficient stock at the selected location.",
