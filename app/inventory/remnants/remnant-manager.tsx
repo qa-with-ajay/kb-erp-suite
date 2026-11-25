@@ -139,9 +139,9 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
     <div className="space-y-6">
       <ConfirmDialog
         open={Boolean(pendingAction)}
-        title={pendingAction ? ({ SOLD: "Mark remnant as sold", CONSUMED: "Consume remnant", WASTED: "Mark remnant as waste", TRANSFERRED: "TRANSFERRED remnant" }[pendingAction.action]) : "Confirm action"}
+        title={pendingAction ? ({ SOLD: "Mark remnant as sold", CONSUMED: "Consume remnant", WASTED: "Mark remnant as waste", TRANSFERRED: "Transfer remnant" }[pendingAction.action]) : "Confirm action"}
         description={pendingAction ? `${pendingAction.item.code} · ${pendingAction.item.product.name} · Available: ${fmt(pendingAction.item.quantity)} ${pendingAction.item.unit ?? pendingAction.item.product.baseUnit}${pendingAction.action === "SOLD" ? ". This records an inventory disposition only; it does not create a sales invoice." : ""}` : ""}
-        confirmLabel={pendingAction ? ({ SOLD: "Mark sold", CONSUMED: "Consume", WASTED: "Mark waste", TRANSFERRED: "TRANSFERRED" }[pendingAction.action]) : "Confirm"}
+        confirmLabel={pendingAction ? ({ SOLD: "Mark sold", CONSUMED: "Consume", WASTED: "Mark waste", TRANSFERRED: "Transfer" }[pendingAction.action]) : "Confirm"}
         destructive={pendingAction?.action === "WASTED"}
         busy={busy}
         onCancel={() => setPendingAction(null)}
@@ -208,8 +208,8 @@ export function RemnantManager({ canManage }: { canManage: boolean }) {
                     <button disabled={busy} onClick={() => openAction(item, "SOLD")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Mark sold</button>
                     <button disabled={busy} onClick={() => openAction(item, "CONSUMED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Consume</button>
                     <button disabled={busy} onClick={() => openAction(item, "WASTED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Waste</button>
-                    <select aria-label={`TRANSFERRED destination for ${item.code}`} value={destinationById[item.id] ?? ""} onChange={(e) => setDestinationById((current) => ({ ...current, [item.id]: e.target.value }))} className="max-w-36 rounded border px-2 py-1 text-xs"><option value="">TRANSFERRED to…</option>{locations.filter((l) => l.id !== item.location.id).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
-                    <button disabled={busy || !destinationById[item.id]} onClick={() => openAction(item, "TRANSFERRED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">TRANSFERRED</button>
+                    <select aria-label={`TRANSFER destination for ${item.code}`} value={destinationById[item.id] ?? ""} onChange={(e) => setDestinationById((current) => ({ ...current, [item.id]: e.target.value }))} className="max-w-36 rounded border px-2 py-1 text-xs"><option value="">Transfer to…</option>{locations.filter((l) => l.id !== item.location.id).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+                    <button disabled={busy || !destinationById[item.id]} onClick={() => openAction(item, "TRANSFERRED")} className="rounded border px-2 py-1 text-xs disabled:opacity-50">Transfer</button>
                   </>}
                 </div></td>
               </tr>)}

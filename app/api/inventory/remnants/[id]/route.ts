@@ -50,7 +50,7 @@ export async function PATCH(request: Request, { params }: Context) {
         if (!locked.length) return { error: "LOCATION_NOT_AVAILABLE" as const };
       }
       const lockedRemnant = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT "id" FROM "Remnant" WHERE "id" = ${id}::uuid AND "businessUnitId" = ${businessUnit.id}::uuid FOR UPDATE
+        SELECT "id" FROM "MaterialRemnant" WHERE "id" = ${id}::uuid AND "businessUnitId" = ${businessUnit.id}::uuid FOR UPDATE
       `;
       if (!lockedRemnant.length) return { error: "NOT_FOUND" as const };
       const fresh = await tx.materialRemnant.findFirst({ where: { id, businessUnitId: businessUnit.id } });
