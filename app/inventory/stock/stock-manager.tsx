@@ -312,7 +312,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
       type === "INWARD" ? (inwardReason === "Other" ? inwardReasonDetails.trim() : inwardReason) :
         type === "ADJUSTMENT" ? (reason === "Other" ? adjustmentReasonDetails.trim() : reason.trim()) :
         type === "TRANSFER" ? (reason === "Other" ? transferReasonDetails.trim() : reason.trim()) : reason.trim(),
-    ].filter(Boolean);
+    ].filter((line): line is string => Boolean(line));
     if (!confirmation) {
       setConfirmation(confirmationLines);
       return;
