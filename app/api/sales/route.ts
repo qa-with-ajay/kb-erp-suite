@@ -119,6 +119,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid sale.", details: parsed.error.flatten() }, { status: 400 });
   }
   const input = parsed.data;
+  if (input.saveCustomerToMaster && !input.customerId && input.customerName?.trim()) {
+    const customerAccess = await getBusinessUnitAccess("customers.manage");
+    if (!customerAccess.ok) return NextResponse.json({ error: customerAccess.error }, { status: customerAccess.status });
+    if (customerAccess.context.businessUnit.id !== access.context.businessUnit.id) {
+      return NextResponse.json({ error: "Customer access is not available for the active business unit." }, { status: 403 });
+    }
+  }
 
   try {
     // Sale + first payment commit or roll back together.
