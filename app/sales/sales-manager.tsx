@@ -411,7 +411,19 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 />
                 {canSelectCustomer && customerLookup === "searching" && <span className="mt-1 block text-xs text-gray-500">Searching Customer Master…</span>}
                 {canSelectCustomer && customerLookup === "not-found" && <span className="mt-1 block text-xs text-amber-700">No customer found. Enter the name below to create a new customer.</span>}
-                {canSelectCustomer && customerLookup === "found" && customerId && <span className="mt-1 block text-xs text-green-700">Existing customer selected from Customer Master.</span>}
+                {canSelectCustomer && customerLookup === "found" && customerId && (
+                  <span className="mt-1 flex items-center gap-2 text-xs text-green-700">
+                    Existing customer selected from Customer Master.
+                    <button type="button" className="underline" onClick={() => {
+                      setCustomerId("");
+                      setCustomerName("");
+                      setCustomerPhone("");
+                      setCustomerMatches([]);
+                      setCustomerLookup("idle");
+                      invalidateRequestKey();
+                    }}>Clear / use walk-in</button>
+                  </span>
+                )}
               </label>
               <label className="text-sm font-medium">
                 Customer name {canSelectCustomer && customerLookup === "not-found" ? "(required for new customer)" : "(optional)"}
