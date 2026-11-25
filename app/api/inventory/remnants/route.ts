@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       const factor = product.materialUnitsPerBaseUnit ?? new Prisma.Decimal(1);
       const standardWhere = { businessUnitId: businessUnit.id, locationId: input.locationId, productId: product.id, variantId: input.variantId ?? null, stockKind: "STANDARD" as const };
       const remnantWhere = { ...standardWhere, stockKind: "REMNANT" as const };
-      let sourceRemnant: { id: string; quantity: Prisma.Decimal; unit: typeof outputUnit | null; unitCost: Prisma.Decimal; length: Prisma.Decimal | null; width: Prisma.Decimal | null } | null = null;
+      let sourceRemnant: { id: string; variantId: string | null; quantity: Prisma.Decimal; unit: typeof outputUnit | null; unitCost: Prisma.Decimal; length: Prisma.Decimal | null; width: Prisma.Decimal | null } | null = null;
       let sourceBalance: { id: string; quantity: Prisma.Decimal; averageCost: Prisma.Decimal } | null = null;
       let sourceRemnantBalance: { id: string; quantity: Prisma.Decimal; averageCost: Prisma.Decimal } | null = null;
       const requestedInput = new Prisma.Decimal(input.inputQuantity);
@@ -275,7 +275,11 @@ export async function POST(request: Request) {
         STOCK_BALANCE_MISMATCH: { message: "Remnant stock balance does not match its individual records. Reconcile inventory before processing.", status: 409 },
         OUTPUT_QUANTITY_EXCEEDED: { message: "Consumed quantity plus all remnant outputs cannot exceed the source quantity.", status: 400 },
       };
-      return NextResponse.json({ error: errors[result.error].message }, { status: errors[result.error].status });
+      const response = result.error ? errors[result.error] : undefined;
+      return NextResponse.json(
+        { error: response?.message ?? "Unable to complete material processing." },
+        { status: response?.status ?? 500 },
+      );
     }
     return NextResponse.json({ ...result, replayed: result.replayed }, { status: result.replayed ? 200 : 201 });
   } catch (error) {
