@@ -26,6 +26,9 @@ export const saleInputSchema = z.object({
     })).min(1).max(100).optional(),
   })).min(1).max(50),
 }).superRefine((value, context) => {
+  if (value.saveCustomerToMaster && !value.customerId && value.customerName?.trim() && !value.customerPhone?.trim()) {
+    context.addIssue({ code: "custom", path: ["customerPhone"], message: "Enter a phone number to save this customer to Customer Master." });
+  }
   const keys = new Set<string>();
   value.lines.forEach((line, index) => {
     const key = `${line.productId}:${line.variantId || ""}:${line.saleUnit || ""}`;
