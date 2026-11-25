@@ -107,6 +107,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [saveCustomerToMaster, setSaveCustomerToMaster] = useState(true);
   const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]);
   const [requestKey, setRequestKey] = useState("");
   // null = "not edited": the amount follows the invoice total (full payment).
@@ -287,6 +288,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
           customerId: customerId || null,
           customerName,
           customerPhone,
+          saveCustomerToMaster: canSelectCustomer && !customerId && saveCustomerToMaster && Boolean(customerName.trim()),
           idempotencyKey,
           payment: {
             ...(amountReceived === null ? { payInFull: true } : { amount: receivedText }),
@@ -378,6 +380,21 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                   <option value="">Walk-in / enter customer details</option>
                   {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}{customer.phone ? ` · ${customer.phone}` : ""}</option>)}
                 </select>
+              </label>
+            )}
+
+            {canSelectCustomer && !customerId && (
+              <label className="flex max-w-lg items-start gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={saveCustomerToMaster}
+                  onChange={(event) => { setSaveCustomerToMaster(event.target.checked); invalidateRequestKey(); }}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Save this customer to Customer Master</span>
+                  <span className="block text-xs text-gray-500">When a customer name is entered, create or reuse the matching customer record and link it to this invoice. Leave unchecked for a one-time customer.</span>
+                </span>
               </label>
             )}
 
