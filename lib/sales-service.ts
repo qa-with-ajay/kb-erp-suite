@@ -13,7 +13,7 @@ type AllocationInput = NonNullable<SaleInput["lines"][number]["allocations"]>[nu
 export type SaleResult =
   | { kind: "created" | "replayed"; saleId: string; invoiceNumber: string }
   | { kind: "error"; error:
-      | "IDEMPOTENCY_CONFLICT" | "LOCATION_NOT_AVAILABLE" | "CUSTOMER_NOT_AVAILABLE"
+      | "IDEMPOTENCY_CONFLICT" | "LOCATION_NOT_AVAILABLE" | "CUSTOMER_NOT_AVAILABLE" | "CUSTOMER_DUPLICATE" | "CUSTOMER_PHONE_REQUIRED"
       | "PRODUCT_NOT_AVAILABLE" | "VARIANT_REQUIRED" | "VARIANT_NOT_AVAILABLE"
       | "AMOUNT_LIMIT_EXCEEDED" | "INSUFFICIENT_STOCK" | "INVALID_QUANTITY"
       | "INVALID_ALLOCATION" | "REMNANT_NOT_AVAILABLE" | "UNIT_MISMATCH";
@@ -76,27 +76,6 @@ export async function createSale(
     select: { id: true, name: true, phone: true },
   }) : null;
   if (input.customerId && !customer) return { kind: "error", error: "CUSTOMER_NOT_AVAILABLE" };
-  if (!input.customerId && input.saveCustomerToMaster && input.customerName?.trim()) {
-    const name = input.customerName.trim();
-    const phone = input.customerPhone?.trim() || null;
-    const existing = await tx.customer.findFirst({
-      where: { businessUnitId, name: { equals: name, mode: "insensitive" }, isActive: true },
-      select: { id: true, name: true, phone: true },
-    });
-    if (existing && phone && existing.phone && existing.phone.replace(/\\D/g, "") !== phone.replace(/\\D/g, "")) {
-      return { kind: "error", error: "CUSTOMER_DUPLICATE" };
-    }
-    customer = existing ?? await tx.customer.create({
-      data: { businessUnitId, name, phone },
-      select: { id: true, name: true, phone: true },
-    });
-    if (!existing) {
-      await tx.auditLog.create({
-        data: { userId: actorId, businessUnitId, action: "CREATE", entity: "Customer", entityId: customer.id, details: { name: customer.name, source: "sale-checkout" } },
-      });
-    }
-  }
-
   const locationRows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "StockLocation"
     WHERE "id" = ${input.locationId}::uuid AND "businessUnitId" = ${businessUnitId}::uuid AND "isActive" = true
@@ -232,6 +211,30 @@ export async function createSale(
       return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
   }
 
+  // Create only after all product and stock validations have passed.
+  if (!input.customerId && input.saveCustomerToMaster && input.customerName?.trim()) {
+    const name = input.customerName.trim();
+    const rawPhone = input.customerPhone?.trim() ?? "";
+    const normalizePhone = (value: string) => {
+      let digits = value.replace(/\D/g, "");
+      if (digits.startsWith("0091")) digits = digits.slice(4);
+      else if (digits.startsWith("91") && digits.length === 12) digits = digits.slice(2);
+      else if (digits.startsWith("0") && digits.length === 11) digits = digits.slice(1);
+      return digits;
+    };
+    const phone = normalizePhone(rawPhone);
+    if (!/^\d{10}$/.test(phone)) return { kind: "error", error: "CUSTOMER_PHONE_REQUIRED" };
+    const candidates = await tx.customer.findMany({ where: { businessUnitId, isActive: true, phone: { contains: phone } }, select: { id: true, name: true, phone: true }, take: 50 });
+    const matches = candidates.filter((item) => item.phone && normalizePhone(item.phone) === phone);
+    if (matches.length > 1) return { kind: "error", error: "CUSTOMER_DUPLICATE" };
+    if (matches.length === 1) customer = matches[0];
+    else {
+      const sameName = await tx.customer.findFirst({ where: { businessUnitId, name: { equals: name, mode: "insensitive" }, isActive: true }, select: { id: true, name: true, phone: true } });
+      if (sameName) return { kind: "error", error: "CUSTOMER_DUPLICATE" };
+      customer = await tx.customer.create({ data: { businessUnitId, name, phone: rawPhone }, select: { id: true, name: true, phone: true } });
+      await tx.auditLog.create({ data: { userId: actorId, businessUnitId, action: "CREATE", entity: "Customer", entityId: customer.id, details: { name: customer.name, source: "sale-checkout" } } });
+    }
+  }
   const profile = await tx.businessProfile.update({
     where: { businessUnitId }, data: { nextInvoiceNo: { increment: 1 } },
     select: { invoicePrefix: true, nextInvoiceNo: true },
