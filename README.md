@@ -115,3 +115,14 @@ type kb-interiors-backup.sql | docker exec -i kb-interiors-db psql -U kb_user -d
 
 ## Current limitations
 The application does not yet provide detailed consolidated reports, bank reconciliation, cash-refund processing, account-level statements, GST compliance checks, backup automation, or dedicated A4/thermal invoice layouts. Returns create account credit and do not automatically issue cash refunds. Sales are whole-unit only; material processing and remnant workflows require operational UI and end-to-end testing before live use. Complete and test remaining features before live shop use.
+
+
+npx prisma migrate reset
+npx prisma generate
+npx prisma validate
+npx tsc --noEmit
+npm run build
+
+node scripts/create-admin.mjs ajaykr.mailbox@gmail.com KB_Admin Agastya@260124 ADMIN
+npm run db:seed:demo
+npx prisma studio

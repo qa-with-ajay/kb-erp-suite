@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 type Location = { id: string; name: string; code: string };
 type CustomerOption = { id: string; name: string; phone: string | null };
@@ -78,7 +78,7 @@ function lineQuantity(line: DraftLine) {
     const normalized = line.product?.materialUnit && line.saleUnit === line.product.materialUnit
       ? quantity * materialFactor
       : line.saleUnit === line.product?.baseUnit ? quantity
-      : conversion ? quantity / Number(conversion.conversionFactor) : quantity;
+        : conversion ? quantity / Number(conversion.conversionFactor) : quantity;
     return sum + normalized;
   }, 0);
 }
@@ -316,14 +316,51 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   }
 
   const pageCount = Math.max(1, Math.ceil(sales.total / sales.pageSize));
+  function SummaryRow({ label, value, strong, tone }: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  tone?: "warn" | "ok";
+}) {
+  const color =
+    tone === "warn" ? "text-amber-600"
+    : tone === "ok" ? "text-emerald-600"
+    : "text-slate-900";
+
+  return (
+    <div className="flex items-baseline justify-between gap-6 py-3">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span
+        className={[
+          "whitespace-nowrap tabular-nums",
+          strong ? "text-xl font-semibold" : "text-sm font-medium",
+          color,
+        ].join(" ")}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
 
   return (
     <div className="space-y-8">
       <ConfirmDialog
         open={confirmOpen}
-        title="Confirm sale"
-        description={`Confirm this sale for ${money(totals.total)}? Received ${money(receivedValue)}${dueAfterPayment > 0 ? `, balance due ${money(dueAfterPayment)}` : ""}. Stock will be deducted immediately.`}
-        confirmLabel="Complete sale"
+        title="Complete this sale?"
+        description={
+            <div className="mt-3 w-full divide-y divide-slate-200 rounded-xl border border-slate-200 bg-slate-50 px-4">
+              <SummaryRow label="Total" value={money(totals.total)} strong />
+              <SummaryRow label="Received" value={money(receivedValue)} />
+              <SummaryRow
+                label={dueAfterPayment > 0 ? "Balance due" : "Paid in full"}
+                value={dueAfterPayment > 0 ? money(dueAfterPayment) : money(0)}
+                tone={dueAfterPayment > 0 ? "warn" : "ok"}
+              />
+          </div>
+        }
+        // confirmLabel={`Complete sale · ${money(totals.total)}`}
+        confirmLabel={'Complete'}
         busy={saving}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={() => void confirmSale()}

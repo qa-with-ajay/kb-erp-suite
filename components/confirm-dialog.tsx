@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { ReactNode, useEffect } from "react";
 
 type ConfirmDialogProps = {
   open: boolean;
   title: string;
-  description?: string;
+  description?: string | ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
