@@ -11,6 +11,7 @@ export const saleInputSchema = z.object({
   customerId: z.string().uuid().nullable().optional(),
   customerName: z.string().trim().max(120).nullable().optional(),
   customerPhone: z.string().trim().max(30).nullable().optional(),
+  saveCustomerToMaster: z.boolean().optional().default(false),
   idempotencyKey: z.string().uuid(),
   lines: z.array(z.object({
     productId: z.string().uuid(),
