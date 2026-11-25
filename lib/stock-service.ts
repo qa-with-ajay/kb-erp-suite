@@ -164,7 +164,7 @@ export async function createStockMovement(
     }
 
     const validated = await validateProductAndVariant(tx, businessUnitId, input.productId, input.variantId);
-    if ("error" in validated) return { kind: "error", error: validated.error };
+    if ("error" in validated && validated.error) return { kind: "error", error: validated.error };
 
     const sourceWhere = {
       businessUnitId, locationId: input.sourceLocationId, productId: validated.productId,
@@ -254,7 +254,7 @@ export async function createStockMovement(
   if (!locationRows.length) return { kind: "error", error: "LOCATION_NOT_AVAILABLE" };
 
   const validated = await validateProductAndVariant(tx, businessUnitId, input.productId, input.variantId);
-  if ("error" in validated) return { kind: "error", error: validated.error };
+  if ("error" in validated && validated.error) return { kind: "error", error: validated.error };
 
   const balanceWhere = {
     businessUnitId,
