@@ -8,7 +8,7 @@ import { readJsonBody } from "@/lib/catalog-validation";
 
 type Context = { params: Promise<{ id: string }> };
 const actionSchema = z.object({
-  action: z.enum(["SOLD", "CONSUMED", "WASTED", "TRANSFER"]),
+  action: z.enum(["SOLD", "CONSUMED", "WASTED", "TRANSFERRED"]),
   quantity: z.coerce.number().positive().optional(),
   destinationLocationId: z.string().uuid().optional(),
   reference: z.string().trim().max(100).optional(),
@@ -38,10 +38,10 @@ export async function PATCH(request: Request, { params }: Context) {
       if (!current) return { error: "NOT_FOUND" as const };
       if (current.status !== "AVAILABLE") return { error: "NOT_AVAILABLE" as const };
 
-      const locationIds = input.action === "TRANSFER"
+      const locationIds = input.action === "TRANSFERRED"
         ? [current.locationId, input.destinationLocationId ?? ""].sort()
         : [current.locationId];
-      if (input.action === "TRANSFER" && (!input.destinationLocationId || input.destinationLocationId === current.locationId)) return { error: "INVALID_DESTINATION" as const };
+      if (input.action === "TRANSFERRED" && (!input.destinationLocationId || input.destinationLocationId === current.locationId)) return { error: "INVALID_DESTINATION" as const };
       for (const locationId of locationIds) {
         const locked = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT "id" FROM "StockLocation" WHERE "id" = ${locationId}::uuid
@@ -55,24 +55,24 @@ export async function PATCH(request: Request, { params }: Context) {
       if (!lockedRemnant.length) return { error: "NOT_FOUND" as const };
       const fresh = await tx.materialRemnant.findFirst({ where: { id, businessUnitId: businessUnit.id } });
       if (!fresh || fresh.status !== "AVAILABLE") return { error: "NOT_AVAILABLE" as const };
-      const quantity = input.action === "TRANSFER" ? fresh.quantity : new Prisma.Decimal(input.quantity ?? fresh.quantity);
+      const quantity = input.action === "TRANSFERRED" ? fresh.quantity : new Prisma.Decimal(input.quantity ?? fresh.quantity);
       if (quantity.lte(0) || quantity.gt(fresh.quantity)) return { error: "INVALID_QUANTITY" as const };
 
-      const isTransfer = input.action === "TRANSFER";
-      const destinationLocationId = isTransfer ? input.destinationLocationId! : null;
-      const stockMovementType = isTransfer ? "TRANSFER" : "OUTWARD";
+      const isTransfered = input.action === "TRANSFERRED";
+      const destinationLocationId = isTransfered ? input.destinationLocationId! : null;
+      const stockMovementType = isTransfered ? "TRANSFERRED" : "OUTWARD";
       const movement = await tx.stockMovement.create({
         data: {
           businessUnitId: businessUnit.id, actorId: session.user.id, type: stockMovementType,
           sourceLocationId: fresh.locationId, destinationLocationId,
           reference: input.reference || null, idempotencyKey: input.idempotencyKey,
-          reason: input.reason || (isTransfer ? "Remnant transferred." : `Remnant marked ${input.action.toLowerCase()}.`),
+          reason: input.reason || (isTransfered ? "Remnant transferred." : `Remnant marked ${input.action.toLowerCase()}.`),
         },
       });
       const sourceWhere = { businessUnitId: businessUnit.id, locationId: fresh.locationId, productId: fresh.productId, variantId: fresh.variantId, stockKind: "REMNANT" as const };
       const sourceBalance = await tx.stockBalance.findFirst({ where: sourceWhere });
       if (!sourceBalance || sourceBalance.quantity.lt(quantity)) return { error: "STOCK_BALANCE_MISMATCH" as const };
-      const destinationBalance = isTransfer ? await tx.stockBalance.findFirst({
+      const destinationBalance = isTransfered ? await tx.stockBalance.findFirst({
         where: { ...sourceWhere, locationId: destinationLocationId! },
       }) : null;
       const entries: Prisma.StockLedgerEntryCreateManyInput[] = [{
@@ -80,13 +80,13 @@ export async function PATCH(request: Request, { params }: Context) {
         variantId: fresh.variantId, locationId: fresh.locationId, stockKind: "REMNANT" as const,
         quantityDelta: quantity.negated(), unitCost: sourceBalance.averageCost,
       }];
-      if (isTransfer) entries.push({
+      if (isTransfered) entries.push({
         businessUnitId: businessUnit.id, movementId: movement.id, productId: fresh.productId,
         variantId: fresh.variantId, locationId: destinationLocationId!, stockKind: "REMNANT" as const,
         quantityDelta: quantity, unitCost: sourceBalance.averageCost,
       });
       await tx.stockLedgerEntry.createMany({ data: entries });
-      if (isTransfer) {
+      if (isTransfered) {
         await tx.stockBalance.update({ where: { id: sourceBalance.id }, data: { quantity: sourceBalance.quantity.minus(quantity) } });
         const destCurrent = destinationBalance?.quantity ?? new Prisma.Decimal(0);
         const destNext = destCurrent.plus(quantity);

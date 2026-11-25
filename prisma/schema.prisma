@@ -52,7 +52,7 @@ model BusinessProfile {
   id             String             @id @default(cuid())
   legalName      String?
   tradeName      String             @default("KB Interiors")
-  unit           LegacyBusinessUnit @default(KB_INTERIORS)
+  unit           BusinessUnits @default(KB_INTERIORS)
   gstin          String?
   phone          String?
   email          String?
@@ -781,6 +781,7 @@ model SaleReturnLine {
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, saleReturnId, lineNumber])
   @@index([businessUnitId, saleLineId])
+  @@index([businessUnitId, sourceAllocationId])
 }
 
 model PurchaseReturn {
@@ -887,7 +888,6 @@ model MaterialProcessing {
   @@unique([businessUnitId, movementId])
   @@index([businessUnitId, sourceRemnantId, createdAt])
   @@index([businessUnitId, productId, createdAt])
-  @@map("PanelOperation")
 }
 
 model MaterialRemnant {
@@ -920,7 +920,6 @@ model MaterialRemnant {
   @@unique([businessUnitId, id])
   @@index([businessUnitId, productId, variantId, status])
   @@index([businessUnitId, locationId, status])
-  @@map("Remnant")
 }
 
 model MaterialRemnantMovement {
@@ -941,7 +940,6 @@ model MaterialRemnantMovement {
   materialRemnant        MaterialRemnant             @relation(fields: [businessUnitId, remnantId], references: [businessUnitId, id])
 
   @@index([businessUnitId, remnantId, createdAt])
-  @@map("RemnantMovement")
 }
 
 model LowStockNotification {
@@ -970,9 +968,13 @@ enum UserRole {
   ADMIN
   MANAGER
   CASHIER
+  GROUP_ADMIN
+  ACCOUNTANT
+  INVENTORY_MANAGER
+  UNIT_MANAGER
 }
 
-enum LegacyBusinessUnit {
+enum BusinessUnits {
   KB_INTERIORS
   KB_ELECTRICALS
   KB_FURNITURE
@@ -1001,7 +1003,7 @@ enum MeasurementUnit {
 
 enum ProductType {
   STANDARD
-  MATERIAL @map("PANEL")
+  MATERIAL
 }
 
 enum RoundingMode {
@@ -1018,7 +1020,7 @@ enum StockMovementType {
   OUTWARD
   ADJUSTMENT
   TRANSFER
-  MATERIAL_PROCESSING @map("PANEL_OPERATION")
+  MATERIAL_PROCESSING
   SALE
   PURCHASE_RETURN
   PURCHASE_RETURN_REVERSAL
@@ -1066,7 +1068,6 @@ enum MaterialProcessingType {
   REMNANT_SALE
   WASTAGE
   ADJUSTMENT
-  @@map("PanelOperationType")
 }
 
 enum MaterialRemnantStatus {
@@ -1075,7 +1076,6 @@ enum MaterialRemnantStatus {
   CONSUMED
   WASTED
   ADJUSTED
-  @@map("RemnantStatus")
 }
 
 enum MaterialRemnantMovementType {
@@ -1087,5 +1087,4 @@ enum MaterialRemnantMovementType {
   WASTED
   ADJUSTED
   TRANSFERRED
-  @@map("RemnantMovementType")
 }

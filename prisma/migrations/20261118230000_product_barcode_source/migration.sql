@@ -1,3 +1,0 @@
-CREATE TYPE "BarcodeType" AS ENUM ('INTERNAL', 'MANUFACTURER');
-ALTER TABLE "Product" ADD COLUMN "barcodeType" "BarcodeType" NOT NULL DEFAULT 'INTERNAL';
-UPDATE "Product" SET "barcodeType" = 'MANUFACTURER' WHERE "barcode" IS NOT NULL;
