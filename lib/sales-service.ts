@@ -31,9 +31,11 @@ export function isSameSaleRequest(existing: MovementWithSale, input: SaleInput, 
   if (
     existing.type !== "SALE" || existing.businessUnitId !== businessUnitId ||
     existing.sourceLocationId !== input.locationId || existing.destinationLocationId !== null ||
-    !sale || sale.taxMode !== input.taxMode || sale.customerId !== (input.customerId || null) ||
-    (!input.customerId && (sale.customerName !== (input.customerName || null) ||
-      sale.customerPhone !== (input.customerPhone || null))) || sale.lines.length !== input.lines.length
+    !sale || sale.taxMode !== input.taxMode ||
+    (input.customerId ? sale.customerId !== input.customerId : input.saveCustomerToMaster
+      ? (!sale.customerId || sale.customerName !== (input.customerName || null) || sale.customerPhone !== (input.customerPhone || null))
+      : (sale.customerId !== null || sale.customerName !== (input.customerName || null) || sale.customerPhone !== (input.customerPhone || null))) ||
+    sale.lines.length !== input.lines.length
   ) return false;
 
   const savedLines = new Map(sale.lines.map((line) => [lineKey(line), line]));
@@ -69,11 +71,31 @@ export async function createSale(
     return { kind: "error", error: "IDEMPOTENCY_CONFLICT" };
   }
 
-  const customer = input.customerId ? await tx.customer.findFirst({
+  let customer = input.customerId ? await tx.customer.findFirst({
     where: { id: input.customerId, businessUnitId, isActive: true },
     select: { id: true, name: true, phone: true },
   }) : null;
   if (input.customerId && !customer) return { kind: "error", error: "CUSTOMER_NOT_AVAILABLE" };
+  if (!input.customerId && input.saveCustomerToMaster && input.customerName?.trim()) {
+    const name = input.customerName.trim();
+    const phone = input.customerPhone?.trim() || null;
+    const existing = await tx.customer.findFirst({
+      where: { businessUnitId, name: { equals: name, mode: "insensitive" }, isActive: true },
+      select: { id: true, name: true, phone: true },
+    });
+    if (existing && phone && existing.phone && existing.phone.replace(/\\D/g, "") !== phone.replace(/\\D/g, "")) {
+      return { kind: "error", error: "CUSTOMER_DUPLICATE" };
+    }
+    customer = existing ?? await tx.customer.create({
+      data: { businessUnitId, name, phone },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!existing) {
+      await tx.auditLog.create({
+        data: { userId: actorId, businessUnitId, action: "CREATE", entity: "Customer", entityId: customer.id, details: { name: customer.name, source: "sale-checkout" } },
+      });
+    }
+  }
 
   const locationRows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "StockLocation"
