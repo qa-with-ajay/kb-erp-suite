@@ -419,7 +419,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                   value={customerName}
                   maxLength={120}
                   disabled={Boolean(customerId)}
-                  required={canSelectCustomer && customerLookup === "not-found"}
+                  required={canSelectCustomer && customerLookup === "not-found" && saveCustomerToMaster}
                   onChange={(event) => { setCustomerName(event.target.value); invalidateRequestKey(); }}
                   className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5 disabled:bg-gray-100"
                 />
