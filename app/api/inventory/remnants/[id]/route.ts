@@ -60,7 +60,14 @@ export async function PATCH(request: Request, { params }: Context) {
 
       const isTransfered = input.action === "TRANSFERRED";
       const destinationLocationId = isTransfered ? input.destinationLocationId! : null;
-      const stockMovementType = isTransfered ? "TRANSFERRED" : "OUTWARD";
+      const sourceWhere = { businessUnitId: businessUnit.id, locationId: fresh.locationId, productId: fresh.productId, variantId: fresh.variantId, stockKind: "REMNANT" as const };
+      // Validate both balances before writing any movement or ledger records.
+      const sourceBalance = await tx.stockBalance.findFirst({ where: sourceWhere });
+      if (!sourceBalance || sourceBalance.quantity.lt(quantity)) return { error: "STOCK_BALANCE_MISMATCH" as const };
+      const destinationBalance = isTransfered ? await tx.stockBalance.findFirst({
+        where: { ...sourceWhere, locationId: destinationLocationId! },
+      }) : null;
+      const stockMovementType = isTransfered ? "TRANSFER" as const : "OUTWARD" as const;
       const movement = await tx.stockMovement.create({
         data: {
           businessUnitId: businessUnit.id, actorId: session.user.id, type: stockMovementType,
@@ -69,12 +76,6 @@ export async function PATCH(request: Request, { params }: Context) {
           reason: input.reason || (isTransfered ? "Remnant transferred." : `Remnant marked ${input.action.toLowerCase()}.`),
         },
       });
-      const sourceWhere = { businessUnitId: businessUnit.id, locationId: fresh.locationId, productId: fresh.productId, variantId: fresh.variantId, stockKind: "REMNANT" as const };
-      const sourceBalance = await tx.stockBalance.findFirst({ where: sourceWhere });
-      if (!sourceBalance || sourceBalance.quantity.lt(quantity)) return { error: "STOCK_BALANCE_MISMATCH" as const };
-      const destinationBalance = isTransfered ? await tx.stockBalance.findFirst({
-        where: { ...sourceWhere, locationId: destinationLocationId! },
-      }) : null;
       const entries: Prisma.StockLedgerEntryCreateManyInput[] = [{
         businessUnitId: businessUnit.id, movementId: movement.id, productId: fresh.productId,
         variantId: fresh.variantId, locationId: fresh.locationId, stockKind: "REMNANT" as const,
@@ -86,7 +87,7 @@ export async function PATCH(request: Request, { params }: Context) {
         quantityDelta: quantity, unitCost: sourceBalance.averageCost,
       });
       await tx.stockLedgerEntry.createMany({ data: entries });
-      if (isTransfered) {
+      if (input.action === "TRANSFERRED") {
         await tx.stockBalance.update({ where: { id: sourceBalance.id }, data: { quantity: sourceBalance.quantity.minus(quantity) } });
         const destCurrent = destinationBalance?.quantity ?? new Prisma.Decimal(0);
         const destNext = destCurrent.plus(quantity);
@@ -134,7 +135,11 @@ export async function PATCH(request: Request, { params }: Context) {
         LOCATION_NOT_AVAILABLE: ["Select an active location in this business unit.", 400],
         STOCK_BALANCE_MISMATCH: ["Remnant record and remnant stock balance do not agree. Reconcile stock before retrying.", 409],
       };
-      return NextResponse.json({ error: messages[result.error][0] }, { status: messages[result.error][1] });
+      const response = result.error ? messages[result.error] : undefined;
+      return NextResponse.json(
+        { error: response?.[0] ?? "Unable to complete the remnant action." },
+        { status: response?.[1] ?? 500 },
+      );
     }
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
