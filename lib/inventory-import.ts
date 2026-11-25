@@ -224,6 +224,7 @@ export async function applyInventoryImport(tx: Prisma.TransactionClient, busines
   let updated = 0;
   let inwardStockCreated = 0;
   let inwardStockReplayed = 0;
+  const productIdsBySku = new Map<string, string>();
 
   for (const row of rows) {
     let categoryId: string | null = null;
