@@ -224,7 +224,7 @@ export async function createSale(
     };
     const phone = normalizePhone(rawPhone);
     if (!/^\d{10}$/.test(phone)) return { kind: "error", error: "CUSTOMER_PHONE_REQUIRED" };
-    const candidates = await tx.customer.findMany({ where: { businessUnitId, isActive: true, phone: { contains: phone } }, select: { id: true, name: true, phone: true }, take: 50 });
+    const candidates = await tx.customer.findMany({ where: { businessUnitId, isActive: true, phone: { contains: phone.slice(-4) } }, select: { id: true, name: true, phone: true }, take: 50 });
     const matches = candidates.filter((item) => item.phone && normalizePhone(item.phone) === phone);
     if (matches.length > 1) return { kind: "error", error: "CUSTOMER_DUPLICATE" };
     if (matches.length === 1) customer = matches[0];
