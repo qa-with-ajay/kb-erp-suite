@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const validDate = (value: string | null) => !value || (/^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(value + "T00:00:00.000Z").getTime()));
   if (!validDate(from) || !validDate(to) || (from && to && from > to)) return NextResponse.json({ error: "Invalid expense date range." }, { status: 400 });
   const manageAccess = await getBusinessUnitAccess("expenses.manage");
-  const records = await prisma.expense.findMany({
+  const [records, paymentAccounts] = await Promise.all([prisma.expense.findMany({
     where: {
       businessUnitId: access.context.businessUnit.id,
       ...(from || to ? { expenseDate: { ...(from ? { gte: new Date(from + "T00:00:00.000Z") } : {}), ...(to ? { lte: new Date(to + "T00:00:00.000Z") } : {}) } } : {}),
@@ -27,8 +27,12 @@ export async function GET(request: Request) {
     },
     orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
     take: 250,
-  });
-  return NextResponse.json({ expenses: records, canManage: manageAccess.ok });
+  }), prisma.paymentAccount.findMany({
+    where: { businessUnitId: access.context.businessUnit.id },
+    select: { id: true, name: true, type: true, isActive: true },
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+  })]);
+  return NextResponse.json({ expenses: records, paymentAccounts, canManage: manageAccess.ok });
 }
 
 export async function POST(request: Request) {
