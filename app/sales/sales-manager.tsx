@@ -103,6 +103,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [products, setProducts] = useState<Product[]>([]);
   const [locationId, setLocationId] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [productSearchLoading, setProductSearchLoading] = useState(false);
   const [saleSearch, setSaleSearch] = useState("");
   const [page, setPage] = useState(1);
   const [taxMode, setTaxMode] = useState<"GST" | "NON_GST">("GST");
@@ -181,18 +182,27 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   }, [canSelectCustomer, customerPhone, customerMode]);
 
   useEffect(() => {
-    if (!locationId) {
+    const search = productSearch.trim();
+    if (!locationId || search.length < 2) {
       setProducts([]);
+      setProductSearchLoading(false);
       return;
     }
     const controller = new AbortController();
+    setProductSearchLoading(true);
     const timer = window.setTimeout(() => {
-      const query = new URLSearchParams({ locationId, search: productSearch, page: "1", pageSize: "50" });
+      const query = new URLSearchParams({ locationId, search, page: "1", pageSize: "50" });
       fetch(`/api/sales/products?${query}`, { signal: controller.signal })
         .then((response) => readJson<PageResponse<Product>>(response))
-        .then((data) => setProducts(data.items))
+        .then((data) => {
+          setProducts(data.items);
+          setProductSearchLoading(false);
+        })
         .catch((cause: unknown) => {
-          if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to search saleable products.");
+          if (!controller.signal.aborted) {
+            setProductSearchLoading(false);
+            setError(cause instanceof Error ? cause.message : "Unable to search saleable products.");
+          }
         });
     }, 250);
     return () => {
@@ -231,6 +241,28 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   function updateLine(key: string, update: Partial<DraftLine>) {
     invalidateRequestKey();
     setLines((current) => current.map((line) => line.key === key ? { ...line, ...update } : line));
+  }
+
+  function addProductToInvoice(product: Product) {
+    const variantId = product.variants.length === 1 ? product.variants[0].id : "";
+    invalidateRequestKey();
+    setLines((current) => {
+      const duplicate = current.some((line) => line.product?.id === product.id && line.variantId === variantId);
+      if (duplicate) {
+        setError("This product and variant are already on the invoice. Choose another variant or update its existing line.");
+        return current;
+      }
+      const empty = current.find((line) => !line.product);
+      const nextLine: DraftLine = {
+        key: crypto.randomUUID(), product, variantId, saleUnit: saleUnit(product),
+        createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, variantId),
+      };
+      setError("");
+      return empty ? current.map((line) => line.key === empty.key ? nextLine : line) : [...current, nextLine];
+    });
+    setProductSearch("");
+    setProducts([]);
+    setProductSearchLoading(false);
   }
 
   async function handleBarcodeScan(code: string) {
@@ -481,10 +513,58 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             </section>
 
             <BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan to add product to this invoice" />
-            <label className="block max-w-lg text-sm font-medium">
-              Search products with stock
-              <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Product name or SKU" className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
-            </label>
+            <div className="relative max-w-2xl">
+              <label className="block text-sm font-medium" htmlFor="sale-product-search">
+                Add products
+                <input
+                  id="sale-product-search"
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") { setProductSearch(""); setProducts([]); }
+                    if (event.key === "Enter" && products.length === 1) { event.preventDefault(); addProductToInvoice(products[0]); }
+                  }}
+                  placeholder="Type product name, SKU or barcode…"
+                  autoComplete="off"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
+                />
+              </label>
+              {productSearch.trim().length >= 2 && (
+                <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" role="listbox" aria-label="Product suggestions">
+                  {productSearchLoading ? (
+                    <p className="px-4 py-3 text-sm text-slate-500">Searching products with available stock…</p>
+                  ) : products.length ? (
+                    <ul className="divide-y divide-slate-100">
+                      {products.map((product) => {
+                        const standardQuantity = product.stockBalances.reduce((sum, balance) => sum + Number(balance.quantity || 0), 0);
+                        const remnantCount = (product.materialRemnants ?? []).length;
+                        const hasStock = standardQuantity > 0 || remnantCount > 0;
+                        return (
+                          <li key={product.id}>
+                            <button type="button" role="option" aria-selected="false" onClick={() => addProductToInvoice(product)}
+                              className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none">
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold text-slate-900">{product.name}</span>
+                                <span className="mt-0.5 block text-xs text-slate-500">SKU: {product.sku} · {product.variants.length ? `${product.variants.length} variant(s)` : product.baseUnit}</span>
+                              </span>
+                              <span className="flex items-center gap-3">
+                                <span className="text-right">
+                                  <span className="block text-sm font-medium text-slate-800">{money(product.sellingPrice)}</span>
+                                  <span className={`block text-xs ${hasStock ? "text-emerald-700" : "text-amber-700"}`}>{hasStock ? `Regular: ${standardQuantity} ${product.baseUnit}${remnantCount ? ` · ${remnantCount} remnant(s)` : ""}` : "No available stock"}</span>
+                                </span>
+                                <span className="rounded-md border border-emerald-700 px-2.5 py-1 text-xs font-semibold text-emerald-800">Add</span>
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : <p className="px-4 py-3 text-sm text-slate-500">No matching products with available stock at this location.</p>}
+                </div>
+              )}
+              {productSearch.trim().length > 0 && productSearch.trim().length < 2 && <p className="mt-1 text-xs text-slate-500">Enter at least 2 characters to search.</p>}
+              <p className="mt-1 text-xs text-slate-500">Search by product name, SKU or barcode. Results reflect the selected stock location.</p>
+            </div>
 
             <div className="space-y-3">
               {lines.map((line, index) => {
@@ -494,26 +574,17 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 const quantity = lineQuantity(line);
                 return (
                   <div key={line.key} className="grid gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-2 xl:grid-cols-[2fr_1.5fr_1fr_1fr_auto]">
-                    <label className="text-sm font-medium">
-                      Product
-                      <select
-                        required
-                        value={line.product?.id ?? ""}
-                        onChange={(event) => {
-                          const product = products.find((candidate) => candidate.id === event.target.value) ?? null;
-                          updateLine(line.key, { product, variantId: "", saleUnit: saleUnit(product), createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, "") });
-                        }}
-                        className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
-                      >
-                        <option value="">Select product</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>{product.name} · {product.sku} · {product.baseUnit}</option>
-                        ))}
-                        {line.product && !products.some((product) => product.id === line.product?.id) && (
-                          <option value={line.product.id}>{line.product.name} · {line.product.sku} · {line.product.baseUnit}</option>
-                        )}
-                      </select>
-                    </label>
+                    <div className="text-sm">
+                      <span className="font-medium">Product</span>
+                      {product ? (
+                        <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                          <p className="font-semibold text-slate-900">{product.name}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">SKU: {product.sku} · {product.baseUnit}</p>
+                          <button type="button" onClick={() => updateLine(line.key, { product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} })}
+                            className="mt-2 text-xs font-medium text-emerald-800 underline">Change product using search</button>
+                        </div>
+                      ) : <p className="mt-1 rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500">Search above and select a product.</p>}
+                    </div>
                     <label className="text-sm font-medium">
                       Variant
                       <select
