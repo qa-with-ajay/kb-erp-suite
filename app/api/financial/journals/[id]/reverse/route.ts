@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
+import { getBusinessDateUtc } from "@/lib/accounting-date";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -28,8 +29,7 @@ export async function POST(request: Request, context: RouteContext) {
       if (!original) throw new Error("JOURNAL_NOT_FOUND");
       if (original.status !== "POSTED" || original.reversedByEntryId) throw new Error("JOURNAL_NOT_REVERSIBLE");
 
-      const reversalDate = new Date();
-      reversalDate.setUTCHours(0, 0, 0, 0);
+      const reversalDate = getBusinessDateUtc();
       const period = await tx.accountingPeriod.findFirst({
         where: { businessUnitId: original.businessUnitId, status: "OPEN", startDate: { lte: reversalDate }, endDate: { gte: reversalDate } },
         select: { id: true, name: true },
