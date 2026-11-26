@@ -72,6 +72,10 @@ CREATE UNIQUE INDEX "JournalEntry_businessUnitId_idempotencyKey_key" ON "Journal
 CREATE UNIQUE INDEX "JournalEntry_businessUnitId_sourceType_sourceId_key" ON "JournalEntry"("businessUnitId", "sourceType", "sourceId");
 CREATE INDEX "JournalEntry_businessUnitId_entryDate_status_idx" ON "JournalEntry"("businessUnitId", "entryDate", "status");
 CREATE INDEX "JournalEntry_businessUnitId_periodId_status_idx" ON "JournalEntry"("businessUnitId", "periodId", "status");
+CREATE UNIQUE INDEX "JournalEntry_businessUnitId_reversedByEntryId_key" ON "JournalEntry"("businessUnitId", "reversedByEntryId");
+ALTER TABLE "JournalEntry" ADD CONSTRAINT "JournalEntry_businessUnitId_reversedByEntryId_fkey"
+  FOREIGN KEY ("businessUnitId", "reversedByEntryId") REFERENCES "JournalEntry"("businessUnitId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
 ALTER TABLE "JournalEntry" ADD CONSTRAINT "JournalEntry_businessUnitId_fkey"
   FOREIGN KEY ("businessUnitId") REFERENCES "BusinessUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "JournalEntry" ADD CONSTRAINT "JournalEntry_businessUnitId_periodId_fkey"
