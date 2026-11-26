@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
+import { getBusinessDateUtc } from "@/lib/accounting-date";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -20,7 +21,7 @@ export async function POST(_request: Request, context: RouteContext) {
       });
       if (!existing) throw new Error("PERIOD_NOT_FOUND");
       if (existing.status !== "OPEN") throw new Error("PERIOD_NOT_OPEN");
-      const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+      const today = getBusinessDateUtc();
       if (existing.endDate > today) throw new Error("PERIOD_NOT_ENDED");
       const drafts = await tx.journalEntry.count({
         where: { businessUnitId: access.context.businessUnit.id, periodId: id, status: "DRAFT" },
