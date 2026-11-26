@@ -6,7 +6,7 @@ type Row = { id: string; code: string; name: string; type: string; totalDebit: s
 type Report = { asOf: string; rows: Row[]; totals: { debit: string; credit: string; isBalanced: boolean } };
 
 export default function TrialBalancePage() {
-  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
+  const [asOf, setAsOf] = useState(getBusinessDateString());
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
