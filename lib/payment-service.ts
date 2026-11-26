@@ -1,6 +1,8 @@
 import { Prisma, type PaymentMethod } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import type { paymentInputSchema } from "@/lib/payment-validation";
 import { postPaymentAccounting, reverseOperationalJournal } from "@/lib/accounting-posting";
+import { getBusinessDateUtc } from "@/lib/accounting-date";
 import type { z } from "zod";
 
 export type PaymentInput = z.infer<typeof paymentInputSchema>;
@@ -248,7 +250,42 @@ export async function reversePayment(
       : { kind: "error", error: "ALREADY_REVERSED" };
   }
 
-  await reverseOperationalJournal(tx, businessUnitId, actorId, "PAYMENT", payment.id, reason);
+  const reversalJournal = await reverseOperationalJournal(tx, businessUnitId, actorId, "PAYMENT", payment.id, reason);
+  if (reversalJournal) {
+    const originalMovement = await tx.cashBankTransaction.findFirst({
+      where: { businessUnitId, journalEntry: { sourceType: "PAYMENT", sourceId: payment.id } },
+      select: { id: true, paymentAccountId: true, offsetAccountId: true, type: true },
+    });
+    const existingReversalMovement = await tx.cashBankTransaction.findFirst({
+      where: { businessUnitId, journalEntryId: reversalJournal.id },
+      select: { id: true },
+    });
+    if (originalMovement && !existingReversalMovement && originalMovement.offsetAccountId) {
+      const reversalId = randomUUID();
+      await tx.cashBankTransaction.create({
+        data: {
+          id: reversalId, businessUnitId,
+          transactionNumber: `REV-PAY-${payment.id.slice(0, 8).toUpperCase()}`,
+          type: originalMovement.type === "RECEIPT" ? "PAYMENT" : "RECEIPT",
+          paymentAccountId: originalMovement.paymentAccountId,
+          offsetAccountId: originalMovement.offsetAccountId,
+          amount: payment.amount,
+          transactionDate: getBusinessDateUtc(),
+          reference: payment.reference,
+          narration: `Reversal: ${reason}`,
+          journalEntryId: reversalJournal.id,
+          createdBy: actorId,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: actorId, businessUnitId, action: "CREATE",
+          entity: "CashBankTransaction", entityId: reversalId,
+          details: { source: "PAYMENT_REVERSAL", paymentId: payment.id, reversalJournalId: reversalJournal.id },
+        },
+      });
+    }
+  }
   await tx.auditLog.create({
     data: {
       userId: actorId,
