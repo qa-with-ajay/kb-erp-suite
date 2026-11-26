@@ -514,7 +514,10 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                   <label className="text-sm font-medium">Customer name
                     <input required value={customerName} maxLength={120} onChange={(event) => { setCustomerName(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5" />
                   </label>
-                  <div className="flex items-end text-xs text-emerald-700">This customer will be added to Customer Master when the sale is completed successfully.</div>
+                  <label className="text-sm font-medium">Mobile number
+                    <input required value={customerPhone} maxLength={30} inputMode="tel" placeholder="10-digit mobile number" onChange={(event) => { setCustomerPhone(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5" />
+                  </label>
+                  <p className="sm:col-span-2 text-xs text-emerald-700">This customer will be added to Customer Master when the sale is completed successfully.</p>
                 </div>
               )}
               {customerMode === "EXISTING" && customerId && (
