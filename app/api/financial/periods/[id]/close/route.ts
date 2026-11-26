@@ -20,6 +20,8 @@ export async function POST(_request: Request, context: RouteContext) {
       });
       if (!existing) throw new Error("PERIOD_NOT_FOUND");
       if (existing.status !== "OPEN") throw new Error("PERIOD_NOT_OPEN");
+      const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+      if (existing.endDate > today) throw new Error("PERIOD_NOT_ENDED");
       const drafts = await tx.journalEntry.count({
         where: { businessUnitId: access.context.businessUnit.id, periodId: id, status: "DRAFT" },
       });
@@ -43,6 +45,7 @@ export async function POST(_request: Request, context: RouteContext) {
     const messages: Record<string, { message: string; status: number }> = {
       PERIOD_NOT_FOUND: { message: "Accounting period was not found.", status: 404 },
       PERIOD_NOT_OPEN: { message: "Only open accounting periods can be closed.", status: 409 },
+      PERIOD_NOT_ENDED: { message: "An accounting period can only be closed after its end date.", status: 409 },
       PERIOD_HAS_DRAFTS: { message: "Post or remove all draft vouchers before closing this period.", status: 409 },
       PERIOD_STATE_CHANGED: { message: "The period changed while closing. Refresh and try again.", status: 409 },
     };
