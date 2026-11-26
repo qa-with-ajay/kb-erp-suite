@@ -50,6 +50,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       { label: "Chart of Accounts", href: "/financial/accounts", section: "Financial Management" },
       { label: "Journal Vouchers", href: "/financial/journals", section: "Financial Management" },
       { label: "General Ledger", href: "/financial/reports/general-ledger", section: "Financial Management" },
+      { label: "Profit & Loss", href: "/financial/reports/profit-loss", section: "Financial Management" },
+      { label: "Balance Sheet", href: "/financial/reports/balance-sheet", section: "Financial Management" },
       { label: "Trial Balance", href: "/financial/reports/trial-balance", section: "Financial Management" },
       { label: "Accounting Periods", href: "/financial/periods", section: "Financial Management" },
     );
