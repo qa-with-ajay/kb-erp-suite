@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { purchaseOrderInputSchema, purchaseReceiptInputSchema } from "@/lib/purchase-validation";
 import type { z } from "zod";
+import { postPurchaseReceiptAccounting } from "@/lib/accounting-posting";
 
 export type PurchaseOrderInput = z.infer<typeof purchaseOrderInputSchema>;
 export type PurchaseReceiptInput = z.infer<typeof purchaseReceiptInputSchema>;
@@ -497,6 +498,7 @@ export async function receivePurchaseOrder(
     where: { id: order.id },
     data: { status: fullyReceived ? "RECEIVED" : "PARTIALLY_RECEIVED" },
   });
+  await postPurchaseReceiptAccounting(tx, businessUnitId, actorId, receipt.id);
   await tx.auditLog.create({
     data: {
       userId: actorId,
