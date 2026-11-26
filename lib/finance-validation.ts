@@ -8,7 +8,7 @@ export const paymentAccountInputSchema = z.object({
   type: z.enum(["CASH", "BANK", "UPI"]),
   ledgerAccountId: z.string().uuid(),
   bankName: z.string().trim().max(100).optional().nullable(),
-  accountNumberLast4: z.string().regex(/^\d{4}$/).optional().nullable(),
+  accountNumberLast4: z.string().regex(/^\d{4}$/).or(z.literal("")).optional().nullable(),
   ifsc: z.string().trim().max(11).optional().nullable(),
   upiId: z.string().trim().max(100).optional().nullable(),
 });
