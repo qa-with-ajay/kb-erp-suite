@@ -27,11 +27,11 @@ export const saleInputSchema = z.object({
   })).min(1).max(50),
 }).superRefine((value, context) => {
   if (value.saveCustomerToMaster && !value.customerId && value.customerName?.trim()) {
-    let digits = (value.customerPhone ?? "").replace(/\\D/g, "");
+    let digits = (value.customerPhone ?? "").replace(/\D/g, "");
     if (digits.startsWith("0091")) digits = digits.slice(4);
     else if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
     else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
-    if (!/^\\d{10}$/.test(digits)) {
+    if (!/^\d{10}$/.test(digits)) {
       context.addIssue({ code: "custom", path: ["customerPhone"], message: "Enter a valid 10-digit phone number to create a customer record." });
     }
   }
