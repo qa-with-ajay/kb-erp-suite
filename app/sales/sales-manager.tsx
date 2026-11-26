@@ -417,7 +417,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <ConfirmDialog
         open={confirmOpen}
         title="Complete this sale?"
@@ -441,14 +441,16 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
 
       {canManage && (
-        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Create invoice</h2>
-          <p className="mt-1 text-sm text-gray-600">Choose regular stock units and/or individual remnants. Material invoices use the configured measurement unit; each source is deducted separately.</p>
-          <form onSubmit={submitSale} className="mt-5 space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div><h2 className="text-base font-semibold">Create invoice</h2><p className="mt-0.5 text-xs text-gray-500">Build the invoice, allocate stock and collect payment.</p></div>
+            <span className="text-xs text-gray-500">New sale</span>
+          </div>
+          <form onSubmit={submitSale} className="mt-3 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <label className="text-sm font-medium">
                 Stock location
-                <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
+                <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
                   <option value="">Select location</option>
                   {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
                 </select>
@@ -462,9 +464,9 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               </label>
             </div>
 
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
               <div>
-                <h3 className="font-semibold text-slate-900">Customer</h3>
+                <h3 className="text-sm font-semibold text-slate-900">01 · Customer</h3>
                 <p className="text-sm text-slate-500">Enter a mobile number to find a registered customer or choose how to handle a new buyer.</p>
               </div>
               <label className="block max-w-md text-sm font-medium">
@@ -527,17 +529,17 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               {!canSelectCustomer && <p className="text-xs text-slate-500">Customer lookup is unavailable for your current role. You can continue with a fully paid walk-in sale.</p>}
             </section>
 
-            <BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan to add product to this invoice" />
-            <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 bg-white p-2"><div className="mb-1 text-xs font-semibold text-slate-700">02 · Product entry</div><BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan barcode to add product" /></div>
+            <div className="space-y-2">
               {lines.map((line, index) => {
                 const product = line.product;
                 const selectedBalances = product?.stockBalances.filter((item) => item.variantId === (line.variantId || null)) ?? [];
                 const selectedRemnants = (product?.materialRemnants ?? []).filter((item) => item.variantId === (line.variantId || null) && (item.unit ?? product?.materialUnit ?? product?.baseUnit) === (line.saleUnit || saleUnit(product)));
                 const quantity = lineQuantity(line);
                 return (
-                  <div key={line.key} className="grid gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-2 xl:grid-cols-[2fr_1.5fr_1fr_1fr_auto]">
+                  <div key={line.key} className="grid gap-2 rounded-lg border border-gray-200 bg-white p-2.5 sm:grid-cols-2 xl:grid-cols-[minmax(240px,2fr)_minmax(140px,1fr)_minmax(220px,1.6fr)_minmax(110px,.8fr)_auto]">
                     <div className="relative text-sm">
-                      <label className="block font-medium" htmlFor={`sale-product-search-${line.key}`}>Product</label>
+                      <label className="block text-xs font-semibold text-gray-700" htmlFor={`sale-product-search-${line.key}`}>Product</label>
                       {product ? (
                         <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
                           <p className="font-semibold text-slate-900">{product.name}</p>
@@ -605,7 +607,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                       </select>
                     </label>
                     <div className="space-y-2 text-sm sm:col-span-2 xl:col-span-1">
-                      <p className="font-semibold">Stock source allocation</p>
+                      <p className="text-xs font-semibold">Stock allocation</p>
                       {product && <label className="block text-xs font-medium">Sales unit
                         <select value={line.saleUnit || saleUnit(product)} onChange={(event) => {
                           const nextUnit = event.target.value;
@@ -615,7 +617,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                             return Boolean(remnant && (remnant.unit ?? product.materialUnit ?? product.baseUnit) === nextUnit);
                           }));
                           updateLine(line.key, { saleUnit: nextUnit, createRemnant: false, saleQuantity: "", allocations: nextAllocations });
-                        }} className="mt-1 w-full rounded border p-2">
+                        }} className="mt-1 w-full rounded border p-1.5 text-sm">
                           {[product.baseUnit, ...(product.materialUnit ? [product.materialUnit] : []), ...(product.unitConversions ?? []).filter((item) => item.isSalesUnit !== false).map((item) => item.unit)].filter((unit, i, all) => all.indexOf(unit) === i).map((unit) => <option key={unit} value={unit}>{unit}</option>)}
                         </select>
                       </label>}
@@ -623,7 +625,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         const key = `STANDARD:${balance.id}`;
                         return <label key={key} className="block rounded-lg border border-gray-200 p-2">
                           <span className="flex justify-between gap-2"><span>Regular · {product?.baseUnit}</span><span className="text-gray-500">Available: {balance.quantity}</span></span>
-                          <input type="number" min="0" step={product?.materialUnit || product?.productType === "STANDARD" ? "1" : "0.0001"} max={balance.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder="Quantity to take" className="mt-1 w-full rounded border p-2" />
+                          <input type="number" min="0" step={product?.materialUnit || product?.productType === "STANDARD" ? "1" : "0.0001"} max={balance.quantity} value={line.allocations[key] ?? ""} onChange={(event) => updateLine(line.key, { allocations: { ...line.allocations, [key]: event.target.value } })} placeholder="Quantity to take" className="mt-1 w-full rounded border p-1.5 text-sm" />
                         </label>;
                       })}
                       {selectedRemnants.map((remnant) => {
@@ -669,15 +671,15 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               setProducts([]);
               setProductSearchLineKey(key);
               setError("");
-            }} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-900">
+            }} className="rounded-lg border border-emerald-800 px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">
               + Add product
             </button>
 
-            <div className="ml-auto max-w-sm space-y-2 border-t border-gray-200 pt-4 text-sm">
+            <div className="ml-auto grid w-full max-w-3xl gap-3 border-t border-gray-200 pt-3 text-sm md:grid-cols-2 md:items-start">
               <div className="flex justify-between"><span>Subtotal</span><span>{money(totals.subtotal)}</span></div>
               <div className="flex justify-between"><span>GST (added to listed price)</span><span>{money(totals.tax)}</span></div>
               <div className="flex justify-between text-base font-bold"><span>Total</span><span>{money(totals.total)}</span></div>
-              <div className="space-y-3 border-t border-gray-200 pt-4">
+              <div className="space-y-2 border-t border-gray-200 pt-3 md:border-l md:border-t-0 md:pl-3 md:pt-0">
                 <label className="block text-sm font-medium">
                   Amount received
                   <input
@@ -717,7 +719,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 </div>
                 {needsCustomer && <p className="text-xs text-amber-800">Select or enter a customer to leave a balance due.</p>}
               </div>
-              <button type="submit" disabled={saving || !locationId || !lines.length || paymentInvalid || needsCustomer} className="mt-3 w-full rounded-lg bg-emerald-900 px-4 py-2.5 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              <button type="submit" disabled={saving || !locationId || !lines.length || paymentInvalid || needsCustomer} className="mt-2 w-full rounded-lg bg-emerald-900 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Completing sale…" : "Complete sale"}
               </button>
             </div>
@@ -725,10 +727,10 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
         </section>
       )}
 
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:p-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold">Invoices</h2>
+            <h2 className="text-base font-semibold">Invoice history</h2>
             <p className="mt-1 text-sm text-gray-600">Sales and stock deductions for the active business unit.</p>
           </div>
           <label className="text-sm font-medium">
@@ -737,7 +739,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
           </label>
         </div>
         {loading ? <p className="mt-5 text-sm text-gray-600">Loading invoices…</p> : sales.items.length ? (
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[64rem] text-left text-sm">
               <thead className="border-b border-gray-200 text-xs uppercase text-gray-500">
                 <tr><th className="py-2 pr-4">Invoice</th><th className="py-2 pr-4">Date</th><th className="py-2 pr-4">Customer</th><th className="py-2 pr-4">Tax mode</th><th className="py-2 pr-4 text-right">Total</th><th className="py-2 pr-4 text-right">Returns</th><th className="py-2 pr-4 text-right">Paid</th><th className="py-2 pr-4 text-right">Due / credit</th><th className="py-2 pr-4">Status</th><th className="py-2">Items</th></tr>
@@ -746,7 +748,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 {sales.items.map((sale) => (
                   <tr key={sale.id} className="border-b border-gray-100 last:border-0">
                     <td className="py-3 pr-4 font-semibold"><Link href={`/sales/${sale.id}`} className="text-emerald-900 hover:underline">{sale.invoiceNumber}</Link></td>
-                    <td className="py-3 pr-4">{new Date(sale.createdAt).toLocaleString("en-IN")}</td>
+                    <td className="py-2 pr-3">{new Date(sale.createdAt).toLocaleString("en-IN")}</td>
                     <td className="py-3 pr-4">{sale.customerName || "Walk-in"}</td>
                     <td className="py-3 pr-4">{sale.taxMode === "GST" ? "GST" : "Non-GST"}</td>
                     <td className="py-3 pr-4 text-right">{money(sale.total)}</td>
