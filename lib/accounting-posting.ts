@@ -147,7 +147,7 @@ export async function postPaymentAccounting(tx: Prisma.TransactionClient, busine
   }
   if (payment.purchaseReceipt) {
     return createPostedJournal(tx, {
-      businessUnitId, actorId, entryDate: payment.paidAt, sourceType: "PAYMENT", sourceId: payment.id,
+      businessUnitId, actorId, entryDate: payment.paidAt, entryDateIsUtcDateOnly: true, sourceType: "PAYMENT", sourceId: payment.id,
       narration: `Supplier payment · ${payment.purchaseReceipt.supplierInvoiceNumber}`,
       lines: [
         { accountCode: "2000", description: `Supplier payable settled · ${payment.purchaseReceipt.supplierInvoiceNumber}`, debit: payment.amount },
