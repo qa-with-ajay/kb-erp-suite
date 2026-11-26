@@ -48,6 +48,7 @@ export async function POST(request: Request) {
           transactionDate: { lte: statementDate },
           OR: [{ paymentAccountId: account.id }, { destinationAccountId: account.id }],
           reconciliationItems: { none: {} },
+          journalEntry: { status: "POSTED" },
         },
         select: { id: true, type: true, amount: true, paymentAccountId: true, destinationAccountId: true },
       }) : [];
