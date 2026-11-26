@@ -38,7 +38,7 @@ export function ConfirmDialog({
           </div>
           <div className="min-w-0">
             <h2 id="confirm-dialog-title" className="text-lg font-semibold text-gray-900">{title}</h2>
-            {description && <p id="confirm-dialog-description" className="mt-1 text-sm leading-6 text-gray-600">{description}</p>}
+            {description && <div id="confirm-dialog-description" className="mt-1 text-sm leading-6 text-gray-600">{description}</div>}
           </div>
         </div>
         {children && <div className="mt-5 space-y-3">{children}</div>}
