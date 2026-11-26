@@ -381,7 +381,7 @@ Important business operations use Prisma transactions, business-unit scoping, da
 
 The following are not complete or should not be treated as production-ready capabilities:
 
-- The accounting foundation now includes business-unit-scoped chart of accounts, financial periods, journal headers/lines, debit-credit constraints, and a separate ledger-backed Financial Management dashboard.
+- The accounting foundation now includes business-unit-scoped chart of accounts, financial periods, journal headers/lines, debit-credit constraints, and a separate ledger-backed Financial Management dashboard. The new `/financial` page provides a unit view and `/financial/group` provides a group-admin consolidated view with totals kept separate by currency.
 - Journal voucher entry/posting, automatic posting from sales/purchases/payments/returns, expense management, cash/bank books, bank reconciliation, trial balance, full P&L/Balance Sheet, and party statement ledgers are not yet implemented. Until posting workflows are delivered, the new dashboard correctly shows an empty-ledger state rather than deriving accounting balances from operational totals.
 - Returns create account credit; a controlled cash/bank refund and credit-note settlement workflow is not implemented.
 - GST rate calculation and GST/non-GST invoice modes exist, but full GST compliance is not implemented. HSN/SAC validation, place-of-supply tax determination, statutory return reports, e-invoicing, and e-way bill integration need separate work.
