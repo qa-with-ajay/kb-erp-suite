@@ -12,10 +12,10 @@ export default async function SalesPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-gray-50 p-5 md:p-10">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-gray-200 pb-6">
+    <main className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3">
         <div>
-          <h1 className="text-2xl font-bold">Sales & billing</h1>
+          <h1 className="text-xl font-bold">Sales & billing</h1>
           <p className="mt-1 text-sm text-gray-600">Full-unit invoices for {access.context.businessUnit.name}. Panel cutting is not supported.</p>
         </div>
         <BusinessUnitSwitcher />
