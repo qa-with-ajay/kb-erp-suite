@@ -33,6 +33,8 @@ model User {
   stockMovements          StockMovement[]
   businessUnitRoles       UserBusinessUnitRole[]
   groupRoles              UserGroupRole[]
+  journalEntriesCreated   JournalEntry[]       @relation("JournalEntryCreator")
+  journalEntriesPosted    JournalEntry[]       @relation("JournalEntryPoster")
 }
 
 model PasswordResetToken {
@@ -130,6 +132,9 @@ model BusinessUnit {
   stockMovements          StockMovement[]
   suppliers               Supplier[]
   userAssignments         UserBusinessUnitRole[]
+  accounts                Account[]
+  accountingPeriods      AccountingPeriod[]
+  journalEntries          JournalEntry[]
 
   @@index([isActive, name])
 }
@@ -957,6 +962,119 @@ model LowStockNotification {
 
   @@unique([userId, businessUnitId, productId])
   @@index([userId, businessUnitId, isRead])
+}
+
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+model AccountingPeriod {
+  id             String                 @id @default(uuid()) @db.Uuid
+  businessUnitId String                 @db.Uuid
+  name           String
+  startDate      DateTime               @db.Date
+  endDate        DateTime               @db.Date
+  status         AccountingPeriodStatus @default(OPEN)
+  closedAt       DateTime?
+  closedBy       String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  businessUnit   BusinessUnit           @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  journalEntries JournalEntry[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, name])
+  @@index([businessUnitId, status, startDate, endDate])
+}
+
+model Account {
+  id                String      @id @default(uuid()) @db.Uuid
+  businessUnitId    String      @db.Uuid
+  code              String
+  name              String
+  type              AccountType
+  description       String?
+  parentAccountId   String?     @db.Uuid
+  isSystem          Boolean     @default(false)
+  isControlAccount  Boolean     @default(false)
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  businessUnit      BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  parent            Account?    @relation("AccountHierarchy", fields: [businessUnitId, parentAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  children          Account[]   @relation("AccountHierarchy")
+  journalLines      JournalLine[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, code])
+  @@index([businessUnitId, type, isActive])
+  @@index([businessUnitId, parentAccountId])
+}
+
+model JournalEntry {
+  id                 String              @id @default(uuid()) @db.Uuid
+  businessUnitId     String              @db.Uuid
+  periodId           String              @db.Uuid
+  voucherNumber      String
+  entryDate          DateTime            @db.Date
+  narration          String
+  status             JournalEntryStatus  @default(DRAFT)
+  sourceType         String?
+  sourceId           String?
+  idempotencyKey     String?
+  createdBy          String
+  postedBy           String?
+  postedAt           DateTime?
+  reversedByEntryId String?             @db.Uuid
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  businessUnit       BusinessUnit        @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  period             AccountingPeriod    @relation(fields: [businessUnitId, periodId], references: [businessUnitId, id], onDelete: Restrict)
+  creator            User                @relation("JournalEntryCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  poster             User?               @relation("JournalEntryPoster", fields: [postedBy], references: [id], onDelete: Restrict)
+  lines              JournalLine[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, voucherNumber])
+  @@unique([businessUnitId, idempotencyKey])
+  @@unique([businessUnitId, sourceType, sourceId])
+  @@index([businessUnitId, entryDate, status])
+  @@index([businessUnitId, periodId, status])
+}
+
+model JournalLine {
+  id             String       @id @default(uuid()) @db.Uuid
+  businessUnitId String       @db.Uuid
+  journalEntryId String       @db.Uuid
+  accountId      String       @db.Uuid
+  lineNumber     Int
+  description    String?
+  debit          Decimal      @default(0) @db.Decimal(18, 2)
+  credit         Decimal      @default(0) @db.Decimal(18, 2)
+  createdAt      DateTime     @default(now())
+  journalEntry   JournalEntry @relation(fields: [businessUnitId, journalEntryId], references: [businessUnitId, id], onDelete: Restrict)
+  account        Account      @relation(fields: [businessUnitId, accountId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, journalEntryId, lineNumber])
+  @@index([businessUnitId, accountId, createdAt])
+  @@index([businessUnitId, journalEntryId])
 }
 
 enum BarcodeType {
