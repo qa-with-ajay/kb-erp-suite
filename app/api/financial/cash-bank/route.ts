@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       const transactionNumber = voucherNumber;
       const created = await tx.cashBankTransaction.create({
         data: {
-          businessUnitId, transactionNumber, type: input.type, paymentAccountId: source.id,
+          id, businessUnitId, transactionNumber, type: input.type, paymentAccountId: source.id,
           destinationAccountId: destination?.id ?? null, offsetAccountId: offset?.id ?? null,
           amount, transactionDate, reference: input.reference || null, narration: input.narration,
           journalEntryId: journal.id, createdBy: actorId,
