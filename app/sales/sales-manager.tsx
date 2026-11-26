@@ -111,6 +111,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]);
   const [requestKey, setRequestKey] = useState("");
   // null = "not edited": the amount follows the invoice total (full payment).
@@ -158,29 +159,28 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   }, []);
 
   useEffect(() => {
-    if (!canSelectCustomer || customerMode === "EXISTING" || customerMode === "NEW" || customerMode === "WALK_IN") return;
-    const digits = customerPhone.replace(/\D/g, "");
-    if (digits.length < 10) {
+    if (!canSelectCustomer || customerMode !== "UNSET") return;
+    const search = customerSearch.trim();
+    if (search.length < 2) {
       setCustomerMatches([]);
       setCustomerLookup("idle");
       return;
     }
-    if (digits.length !== 10 && !(digits.length === 12 && digits.startsWith("91")) && !(digits.length === 11 && digits.startsWith("0"))) return;
     const controller = new AbortController();
     setCustomerLookup("searching");
     const timer = window.setTimeout(() => {
-      fetch(`/api/customers?phone=${encodeURIComponent(customerPhone)}`, { signal: controller.signal })
+      fetch(`/api/customers?search=${encodeURIComponent(search)}`, { signal: controller.signal })
         .then((response) => readJson<{ items: CustomerOption[] }>(response))
         .then(({ items }) => {
           setCustomerMatches(items);
           setCustomerLookup(items.length ? "found" : "not-found");
         })
-        .catch((cause: unknown) => {
+        .catch(() => {
           if (!controller.signal.aborted) setCustomerLookup("error");
         });
     }, 300);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [canSelectCustomer, customerPhone, customerMode]);
+  }, [canSelectCustomer, customerSearch, customerMode]);
 
   useEffect(() => {
     const search = productSearch.trim();
@@ -328,7 +328,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       return;
     }
     if (canSelectCustomer && customerMode === "UNSET") {
-      setError("Search by phone and select an existing customer, New Customer, or Walk-in Customer.");
+      setError("Search by mobile number or name, then select a customer, New Customer, or Walk-in Customer.");
       return;
     }
     if (customerMode === "NEW" && (!customerName.trim() || !/^\d{10}$/.test(customerPhone.replace(/\D/g, "").replace(/^0091/, "").replace(/^91/, "").replace(/^0/, "")))) {
@@ -469,12 +469,13 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">01 · Customer</h3>
-                <p className="text-sm text-slate-500">Enter a mobile number to find a registered customer or choose how to handle a new buyer.</p>
+                <p className="text-sm text-slate-500">Search by mobile number or customer name to find a registered customer.</p>
               </div>
               <label className="block max-w-md text-sm font-medium">
-                Phone number
-                <input value={customerPhone} maxLength={30} inputMode="tel" placeholder="10-digit mobile number" onChange={(event) => {
-                  setCustomerPhone(event.target.value);
+                Mobile number or customer name
+                <input value={customerSearch} maxLength={120} autoComplete="off" placeholder="Enter mobile number or customer name" onChange={(event) => {
+                  setCustomerSearch(event.target.value);
+                  setCustomerPhone("");
                   setCustomerId("");
                   setCustomerName("");
                   setCustomerMode("UNSET");
@@ -489,7 +490,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                   <p className="text-sm font-medium">Registered customer found. Select the correct record:</p>
                   {customerMatches.map((customer) => (
                     <button type="button" key={customer.id} onClick={() => {
-                      setCustomerId(customer.id); setCustomerName(customer.name); setCustomerPhone(customer.phone ?? customerPhone);
+                      setCustomerId(customer.id); setCustomerName(customer.name); setCustomerPhone(customer.phone ?? "");
+                      setCustomerSearch(`${customer.name} ${customer.phone ?? ""}`.trim());
                       setCustomerMode("EXISTING"); invalidateRequestKey();
                     }} className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white p-3 text-left hover:border-emerald-400">
                       <span><span className="block font-medium">{customer.name}</span><span className="text-xs text-slate-500">{customer.phone}</span></span>
@@ -500,10 +502,10 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               )}
               {canSelectCustomer && customerLookup === "not-found" && customerMode === "UNSET" && (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-600">No registered customer found for this number. How would you like to continue?</p>
+                  <p className="text-sm text-slate-600">No registered customer found. How would you like to continue?</p>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => { setCustomerMode("NEW"); invalidateRequestKey(); }} className="rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50">New Customer</button>
-                    <button type="button" onClick={() => { setCustomerMode("WALK_IN"); setCustomerName(""); setCustomerId(""); invalidateRequestKey(); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Walk-in Customer</button>
+                    <button type="button" onClick={() => { setCustomerMode("NEW"); setCustomerName(/\\d/.test(customerSearch) && !/[a-z]/i.test(customerSearch) ? "" : customerSearch.trim()); setCustomerPhone(/^\\d/.test(customerSearch.trim()) ? customerSearch.trim() : ""); invalidateRequestKey(); }} className="rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50">New Customer</button>
+                    <button type="button" onClick={() => { setCustomerMode("WALK_IN"); setCustomerName(""); setCustomerPhone(""); setCustomerId(""); invalidateRequestKey(); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Walk-in Customer</button>
                   </div>
                 </div>
               )}
@@ -518,7 +520,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               {customerMode === "EXISTING" && customerId && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                   <div><p className="font-medium text-emerald-900">{customerName}</p><p className="text-xs text-emerald-700">{customerPhone}</p></div>
-                  <button type="button" onClick={() => { setCustomerId(""); setCustomerName(""); setCustomerMode("UNSET"); setCustomerPhone(""); setCustomerLookup("idle"); setCustomerMatches([]); invalidateRequestKey(); }} className="text-sm font-medium text-emerald-800 underline">Change customer</button>
+                  <button type="button" onClick={() => { setCustomerId(""); setCustomerName(""); setCustomerMode("UNSET"); setCustomerPhone(""); setCustomerSearch(""); setCustomerLookup("idle"); setCustomerMatches([]); invalidateRequestKey(); }} className="text-sm font-medium text-emerald-800 underline">Change customer</button>
                 </div>
               )}
               {customerMode === "WALK_IN" && (
