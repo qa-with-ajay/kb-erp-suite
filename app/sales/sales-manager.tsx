@@ -97,7 +97,9 @@ function roundMoney(value: number) {
 export function SalesManager({ canManage, canSelectCustomer }: { canManage: boolean; canSelectCustomer: boolean }) {
   const [sales, setSales] = useState<PageResponse<SaleRow>>({ items: [], total: 0, page: 1, pageSize: 20 });
   const [locations, setLocations] = useState<Location[]>([]);
-  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [customerMatches, setCustomerMatches] = useState<CustomerOption[]>([]);
+  const [customerMode, setCustomerMode] = useState<"UNSET" | "EXISTING" | "NEW" | "WALK_IN">("UNSET");
+  const [customerLookup, setCustomerLookup] = useState<"idle" | "searching" | "found" | "not-found" | "error">("idle");
   const [products, setProducts] = useState<Product[]>([]);
   const [locationId, setLocationId] = useState("");
   const [productSearch, setProductSearch] = useState("");
@@ -107,7 +109,6 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [saveCustomerToMaster, setSaveCustomerToMaster] = useState(true);
   const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]);
   const [requestKey, setRequestKey] = useState("");
   // null = "not edited": the amount follows the invoice total (full payment).
@@ -155,16 +156,29 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   }, []);
 
   useEffect(() => {
-    if (!canSelectCustomer) return;
+    if (!canSelectCustomer || customerMode === "EXISTING" || customerMode === "NEW" || customerMode === "WALK_IN") return;
+    const digits = customerPhone.replace(/\\D/g, "");
+    if (digits.length < 10) {
+      setCustomerMatches([]);
+      setCustomerLookup("idle");
+      return;
+    }
+    if (digits.length !== 10 && !(digits.length === 12 && digits.startsWith("91")) && !(digits.length === 11 && digits.startsWith("0"))) return;
     const controller = new AbortController();
-    fetch("/api/customers?active=true&page=1&pageSize=100", { signal: controller.signal })
-      .then((response) => readJson<{ items: CustomerOption[] }>(response))
-      .then(({ items }) => setCustomers(items))
-      .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load customers.");
-      });
-    return () => controller.abort();
-  }, [canSelectCustomer]);
+    setCustomerLookup("searching");
+    const timer = window.setTimeout(() => {
+      fetch(`/api/customers?phone=${encodeURIComponent(customerPhone)}`, { signal: controller.signal })
+        .then((response) => readJson<{ items: CustomerOption[] }>(response))
+        .then(({ items }) => {
+          setCustomerMatches(items);
+          setCustomerLookup(items.length ? "found" : "not-found");
+        })
+        .catch((cause: unknown) => {
+          if (!controller.signal.aborted) setCustomerLookup("error");
+        });
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [canSelectCustomer, customerPhone, customerMode]);
 
   useEffect(() => {
     if (!locationId) {
@@ -206,7 +220,9 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const dueAfterPayment = Math.max(0, roundMoney(totals.total - (Number.isFinite(receivedValue) ? receivedValue : 0)));
   const paymentInvalid =
     !/^\d+(\.\d{1,2})?$/.test(receivedText) || receivedValue > totals.total;
-  const needsCustomer = dueAfterPayment > 0 && !customerId && !customerName.trim();
+  const isWalkIn = customerMode === "WALK_IN";
+  const isNewCustomer = customerMode === "NEW";
+  const needsCustomer = dueAfterPayment > 0 && (isWalkIn || (!customerId && (!isNewCustomer || !customerName.trim())));
 
   function invalidateRequestKey() {
     setRequestKey("");
@@ -264,8 +280,16 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Amount received must be a valid amount (max 2 decimals) and cannot exceed the invoice total.");
       return;
     }
+    if (canSelectCustomer && customerMode === "UNSET") {
+      setError("Search by phone and select an existing customer, New Customer, or Walk-in Customer.");
+      return;
+    }
+    if (customerMode === "NEW" && (!customerName.trim() || !/^\\d{10}$/.test(customerPhone.replace(/\\D/g, "").replace(/^91/, "").replace(/^0/, "")))) {
+      setError("Enter the new customer's name and a valid 10-digit phone number.");
+      return;
+    }
     if (needsCustomer) {
-      setError("Select or enter a customer to leave a balance due.");
+      setError("Walk-in customers must pay the full invoice. Select or enter an identified customer for credit sales.");
       return;
     }
     setPendingSaleLines(completeLines);
@@ -288,7 +312,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
           customerId: customerId || null,
           customerName,
           customerPhone,
-          saveCustomerToMaster: canSelectCustomer && !customerId && saveCustomerToMaster && Boolean(customerName.trim()),
+          saveCustomerToMaster: isNewCustomer && Boolean(customerName.trim()),
           idempotencyKey,
           payment: {
             ...(amountReceived === null ? { payInFull: true } : { amount: receivedText }),
@@ -389,51 +413,72 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                   <option value="NON_GST">Non-GST invoice</option>
                 </select>
               </label>
-              <label className="text-sm font-medium">
-                Customer name (optional)
-                <input value={customerName} maxLength={120} disabled={Boolean(customerId)} onChange={(event) => { setCustomerName(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5 disabled:bg-gray-100" />
-              </label>
-              <label className="text-sm font-medium">
-                Customer phone (optional)
-                <input value={customerPhone} maxLength={30} disabled={Boolean(customerId)} onChange={(event) => { setCustomerPhone(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5 disabled:bg-gray-100" />
-              </label>
             </div>
 
-            {canSelectCustomer && (
-              <label className="block max-w-lg text-sm font-medium">
-                Customer record
-                <select
-                  value={customerId}
-                  onChange={(event) => {
-                    const selectedId = event.target.value;
-                    const customer = customers.find((item) => item.id === selectedId);
-                    setCustomerId(selectedId);
-                    setCustomerName(customer?.name ?? "");
-                    setCustomerPhone(customer?.phone ?? "");
-                    invalidateRequestKey();
-                  }}
-                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5"
-                >
-                  <option value="">Walk-in / enter customer details</option>
-                  {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}{customer.phone ? ` · ${customer.phone}` : ""}</option>)}
-                </select>
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div>
+                <h3 className="font-semibold text-slate-900">Customer</h3>
+                <p className="text-sm text-slate-500">Enter a mobile number to find a registered customer or choose how to handle a new buyer.</p>
+              </div>
+              <label className="block max-w-md text-sm font-medium">
+                Phone number
+                <input value={customerPhone} maxLength={30} inputMode="tel" placeholder="10-digit mobile number" onChange={(event) => {
+                  setCustomerPhone(event.target.value);
+                  setCustomerId("");
+                  setCustomerName("");
+                  setCustomerMode("UNSET");
+                  setCustomerMatches([]);
+                  setCustomerLookup("idle");
+                  invalidateRequestKey();
+                }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5" />
               </label>
-            )}
-
-            {canSelectCustomer && !customerId && (
-              <label className="flex max-w-lg items-start gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={saveCustomerToMaster}
-                  onChange={(event) => { setSaveCustomerToMaster(event.target.checked); invalidateRequestKey(); }}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="font-medium">Save this customer to Customer Master</span>
-                  <span className="block text-xs text-gray-500">When a customer name is entered, create or reuse the matching customer record and link it to this invoice. Leave unchecked for a one-time customer.</span>
-                </span>
-              </label>
-            )}
+              {canSelectCustomer && customerLookup === "searching" && <p className="text-sm text-slate-500">Searching Customer Master…</p>}
+              {canSelectCustomer && customerLookup === "found" && customerMode === "UNSET" && (
+                <div className="max-w-xl space-y-2">
+                  <p className="text-sm font-medium">Registered customer found. Select the correct record:</p>
+                  {customerMatches.map((customer) => (
+                    <button type="button" key={customer.id} onClick={() => {
+                      setCustomerId(customer.id); setCustomerName(customer.name); setCustomerPhone(customer.phone ?? customerPhone);
+                      setCustomerMode("EXISTING"); invalidateRequestKey();
+                    }} className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white p-3 text-left hover:border-emerald-400">
+                      <span><span className="block font-medium">{customer.name}</span><span className="text-xs text-slate-500">{customer.phone}</span></span>
+                      <span className="text-sm font-medium text-emerald-700">Select</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {canSelectCustomer && customerLookup === "not-found" && customerMode === "UNSET" && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-600">No registered customer found for this number. How would you like to continue?</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => { setCustomerMode("NEW"); invalidateRequestKey(); }} className="rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50">New Customer</button>
+                    <button type="button" onClick={() => { setCustomerMode("WALK_IN"); setCustomerName(""); setCustomerId(""); invalidateRequestKey(); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Walk-in Customer</button>
+                  </div>
+                </div>
+              )}
+              {customerMode === "NEW" && (
+                <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-medium">Customer name
+                    <input required value={customerName} maxLength={120} onChange={(event) => { setCustomerName(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5" />
+                  </label>
+                  <div className="flex items-end text-xs text-emerald-700">This customer will be added to Customer Master when the sale is completed successfully.</div>
+                </div>
+              )}
+              {customerMode === "EXISTING" && customerId && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <div><p className="font-medium text-emerald-900">{customerName}</p><p className="text-xs text-emerald-700">{customerPhone}</p></div>
+                  <button type="button" onClick={() => { setCustomerId(""); setCustomerName(""); setCustomerMode("UNSET"); setCustomerPhone(""); setCustomerLookup("idle"); setCustomerMatches([]); invalidateRequestKey(); }} className="text-sm font-medium text-emerald-800 underline">Change customer</button>
+                </div>
+              )}
+              {customerMode === "WALK_IN" && (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="text-sm text-slate-700">Walk-in sale — no individual Customer Master record will be created.</p>
+                  <button type="button" onClick={() => { setCustomerMode("UNSET"); setCustomerPhone(""); setCustomerLookup("idle"); invalidateRequestKey(); }} className="text-sm font-medium underline">Change</button>
+                </div>
+              )}
+              {canSelectCustomer && customerLookup === "error" && <p role="alert" className="text-sm text-red-700">Customer lookup failed. Check your connection and try again.</p>}
+              {!canSelectCustomer && <p className="text-xs text-slate-500">Customer lookup is unavailable for your current role. You can continue with a fully paid walk-in sale.</p>}
+            </section>
 
             <BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan to add product to this invoice" />
             <label className="block max-w-lg text-sm font-medium">
