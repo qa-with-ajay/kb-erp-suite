@@ -130,33 +130,70 @@ export async function postPaymentAccounting(tx: Prisma.TransactionClient, busine
   const payment = await tx.payment.findFirst({
     where: { id: paymentId, businessUnitId, reversedAt: null },
     select: {
-      id: true, amount: true, method: true, paidAt: true, sale: { select: { invoiceNumber: true } },
+      id: true, amount: true, method: true, paidAt: true, reference: true,
+      sale: { select: { invoiceNumber: true } },
       purchaseReceipt: { select: { supplierInvoiceNumber: true } },
     },
   });
   if (!payment) throw new Error("ACCOUNTING_PAYMENT_NOT_FOUND");
-  const cash = cashAccount(payment.method);
-  if (payment.sale) {
-    return createPostedJournal(tx, {
-      businessUnitId, actorId, entryDate: payment.paidAt, entryDateIsUtcDateOnly: true, sourceType: "PAYMENT", sourceId: payment.id,
-      narration: `Customer receipt · ${payment.sale.invoiceNumber}`,
-      lines: [
-        { accountCode: cash, description: `Customer receipt · ${payment.sale.invoiceNumber}`, debit: payment.amount },
-        { accountCode: "1100", description: `Receivable settled · ${payment.sale.invoiceNumber}`, credit: payment.amount },
-      ],
+  const cashCode = cashAccount(payment.method);
+  const isCustomerReceipt = Boolean(payment.sale);
+  const isSupplierPayment = Boolean(payment.purchaseReceipt);
+  if (!isCustomerReceipt && !isSupplierPayment) throw new Error("ACCOUNTING_PAYMENT_TARGET_REQUIRED");
+
+  const narration = isCustomerReceipt
+    ? `Customer receipt · ${payment.sale!.invoiceNumber}`
+    : `Supplier payment · ${payment.purchaseReceipt!.supplierInvoiceNumber}`;
+  const journal = await createPostedJournal(tx, {
+    businessUnitId, actorId, entryDate: payment.paidAt, entryDateIsUtcDateOnly: true,
+    sourceType: "PAYMENT", sourceId: payment.id, narration,
+    lines: isCustomerReceipt
+      ? [
+          { accountCode: cashCode, description: narration, debit: payment.amount },
+          { accountCode: "1100", description: `Receivable settled · ${payment.sale!.invoiceNumber}`, credit: payment.amount },
+        ]
+      : [
+          { accountCode: "2000", description: `Supplier payable settled · ${payment.purchaseReceipt!.supplierInvoiceNumber}`, debit: payment.amount },
+          { accountCode: cashCode, description: narration, credit: payment.amount },
+        ],
+  });
+
+  const existingMovement = await tx.cashBankTransaction.findFirst({
+    where: { businessUnitId, journalEntryId: journal.id },
+    select: { id: true },
+  });
+  if (!existingMovement) {
+    const [paymentAccount, offsetAccount] = await Promise.all([
+      tx.paymentAccount.findFirst({
+        where: { businessUnitId, ledgerAccount: { code: cashCode }, isActive: true },
+        select: { id: true },
+      }),
+      tx.account.findFirst({
+        where: { businessUnitId, code: isCustomerReceipt ? "1100" : "2000" },
+        select: { id: true },
+      }),
+    ]);
+    if (!paymentAccount || !offsetAccount) throw new Error("ACCOUNTING_PAYMENT_ACCOUNT_REQUIRED");
+    const transactionId = randomUUID();
+    const transactionNumber = `PAY-${payment.id.slice(0, 8).toUpperCase()}`;
+    await tx.cashBankTransaction.create({
+      data: {
+        id: transactionId, businessUnitId, transactionNumber,
+        type: isCustomerReceipt ? "RECEIPT" : "PAYMENT",
+        paymentAccountId: paymentAccount.id, offsetAccountId: offsetAccount.id,
+        amount: payment.amount, transactionDate: getUtcDateOnly(payment.paidAt),
+        reference: payment.reference, narration, journalEntryId: journal.id, createdBy: actorId,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: actorId, businessUnitId, action: "CREATE",
+        entity: "CashBankTransaction", entityId: transactionId,
+        details: { transactionNumber, type: isCustomerReceipt ? "RECEIPT" : "PAYMENT", source: "PAYMENT", paymentId: payment.id },
+      },
     });
   }
-  if (payment.purchaseReceipt) {
-    return createPostedJournal(tx, {
-      businessUnitId, actorId, entryDate: payment.paidAt, entryDateIsUtcDateOnly: true, sourceType: "PAYMENT", sourceId: payment.id,
-      narration: `Supplier payment · ${payment.purchaseReceipt.supplierInvoiceNumber}`,
-      lines: [
-        { accountCode: "2000", description: `Supplier payable settled · ${payment.purchaseReceipt.supplierInvoiceNumber}`, debit: payment.amount },
-        { accountCode: cash, description: `Supplier payment · ${payment.purchaseReceipt.supplierInvoiceNumber}`, credit: payment.amount },
-      ],
-    });
-  }
-  throw new Error("ACCOUNTING_PAYMENT_TARGET_REQUIRED");
+  return journal;
 }
 
 export async function postPurchaseReceiptAccounting(tx: Prisma.TransactionClient, businessUnitId: string, actorId: string, receiptId: string) {
