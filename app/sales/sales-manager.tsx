@@ -439,6 +439,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
         onConfirm={() => void confirmSale()}
       />
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      
       {canManage && (
         <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
