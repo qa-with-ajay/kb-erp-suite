@@ -381,8 +381,8 @@ Important business operations use Prisma transactions, business-unit scoping, da
 
 The following are not complete or should not be treated as production-ready capabilities:
 
-- No expense-management module, monthly financial trends, or complete profit-and-loss reporting. Dashboard gross profit is before expenses and overhead.
-- No bank reconciliation, cash/bank book, general ledger, trial balance, or full customer/supplier statement ledger.
+- The accounting foundation now includes business-unit-scoped chart of accounts, financial periods, journal headers/lines, debit-credit constraints, and a separate ledger-backed Financial Management dashboard.
+- Journal voucher entry/posting, automatic posting from sales/purchases/payments/returns, expense management, cash/bank books, bank reconciliation, trial balance, full P&L/Balance Sheet, and party statement ledgers are not yet implemented. Until posting workflows are delivered, the new dashboard correctly shows an empty-ledger state rather than deriving accounting balances from operational totals.
 - Returns create account credit; a controlled cash/bank refund and credit-note settlement workflow is not implemented.
 - GST rate calculation and GST/non-GST invoice modes exist, but full GST compliance is not implemented. HSN/SAC validation, place-of-supply tax determination, statutory return reports, e-invoicing, and e-way bill integration need separate work.
 - A4 and 58/80 mm print layouts exist and use the browser print dialog; a server-generated PDF/document archive and configurable invoice templates are not provided.
@@ -409,8 +409,9 @@ This is a proposed roadmap, not a list of already implemented features.
 
 ### Priority 1 — Finance, tax, and operational reporting
 
-1. Add expenses and expense categories, payment accounts, and attachment support.
-2. Build a general ledger/accounting foundation with cash/bank books, journal entries, trial balance, and bank reconciliation.
+1. Complete Chart of Accounts and journal voucher workflows, including balanced posting, reversal, period controls, and audit history.
+2. Connect sales, purchases, payments, returns, and inventory valuation to automatic, idempotent journal posting; then deliver cash/bank books, trial balance, P&L, Balance Sheet, and bank reconciliation.
+3. Add expense management, approvals, and supporting-document attachments.
 3. Add customer/supplier statements, ageing reports, credit settlement, refund approval, and refund audit trails.
 4. Add date-filtered sales/purchase reports, gross-margin analysis, stock valuation history, movement analysis, and monthly trends.
 5. Extend tax handling with HSN/SAC, place-of-supply rules, CGST/SGST/IGST, tax summaries, GST reconciliation, and (where required) e-invoice/e-way bill integrations.
