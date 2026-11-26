@@ -27,6 +27,7 @@ async function createPostedJournal(
     sourceId: string;
     narration: string;
     lines: JournalLineInput[];
+    entryDateIsUtcDateOnly?: boolean;
   },
 ) {
   const existing = await tx.journalEntry.findFirst({
