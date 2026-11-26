@@ -45,7 +45,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       );
     }
     if (permissions.has("billing.read")) items.push({ label: "Sales & billing", href: "/sales" });
-    if (permissions.has("accounting.read")) items.push({ label: "Financial Management", href: "/financial" });
+    if (permissions.has("accounting.read")) items.push(
+      { label: "Financial Dashboard", href: "/financial", section: "Financial Management" },
+      { label: "Chart of Accounts", href: "/financial/accounts", section: "Financial Management" },
+      { label: "Journal Vouchers", href: "/financial/journals", section: "Financial Management" },
+    );
     if (await hasGroupPermission(session.user.id, "accounting.read")) items.push({ label: "Group Financials", href: "/financial/group" });
     if (permissions.has("purchases.manage")) items.push({ label: "Purchases", href: "/purchases" });
     if (permissions.has("customers.manage")) items.push({ label: "Customers", href: "/customers" });
