@@ -28,6 +28,7 @@ export default function JournalVouchersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -62,18 +63,48 @@ export default function JournalVouchersPage() {
   async function createDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError(""); setNotice("");
     try {
-      const response = await fetch("/api/financial/journals", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const response = await fetch(editingId ? `/api/financial/journals/${editingId}` : "/api/financial/journals", {
+        method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entryDate, narration, lines: lines.map((line) => ({ ...line, debit: line.debit || "0", credit: line.credit || "0" })) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create journal voucher.");
-      setNarration("");
+      setNarration(""); setEditingId(null);
       setLines([{ accountId: "", debit: "", credit: "", description: "" }, { accountId: "", debit: "", credit: "", description: "" }]);
-      setNotice(`Draft ${data.entry.voucherNumber} created successfully.`);
+      setNotice(editingId ? `Draft ${data.entry.voucherNumber} updated successfully.` : `Draft ${data.entry.voucherNumber} created successfully.`);
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to create journal voucher."); }
     finally { setSaving(false); }
+  }
+
+  function editDraft(entry: JournalEntry) {
+    setEditingId(entry.id);
+    setEntryDate(new Date(entry.entryDate).toISOString().slice(0, 10));
+    setNarration(entry.narration);
+    setLines(entry.lines.map((line) => ({
+      accountId: line.accountId,
+      debit: String(line.debit),
+      credit: String(line.credit),
+      description: line.description || "",
+    })));
+    setError(""); setNotice("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function deleteDraft(entry: JournalEntry) {
+    if (!window.confirm(`Delete draft ${entry.voucherNumber}? This cannot be undone.`)) return;
+    setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/financial/journals/${entry.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to delete draft.");
+      if (editingId === entry.id) {
+        setEditingId(null); setNarration("");
+        setLines([{ accountId: "", debit: "", credit: "", description: "" }, { accountId: "", debit: "", credit: "", description: "" }]);
+      }
+      setNotice(`Draft ${entry.voucherNumber} deleted.`);
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to delete draft."); }
   }
 
   async function action(id: string, actionName: "post" | "reverse") {
@@ -102,7 +133,7 @@ export default function JournalVouchersPage() {
       {notice && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</div>}
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="font-semibold">Create journal draft</h2>
+        <h2 className="font-semibold">{editingId ? "Edit journal draft" : "Create journal draft"}</h2>
         <form onSubmit={createDraft} className="mt-4 space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-medium">Voucher date<input type="date" required value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
@@ -122,8 +153,8 @@ export default function JournalVouchersPage() {
             </table>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <button type="button" onClick={() => setLines((current) => [...current, { accountId: "", debit: "", credit: "", description: "" }])} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Add line</button>
-            <div className="flex items-center gap-3"><span className={balanced ? "text-sm font-semibold text-emerald-700" : "text-sm text-amber-700"}>{balanced ? "Debits and credits balance" : "Voucher must balance before it can be posted"}</span><button disabled={saving || !balanced || !narration.trim() || lines.some((line) => !line.accountId)} className="rounded-lg bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "Saving…" : "Save draft"}</button></div>
+            <button type="button" onClick={() => setLines((current) => [...current, { accountId: "", debit: "", credit: "", description: "" }])} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Add line</button>{editingId && <button type="button" onClick={() => { setEditingId(null); setNarration(""); setLines([{ accountId: "", debit: "", credit: "", description: "" }, { accountId: "", debit: "", credit: "", description: "" }]); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Cancel edit</button>}
+            <div className="flex items-center gap-3"><span className={balanced ? "text-sm font-semibold text-emerald-700" : "text-sm text-amber-700"}>{balanced ? "Debits and credits balance" : "Voucher must balance before it can be posted"}</span><button disabled={saving || !balanced || !narration.trim() || lines.some((line) => !line.accountId)} className="rounded-lg bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "Saving…" : editingId ? "Update draft" : "Save draft"}</button></div>
           </div>
         </form>
       </section>
@@ -143,7 +174,7 @@ export default function JournalVouchersPage() {
                   <td className="py-3 pr-3">{entry.period.name}</td>
                   <td className="py-3 pr-3 text-right">{amount(debit)}</td>
                   <td className="py-3 pr-3"><span className={entry.status === "POSTED" ? "rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800" : entry.status === "DRAFT" ? "rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800" : "rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700"}>{entry.status}</span></td>
-                  <td className="py-3">{entry.status === "DRAFT" ? <button onClick={() => void action(entry.id, "post")} className="font-medium text-emerald-800 hover:underline">Post</button> : entry.status === "POSTED" ? <button onClick={() => void action(entry.id, "reverse")} className="font-medium text-red-700 hover:underline">Reverse</button> : <span className="text-xs text-gray-400">—</span>}</td>
+                  <td className="py-3">{entry.status === "DRAFT" ? <div className="flex gap-3"><button onClick={() => editDraft(entry)} className="font-medium text-blue-700 hover:underline">Edit</button><button onClick={() => void action(entry.id, "post")} className="font-medium text-emerald-800 hover:underline">Post</button><button onClick={() => void deleteDraft(entry)} className="font-medium text-red-700 hover:underline">Delete</button></div> : entry.status === "POSTED" ? <button onClick={() => void action(entry.id, "reverse")} className="font-medium text-red-700 hover:underline">Reverse</button> : <span className="text-xs text-gray-400">—</span>}</td>
                 </tr>;
               })}
               {!entries.length && <tr><td colSpan={7} className="py-8 text-center text-gray-500">No journal vouchers have been created.</td></tr>}</tbody>
