@@ -2,14 +2,14 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
-import { getBusinessDateString } from "@/lib/accounting-date";
+import { getBusinessDateString, getFinancialYearStartString } from "@/lib/accounting-date";
 
 export async function GET(request: Request) {
   const access = await getBusinessUnitAccess("accounting.read");
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const params = new URL(request.url).searchParams;
   const asOf = params.get("asOf") || getBusinessDateString();
-  const from = params.get("from") || `${getBusinessDateString().slice(0, 4)}-04-01`;
+  const from = params.get("from") || getFinancialYearStartString();
   const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(value + "T00:00:00.000Z").getTime()) && new Date(value + "T00:00:00.000Z").toISOString().slice(0, 10) === value;
   if (!validDate(from) || !validDate(asOf) || from > asOf) return NextResponse.json({ error: "Provide a valid report date range." }, { status: 400 });
 
