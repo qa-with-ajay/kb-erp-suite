@@ -157,7 +157,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
 
   useEffect(() => {
     if (!canSelectCustomer || customerMode === "EXISTING" || customerMode === "NEW" || customerMode === "WALK_IN") return;
-    const digits = customerPhone.replace(/\\D/g, "");
+    const digits = customerPhone.replace(/\D/g, "");
     if (digits.length < 10) {
       setCustomerMatches([]);
       setCustomerLookup("idle");
@@ -284,7 +284,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Search by phone and select an existing customer, New Customer, or Walk-in Customer.");
       return;
     }
-    if (customerMode === "NEW" && (!customerName.trim() || !/^\\d{10}$/.test(customerPhone.replace(/\\D/g, "").replace(/^91/, "").replace(/^0/, "")))) {
+    if (customerMode === "NEW" && (!customerName.trim() || !/^\d{10}$/.test(customerPhone.replace(/\D/g, "").replace(/^91/, "").replace(/^0/, "")))) {
       setError("Enter the new customer's name and a valid 10-digit phone number.");
       return;
     }
