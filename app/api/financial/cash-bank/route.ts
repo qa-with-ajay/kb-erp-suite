@@ -15,6 +15,10 @@ export async function GET(request: Request) {
   const accountId = params.get("accountId");
   const validDate = (value: string | null) => !value || (/^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(value + "T00:00:00.000Z").getTime()));
   if (!validDate(from) || !validDate(to) || (from && to && from > to)) return NextResponse.json({ error: "Invalid transaction date range." }, { status: 400 });
+  const [canManage, canReconcile] = await Promise.all([
+    getBusinessUnitAccess("cashbank.manage"),
+    getBusinessUnitAccess("cashbank.reconcile"),
+  ]);
   const transactions = await prisma.cashBankTransaction.findMany({
     where: {
       businessUnitId: access.context.businessUnit.id,
@@ -32,7 +36,7 @@ export async function GET(request: Request) {
     orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
     take: 250,
   });
-  return NextResponse.json({ transactions });
+  return NextResponse.json({ transactions, canManage: canManage.ok, canReconcile: canReconcile.ok });
 }
 
 export async function POST(request: Request) {
