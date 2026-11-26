@@ -24,23 +24,36 @@ export default async function GroupFinancialDashboardPage() {
   });
 
   const unitResults = await Promise.all(units.map(async (unit) => {
-    const lines = await prisma.journalLine.findMany({
-      where: {
-        businessUnitId: unit.id,
-        journalEntry: { status: "POSTED", entryDate: { gte: fyStart, lte: now } },
-      },
-      select: { debit: true, credit: true, account: { select: { type: true } } },
-    });
+    const [periodLines, balanceLines] = await Promise.all([
+      prisma.journalLine.findMany({
+        where: {
+          businessUnitId: unit.id,
+          journalEntry: { status: "POSTED", entryDate: { gte: fyStart, lte: now } },
+        },
+        select: { debit: true, credit: true, account: { select: { type: true } } },
+      }),
+      prisma.journalLine.findMany({
+        where: {
+          businessUnitId: unit.id,
+          journalEntry: { status: "POSTED", entryDate: { lte: now } },
+        },
+        select: { debit: true, credit: true, account: { select: { type: true } } },
+      }),
+    ]);
     const totals = { income: new Prisma.Decimal(0), expenses: new Prisma.Decimal(0), assets: new Prisma.Decimal(0), liabilities: new Prisma.Decimal(0) };
-    for (const line of lines) {
+    for (const line of periodLines) {
       const debit = new Prisma.Decimal(line.debit);
       const credit = new Prisma.Decimal(line.credit);
       if (line.account.type === "INCOME") totals.income = totals.income.plus(credit.minus(debit));
       if (line.account.type === "EXPENSE") totals.expenses = totals.expenses.plus(debit.minus(credit));
+    }
+    for (const line of balanceLines) {
+      const debit = new Prisma.Decimal(line.debit);
+      const credit = new Prisma.Decimal(line.credit);
       if (line.account.type === "ASSET") totals.assets = totals.assets.plus(debit.minus(credit));
       if (line.account.type === "LIABILITY") totals.liabilities = totals.liabilities.plus(credit.minus(debit));
     }
-    return { ...unit, currency: unit.profile?.currency ?? "INR", hasLedger: lines.length > 0, ...totals, netResult: totals.income.minus(totals.expenses) };
+    return { ...unit, currency: unit.profile?.currency ?? "INR", hasLedger: periodLines.length > 0 || balanceLines.length > 0, ...totals, netResult: totals.income.minus(totals.expenses) };
   }));
 
   const byCurrency = new Map<string, { income: Prisma.Decimal; expenses: Prisma.Decimal; netResult: Prisma.Decimal }>();
