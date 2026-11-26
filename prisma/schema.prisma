@@ -1048,10 +1048,13 @@ model JournalEntry {
   period             AccountingPeriod    @relation(fields: [businessUnitId, periodId], references: [businessUnitId, id], onDelete: Restrict)
   creator            User                @relation("JournalEntryCreator", fields: [createdBy], references: [id], onDelete: Restrict)
   poster             User?               @relation("JournalEntryPoster", fields: [postedBy], references: [id], onDelete: Restrict)
+  reversalEntry      JournalEntry?        @relation("JournalEntryReversal", fields: [businessUnitId, reversedByEntryId], references: [businessUnitId, id], onDelete: Restrict)
+  reversesEntry      JournalEntry?        @relation("JournalEntryReversal")
   lines              JournalLine[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, voucherNumber])
+  @@unique([businessUnitId, reversedByEntryId])
   @@unique([businessUnitId, idempotencyKey])
   @@unique([businessUnitId, sourceType, sourceId])
   @@index([businessUnitId, entryDate, status])
