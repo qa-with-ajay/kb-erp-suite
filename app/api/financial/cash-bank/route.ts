@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       destinationAccount: { select: { id: true, name: true, type: true } },
       offsetAccount: { select: { id: true, code: true, name: true } },
       journalEntry: { select: { voucherNumber: true, status: true } },
+      reconciliationItems: { select: { id: true } },
     },
     orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
     take: 250,
