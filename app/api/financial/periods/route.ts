@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const name = typeof value.name === "string" ? value.name.trim() : "";
   const start = typeof value.startDate === "string" ? value.startDate : "";
   const end = typeof value.endDate === "string" ? value.endDate : "";
-  const datePattern = /^\\d{4}-\\d{2}-\\d{2}$/;
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
   const validDate = (date: string) => datePattern.test(date) && !Number.isNaN(new Date(date + "T00:00:00.000Z").getTime()) && new Date(date + "T00:00:00.000Z").toISOString().slice(0, 10) === date;
   if (name.length < 3 || name.length > 60 || !validDate(start) || !validDate(end) || start > end) {
     return NextResponse.json({ error: "Provide a period name and a valid start/end date range." }, { status: 400 });
