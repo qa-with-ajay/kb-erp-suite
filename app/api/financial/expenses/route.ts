@@ -70,6 +70,18 @@ export async function POST(request: Request) {
         select: { id: true, voucherNumber: true },
       });
       await tx.journalEntry.update({ where: { id: journal.id }, data: { status: "POSTED", postedBy: actorId, postedAt: new Date() } });
+      const cashBankId = randomUUID();
+      await tx.cashBankTransaction.create({
+        data: {
+          id: cashBankId, businessUnitId,
+          transactionNumber: `CB-${expenseNumber}`,
+          type: "PAYMENT", paymentAccountId: paymentAccount.id,
+          offsetAccountId: category.expenseAccount.id,
+          amount, transactionDate: expenseDate,
+          reference: input.reference || null, narration: input.description,
+          journalEntryId: journal.id, createdBy: actorId,
+        },
+      });
       const created = await tx.expense.create({
         data: {
           id, businessUnitId, expenseNumber, categoryId: category.id, paymentAccountId: paymentAccount.id,
