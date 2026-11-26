@@ -176,6 +176,61 @@ export async function postPurchaseReceiptAccounting(tx: Prisma.TransactionClient
   });
 }
 
+export async function postSaleReturnAccounting(tx: Prisma.TransactionClient, businessUnitId: string, actorId: string, returnId: string) {
+  const record = await tx.saleReturn.findFirst({
+    where: { id: returnId, businessUnitId },
+    select: {
+      id: true, creditNoteNumber: true, subtotal: true, taxAmount: true, total: true, createdAt: true,
+      lines: { select: { disposition: true, lineCost: true } },
+    },
+  });
+  if (!record) throw new Error("ACCOUNTING_SALE_RETURN_NOT_FOUND");
+  const restockedCost = record.lines
+    .filter((line) => line.disposition === "RESTOCK")
+    .reduce((sum, line) => sum.plus(line.lineCost), new Prisma.Decimal(0));
+  return createPostedJournal(tx, {
+    businessUnitId, actorId, entryDate: record.createdAt, sourceType: "SALE_RETURN", sourceId: record.id,
+    narration: `Sales credit note ${record.creditNoteNumber}`,
+    lines: [
+      { accountCode: "4100", description: `Sales return · ${record.creditNoteNumber}`, debit: record.subtotal },
+      { accountCode: "2100", description: `Output GST reversal · ${record.creditNoteNumber}`, debit: record.taxAmount },
+      { accountCode: "1100", description: `Customer credit · ${record.creditNoteNumber}`, credit: record.total },
+      { accountCode: "1200", description: `Returned inventory · ${record.creditNoteNumber}`, debit: restockedCost },
+      { accountCode: "5000", description: `Cost reversal · ${record.creditNoteNumber}`, credit: restockedCost },
+    ],
+  });
+}
+
+export async function postPurchaseReturnAccounting(tx: Prisma.TransactionClient, businessUnitId: string, actorId: string, returnId: string) {
+  const record = await tx.purchaseReturn.findFirst({
+    where: { id: returnId, businessUnitId },
+    select: {
+      id: true, debitNoteNumber: true, subtotal: true, taxAmount: true, total: true, createdAt: true,
+      lines: { select: { quantity: true, stockUnitCost: true } },
+    },
+  });
+  if (!record) throw new Error("ACCOUNTING_PURCHASE_RETURN_NOT_FOUND");
+  const inventoryValue = record.lines.reduce(
+    (sum, line) => sum.plus(new Prisma.Decimal(line.stockUnitCost).mul(line.quantity)),
+    new Prisma.Decimal(0),
+  ).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  const variance = record.subtotal.minus(inventoryValue);
+  const lines: JournalLineInput[] = [
+    { accountCode: "2000", description: `Supplier debit note · ${record.debitNoteNumber}`, debit: record.total },
+    { accountCode: "1300", description: `Input GST reversal · ${record.debitNoteNumber}`, credit: record.taxAmount },
+    { accountCode: "1200", description: `Inventory returned · ${record.debitNoteNumber}`, credit: inventoryValue },
+    ...(variance.isPositive()
+      ? [{ accountCode: "5100", description: `Purchase return cost variance · ${record.debitNoteNumber}`, credit: variance }]
+      : variance.isNegative()
+        ? [{ accountCode: "5100", description: `Purchase return cost variance · ${record.debitNoteNumber}`, debit: variance.abs() }]
+        : []),
+  ];
+  return createPostedJournal(tx, {
+    businessUnitId, actorId, entryDate: record.createdAt, sourceType: "PURCHASE_RETURN", sourceId: record.id,
+    narration: `Purchase debit note ${record.debitNoteNumber}`, lines,
+  });
+}
+
 export async function reverseOperationalJournal(
   tx: Prisma.TransactionClient,
   businessUnitId: string,
