@@ -381,8 +381,8 @@ Important business operations use Prisma transactions, business-unit scoping, da
 
 The following are not complete or should not be treated as production-ready capabilities:
 
-- The accounting foundation now includes business-unit-scoped chart of accounts, financial periods, journal headers/lines, debit-credit constraints, and a separate ledger-backed Financial Management dashboard. The new `/financial` page provides a unit view and `/financial/group` provides a group-admin consolidated view with totals kept separate by currency.
-- Journal voucher entry/posting, automatic posting from sales/purchases/payments/returns, expense management, cash/bank books, bank reconciliation, trial balance, full P&L/Balance Sheet, and party statement ledgers are not yet implemented. Until posting workflows are delivered, the new dashboard correctly shows an empty-ledger state rather than deriving accounting balances from operational totals.
+- The accounting foundation now includes business-unit-scoped chart of accounts, financial periods, journal headers/lines, debit-credit constraints, and a separate ledger-backed Financial Management dashboard. The workspace now includes account creation, journal draft creation, balanced debit/credit validation, controlled posting, immutable reversal vouchers, account General Ledger, and Trial Balance APIs/screens. The new `/financial` page provides a unit view and `/financial/group` provides a group-admin consolidated view with totals kept separate by currency.
+- Automatic posting from sales/purchases/payments/returns, expense management, cash/bank books, bank reconciliation, full P&L/Balance Sheet, and party statement ledgers are not yet implemented. Journal vouchers are currently manual; until source posting workflows are connected, operational totals are not represented as accounting balances.
 - Returns create account credit; a controlled cash/bank refund and credit-note settlement workflow is not implemented.
 - GST rate calculation and GST/non-GST invoice modes exist, but full GST compliance is not implemented. HSN/SAC validation, place-of-supply tax determination, statutory return reports, e-invoicing, and e-way bill integration need separate work.
 - A4 and 58/80 mm print layouts exist and use the browser print dialog; a server-generated PDF/document archive and configurable invoice templates are not provided.
@@ -409,7 +409,7 @@ This is a proposed roadmap, not a list of already implemented features.
 
 ### Priority 1 — Finance, tax, and operational reporting
 
-1. Complete Chart of Accounts and journal voucher workflows, including balanced posting, reversal, period controls, and audit history.
+1. Add account maintenance controls (edit/deactivate with usage safeguards), accounting-period administration, and opening-balance migration.
 2. Connect sales, purchases, payments, returns, and inventory valuation to automatic, idempotent journal posting; then deliver cash/bank books, trial balance, P&L, Balance Sheet, and bank reconciliation.
 3. Add expense management, approvals, and supporting-document attachments.
 3. Add customer/supplier statements, ageing reports, credit settlement, refund approval, and refund audit trails.
