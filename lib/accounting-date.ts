@@ -18,3 +18,9 @@ export function getBusinessDateUtc(date: Date = new Date()) {
 export function getUtcDateOnly(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
+
+export function getFinancialYearStartString(date: Date = new Date()) {
+  const businessDate = getBusinessDateUtc(date);
+  const year = businessDate.getUTCMonth() < 3 ? businessDate.getUTCFullYear() - 1 : businessDate.getUTCFullYear();
+  return `${year}-04-01`;
+}
