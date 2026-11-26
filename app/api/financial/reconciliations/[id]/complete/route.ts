@@ -13,19 +13,16 @@ export async function POST(_request: Request, context: Context) {
     const reconciliation = await prisma.$transaction(async (tx) => {
       const current = await tx.bankReconciliation.findFirst({
         where: { id, businessUnitId: access.context.businessUnit.id },
-        include: { paymentAccount: { select: { ledgerAccountId: true, name: true } } },
+        include: { paymentAccount: { select: { ledgerAccountId: true, name: true } }, items: { include: { transaction: { select: { type: true, amount: true, paymentAccountId: true, destinationAccountId: true } } } } },
       });
       if (!current) throw new Error("RECONCILIATION_NOT_FOUND");
       if (current.status === "RECONCILED") throw new Error("RECONCILIATION_ALREADY_CLOSED");
-      const totals = await tx.journalLine.aggregate({
-        where: {
-          businessUnitId: access.context.businessUnit.id,
-          accountId: current.paymentAccount.ledgerAccountId,
-          journalEntry: { businessUnitId: access.context.businessUnit.id, status: "POSTED", entryDate: { lte: current.statementDate } },
-        },
-        _sum: { debit: true, credit: true },
-      });
-      const bookBalance = (totals._sum.debit ?? new Prisma.Decimal(0)).minus(totals._sum.credit ?? new Prisma.Decimal(0));
+      const movementTotal = current.items.reduce((sum, item) => {
+        const transaction = item.transaction;
+        if (transaction.destinationAccountId === current.paymentAccountId) return sum.plus(transaction.amount);
+        return transaction.type === "RECEIPT" ? sum.plus(transaction.amount) : sum.minus(transaction.amount);
+      }, new Prisma.Decimal(0));
+      const bookBalance = current.openingBalance.plus(movementTotal);
       const difference = current.statementBalance.minus(bookBalance);
       if (!difference.isZero()) throw new Error(`RECONCILIATION_DIFFERENCE:${difference.toFixed(2)}`);
       const updated = await tx.bankReconciliation.update({
