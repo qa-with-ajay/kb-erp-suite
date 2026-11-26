@@ -12,7 +12,9 @@ export async function GET(request: Request) {
   const to = params.get("to");
   if (!accountId) return NextResponse.json({ error: "Select an account to view its ledger." }, { status: 400 });
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-  if ((from && !datePattern.test(from)) || (to && !datePattern.test(to))) return NextResponse.json({ error: "Dates must use YYYY-MM-DD format." }, { status: 400 });
+  const validDate = (value: string) => datePattern.test(value) && !Number.isNaN(new Date(value + "T00:00:00.000Z").getTime()) && new Date(value + "T00:00:00.000Z").toISOString().slice(0, 10) === value;
+  if ((from && !validDate(from)) || (to && !validDate(to))) return NextResponse.json({ error: "Dates must be valid dates in YYYY-MM-DD format." }, { status: 400 });
+  if (from && to && from > to) return NextResponse.json({ error: "The start date cannot be later than the end date." }, { status: 400 });
   const businessUnitId = access.context.businessUnit.id;
   const account = await prisma.account.findFirst({
     where: { id: accountId, businessUnitId },
