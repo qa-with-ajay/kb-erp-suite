@@ -24,15 +24,14 @@ export default function ExpensesPage() {
   async function load() {
     setError("");
     try {
-      const [a, p, c, e] = await Promise.all([
+      const [a, c, e] = await Promise.all([
         fetch("/api/financial/expenses/accounts", { cache: "no-store" }),
-        fetch("/api/financial/payment-accounts", { cache: "no-store" }),
         fetch("/api/financial/expenses/categories", { cache: "no-store" }),
         fetch("/api/financial/expenses", { cache: "no-store" }),
       ]);
-      const [ad, pd, cd, ed] = await Promise.all([a.json(), p.json(), c.json(), e.json()]);
-      for (const [response, data] of [[a, ad], [p, pd], [c, cd], [e, ed]] as const) if (!response.ok) throw new Error(data.error || "Unable to load expense workspace.");
-      setAccounts(ad.accounts); setPaymentAccounts(pd.accounts); setCategories(cd.categories); setExpenses(ed.expenses); setCanManage(ed.canManage);
+      const [ad, cd, ed] = await Promise.all([a.json(), c.json(), e.json()]);
+      for (const [response, data] of [[a, ad], [c, cd], [e, ed]] as const) if (!response.ok) throw new Error(data.error || "Unable to load expense workspace.");
+      setAccounts(ad.accounts); setPaymentAccounts(ed.paymentAccounts); setCategories(cd.categories); setExpenses(ed.expenses); setCanManage(ed.canManage);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load expense workspace."); }
   }
   useEffect(() => { void load(); }, []);
