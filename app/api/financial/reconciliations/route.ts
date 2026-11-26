@@ -14,6 +14,7 @@ export async function GET() {
       paymentAccount: { select: { id: true, name: true, type: true } },
       creator: { select: { name: true } },
       _count: { select: { items: true } },
+      items: { select: { transactionId: true } },
     },
     orderBy: [{ statementDate: "desc" }, { createdAt: "desc" }],
     take: 100,
