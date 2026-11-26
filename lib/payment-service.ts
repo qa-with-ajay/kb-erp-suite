@@ -1,5 +1,6 @@
 import { Prisma, type PaymentMethod } from "@prisma/client";
 import type { paymentInputSchema } from "@/lib/payment-validation";
+import { postPaymentAccounting, reverseOperationalJournal } from "@/lib/accounting-posting";
 import type { z } from "zod";
 
 export type PaymentInput = z.infer<typeof paymentInputSchema>;
@@ -100,6 +101,7 @@ export async function recordSalePayment(
       recordedBy: actorId,
     },
   });
+  await postPaymentAccounting(tx, businessUnitId, actorId, payment.id);
   await tx.auditLog.create({
     data: {
       userId: actorId,
@@ -169,6 +171,7 @@ export async function recordSupplierPayment(
       recordedBy: actorId,
     },
   });
+  await postPaymentAccounting(tx, businessUnitId, actorId, payment.id);
   await tx.auditLog.create({
     data: {
       userId: actorId,
@@ -245,6 +248,7 @@ export async function reversePayment(
       : { kind: "error", error: "ALREADY_REVERSED" };
   }
 
+  await reverseOperationalJournal(tx, businessUnitId, actorId, "PAYMENT", payment.id, reason);
   await tx.auditLog.create({
     data: {
       userId: actorId,
