@@ -37,7 +37,7 @@ ON CONFLICT ("businessUnitId", "ledgerAccountId") DO NOTHING;
 INSERT INTO "ExpenseCategory" (
   "id", "businessUnitId", "name", "expenseAccountId", "isActive", "createdAt", "updatedAt"
 )
-SELECT gen_random_uuid(), account."businessUnitId", category."name", account."id", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+SELECT gen_random_uuid(), account."businessUnitId", category."name", expense_account."id", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM "Account" account
 CROSS JOIN (VALUES
   ('Rent', '6000'),
