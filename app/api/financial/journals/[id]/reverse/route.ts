@@ -93,7 +93,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: result.message }, { status: result.status });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ error: "A reversal already exists for this voucher.", status: 409 });
+      return NextResponse.json({ error: "A reversal already exists for this voucher." }, { status: 409 });
     }
     throw error;
   }
