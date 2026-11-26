@@ -34,6 +34,7 @@ model User {
   businessUnitRoles       UserBusinessUnitRole[]
   groupRoles              UserGroupRole[]
   cashBankTransactionsCreated CashBankTransaction[]
+  bankReconciliationsCreated BankReconciliation[]
   expensesCreated         Expense[]             @relation("ExpenseCreator")
   journalEntriesCreated   JournalEntry[]       @relation("JournalEntryCreator")
   journalEntriesPosted    JournalEntry[]       @relation("JournalEntryPoster")
@@ -141,6 +142,7 @@ model BusinessUnit {
   cashBankTransactions   CashBankTransaction[]
   expenseCategories      ExpenseCategory[]
   expenses               Expense[]
+  bankReconciliations    BankReconciliation[]
 
   @@index([isActive, name])
 }
@@ -1102,6 +1104,7 @@ model PaymentAccount {
   transactions        CashBankTransaction[] @relation("CashBankSource")
   incomingTransfers   CashBankTransaction[] @relation("CashBankDestination")
   expenses            Expense[]
+  reconciliations     BankReconciliation[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, name])
@@ -1130,11 +1133,53 @@ model CashBankTransaction {
   offsetAccount         Account?     @relation(fields: [businessUnitId, offsetAccountId], references: [businessUnitId, id], onDelete: Restrict)
   journalEntry          JournalEntry @relation(fields: [businessUnitId, journalEntryId], references: [businessUnitId, id], onDelete: Restrict)
   creator               User         @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  reconciliationItems  BankReconciliationItem[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, transactionNumber])
   @@unique([businessUnitId, journalEntryId])
   @@index([businessUnitId, paymentAccountId, transactionDate])
+}
+
+enum BankReconciliationStatus {
+  DRAFT
+  RECONCILED
+}
+
+model BankReconciliation {
+  id                String       @id @default(uuid()) @db.Uuid
+  businessUnitId    String       @db.Uuid
+  paymentAccountId  String       @db.Uuid
+  statementDate     DateTime     @db.Date
+  statementBalance  Decimal      @db.Decimal(14, 2)
+  bookBalance        Decimal      @db.Decimal(14, 2)
+  difference         Decimal      @db.Decimal(14, 2)
+  status             BankReconciliationStatus @default(DRAFT)
+  notes              String?
+  createdBy          String
+  createdAt          DateTime     @default(now())
+  reconciledAt       DateTime?
+  businessUnit       BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  paymentAccount     PaymentAccount @relation(fields: [businessUnitId, paymentAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  creator            User         @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  items              BankReconciliationItem[]
+
+  @@unique([businessUnitId, id])
+  @@index([businessUnitId, paymentAccountId, statementDate])
+}
+
+model BankReconciliationItem {
+  id                 String       @id @default(uuid()) @db.Uuid
+  businessUnitId     String       @db.Uuid
+  reconciliationId   String       @db.Uuid
+  transactionId      String       @db.Uuid
+  createdAt          DateTime     @default(now())
+  reconciliation    BankReconciliation @relation(fields: [businessUnitId, reconciliationId], references: [businessUnitId, id], onDelete: Cascade)
+  transaction       CashBankTransaction @relation(fields: [businessUnitId, transactionId], references: [businessUnitId, id], onDelete: Restrict)
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, transactionId])
+  @@index([businessUnitId, reconciliationId])
 }
 
 model ExpenseCategory {
