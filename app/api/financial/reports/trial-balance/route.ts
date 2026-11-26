@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const params = new URL(request.url).searchParams;
   const rawDate = params.get("asOf") || new Date().toISOString().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || Number.isNaN(new Date(rawDate + "T00:00:00.000Z").getTime())) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || Number.isNaN(new Date(rawDate + "T00:00:00.000Z").getTime()) || new Date(rawDate + "T00:00:00.000Z").toISOString().slice(0, 10) !== rawDate) {
     return NextResponse.json({ error: "Provide a valid as-of date in YYYY-MM-DD format." }, { status: 400 });
   }
   const asOf = new Date(rawDate + "T00:00:00.000Z");
