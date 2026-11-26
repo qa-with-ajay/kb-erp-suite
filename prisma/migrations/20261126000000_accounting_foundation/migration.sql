@@ -121,3 +121,38 @@ CROSS JOIN "Permission" permission
 WHERE role."code" = 'GROUP_ADMIN'
   AND permission."code" IN ('accounting.read', 'accounting.manage', 'accounting.post', 'accounting.close_period')
 ON CONFLICT ("roleId", "permissionId") DO NOTHING;
+
+-- Bootstrap the current Indian financial year and a starter chart of accounts for each active unit.
+INSERT INTO "AccountingPeriod" ("id", "businessUnitId", "name", "startDate", "endDate", "status", "createdAt", "updatedAt")
+SELECT gen_random_uuid(), unit."id", 'FY 2026-27', DATE '2026-04-01', DATE '2027-03-31', 'OPEN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM "BusinessUnit" unit
+WHERE unit."isActive" = true
+ON CONFLICT ("businessUnitId", "name") DO NOTHING;
+
+INSERT INTO "Account" (
+  "id", "businessUnitId", "code", "name", "type", "description",
+  "isSystem", "isControlAccount", "isActive", "createdAt", "updatedAt"
+)
+SELECT
+  gen_random_uuid(), unit."id", seed."code", seed."name", seed."type"::"AccountType",
+  seed."description", true, seed."isControlAccount", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM "BusinessUnit" unit
+CROSS JOIN (VALUES
+  ('1000', 'Cash in Hand', 'ASSET', 'Cash held at the business unit.', false),
+  ('1010', 'Bank Accounts', 'ASSET', 'Balances held in bank accounts.', false),
+  ('1100', 'Accounts Receivable', 'ASSET', 'Customer balances due.', true),
+  ('1200', 'Inventory', 'ASSET', 'Value of saleable inventory.', true),
+  ('1300', 'Input GST', 'ASSET', 'Recoverable input GST, subject to eligibility.', true),
+  ('2000', 'Accounts Payable', 'LIABILITY', 'Supplier balances due.', true),
+  ('2100', 'Output GST', 'LIABILITY', 'GST collected and payable.', true),
+  ('3000', 'Owner Capital', 'EQUITY', 'Owner contributions and capital.', false),
+  ('3100', 'Retained Earnings', 'EQUITY', 'Accumulated retained earnings.', false),
+  ('4000', 'Sales Revenue', 'INCOME', 'Revenue from sales.', false),
+  ('4100', 'Sales Returns', 'INCOME', 'Contra-revenue from sales returns.', false),
+  ('5000', 'Cost of Goods Sold', 'EXPENSE', 'Cost of inventory sold.', false),
+  ('6000', 'Operating Expenses', 'EXPENSE', 'General operating expenses.', false),
+  ('6100', 'Bank Charges', 'EXPENSE', 'Banking and payment processing charges.', false),
+  ('6200', 'Inventory Adjustments', 'EXPENSE', 'Inventory write-offs and adjustments.', false)
+) AS seed("code", "name", "type", "description", "isControlAccount")
+WHERE unit."isActive" = true
+ON CONFLICT ("businessUnitId", "code") DO NOTHING;
