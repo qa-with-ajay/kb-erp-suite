@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
 import { prisma } from "@/lib/prisma";
+import { getBusinessDateUtc } from "@/lib/accounting-date";
 
 function money(value: Prisma.Decimal, currency: string) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(value.toNumber());
@@ -12,7 +13,7 @@ export default async function GroupFinancialDashboardPage() {
   if (!session) redirect("/login");
   if (!(await hasGroupPermission(session.user.id, "accounting.read"))) redirect("/access-denied");
 
-  const now = new Date();
+  const now = getBusinessDateUtc();
   const fyStart = new Date(Date.UTC(now.getUTCFullYear() - (now.getUTCMonth() < 3 ? 1 : 0), 3, 1));
   const units = await prisma.businessUnit.findMany({
     where: { isActive: true },
