@@ -537,8 +537,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                     <ul className="divide-y divide-slate-100">
                       {products.map((product) => {
                         const standardQuantity = product.stockBalances.reduce((sum, balance) => sum + Number(balance.quantity || 0), 0);
-                        const remnantQuantity = (product.materialRemnants ?? []).reduce((sum, remnant) => sum + Number(remnant.quantity || 0), 0);
-                        const hasStock = standardQuantity > 0 || remnantQuantity > 0;
+                        const remnantCount = (product.materialRemnants ?? []).length;
+                        const hasStock = standardQuantity > 0 || remnantCount > 0;
                         return (
                           <li key={product.id}>
                             <button type="button" role="option" aria-selected="false" onClick={() => addProductToInvoice(product)}
@@ -550,7 +550,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                               <span className="flex items-center gap-3">
                                 <span className="text-right">
                                   <span className="block text-sm font-medium text-slate-800">{money(product.sellingPrice)}</span>
-                                  <span className={`block text-xs ${hasStock ? "text-emerald-700" : "text-amber-700"}`}>{hasStock ? `Stock available · ${standardQuantity + remnantQuantity}` : "No available stock"}</span>
+                                  <span className={`block text-xs ${hasStock ? "text-emerald-700" : "text-amber-700"}`}>{hasStock ? `Regular: ${standardQuantity} ${product.baseUnit}${remnantCount ? ` · ${remnantCount} remnant(s)` : ""}` : "No available stock"}</span>
                                 </span>
                                 <span className="rounded-md border border-emerald-700 px-2.5 py-1 text-xs font-semibold text-emerald-800">Add</span>
                               </span>
