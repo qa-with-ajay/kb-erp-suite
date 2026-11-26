@@ -67,7 +67,7 @@ export async function POST(request: Request) {
           where: { id: input.offsetAccountId!, businessUnitId, isActive: true, isControlAccount: false },
           select: { id: true, code: true, name: true },
         });
-        if (!offset) throw new Error("OFFSET_ACCOUNT_NOT_FOUND");
+        if (!offset || offset.id === source.ledgerAccount.id) throw new Error("OFFSET_ACCOUNT_NOT_FOUND");
       }
       const period = await tx.accountingPeriod.findFirst({
         where: { businessUnitId, status: "OPEN", startDate: { lte: transactionDate }, endDate: { gte: transactionDate } },
