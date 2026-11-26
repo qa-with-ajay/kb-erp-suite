@@ -184,55 +184,57 @@ export async function reverseOperationalJournal(
   sourceId: string,
   reason: string,
 ) {
+  const reversalSourceType = `${sourceType}_REVERSAL`;
+  const existingReversal = await tx.journalEntry.findFirst({
+    where: { businessUnitId, sourceType: reversalSourceType, sourceId },
+    select: { id: true, voucherNumber: true },
+  });
+  if (existingReversal) return existingReversal;
+
   const original = await tx.journalEntry.findFirst({
     where: { businessUnitId, sourceType, sourceId },
     include: { lines: true },
   });
-  if (!original || original.status === "REVERSED") return null;
+  if (!original) return null;
   if (original.status !== "POSTED" || original.reversedByEntryId) throw new Error("ACCOUNTING_SOURCE_JOURNAL_NOT_REVERSIBLE");
 
   const reversalDate = dateOnly(new Date());
-  const reversal = await createPostedJournal(tx, {
-    businessUnitId, actorId, entryDate: reversalDate,
-    sourceType: `${sourceType}_REVERSAL`, sourceId,
-    narration: `Reversal of ${original.voucherNumber}: ${reason}`,
-    lines: original.lines.map((line) => ({
-      accountCode: "",
-      description: line.description ?? original.narration,
-      debit: new Prisma.Decimal(line.credit),
-      credit: new Prisma.Decimal(line.debit),
-    })),
-  }).catch(async (error) => {
-    if (!(error instanceof Error) || !error.message.startsWith("ACCOUNTING_ACCOUNTS_REQUIRED:")) throw error;
-    const id = randomUUID();
-    const period = await tx.accountingPeriod.findFirst({
-      where: { businessUnitId, status: "OPEN", startDate: { lte: reversalDate }, endDate: { gte: reversalDate } },
-      select: { id: true },
-    });
-    if (!period) throw new Error("ACCOUNTING_PERIOD_REQUIRED:REVERSAL");
-    const draft = await tx.journalEntry.create({
-      data: {
-        id, businessUnitId, periodId: period.id, voucherNumber: voucherCode("AUTO-REV", reversalDate, id),
-        entryDate: reversalDate, narration: `Reversal of ${original.voucherNumber}: ${reason}`,
-        sourceType: `${sourceType}_REVERSAL`, sourceId,
-        idempotencyKey: `auto:${sourceType}_REVERSAL:${sourceId}`, createdBy: actorId,
-        lines: { create: original.lines.map((line, index) => ({
-          businessUnitId, accountId: line.accountId, lineNumber: index + 1,
-          description: `Reversal: ${line.description ?? original.narration}`,
-          debit: new Prisma.Decimal(line.credit), credit: new Prisma.Decimal(line.debit),
-        })) },
-      },
-      select: { id: true, voucherNumber: true },
-    });
-    await tx.journalEntry.update({ where: { id }, data: { status: "POSTED", postedBy: actorId, postedAt: new Date() } });
-    await tx.auditLog.create({ data: { userId: actorId, businessUnitId, action: "POST", entity: "JournalEntry", entityId: id, details: { sourceType: `${sourceType}_REVERSAL`, sourceId, reverses: original.voucherNumber, reason } } });
-    return draft;
+  const period = await tx.accountingPeriod.findFirst({
+    where: { businessUnitId, status: "OPEN", startDate: { lte: reversalDate }, endDate: { gte: reversalDate } },
+    select: { id: true },
   });
+  if (!period) throw new Error("ACCOUNTING_PERIOD_REQUIRED:REVERSAL");
 
+  const id = randomUUID();
+  const voucherNumber = voucherCode("AUTO-REV", reversalDate, id);
+  const reversal = await tx.journalEntry.create({
+    data: {
+      id, businessUnitId, periodId: period.id, voucherNumber,
+      entryDate: reversalDate, narration: `Reversal of ${original.voucherNumber}: ${reason}`,
+      sourceType: reversalSourceType, sourceId,
+      idempotencyKey: `auto:${reversalSourceType}:${sourceId}`, createdBy: actorId,
+      lines: { create: original.lines.map((line, index) => ({
+        businessUnitId, accountId: line.accountId, lineNumber: index + 1,
+        description: `Reversal: ${line.description ?? original.narration}`,
+        debit: new Prisma.Decimal(line.credit), credit: new Prisma.Decimal(line.debit),
+      })) },
+    },
+    select: { id: true, voucherNumber: true },
+  });
+  await tx.journalEntry.update({
+    where: { id },
+    data: { status: "POSTED", postedBy: actorId, postedAt: new Date() },
+  });
   const changed = await tx.journalEntry.updateMany({
     where: { id: original.id, businessUnitId, status: "POSTED", reversedByEntryId: null },
     data: { status: "REVERSED", reversedByEntryId: reversal.id },
   });
   if (changed.count !== 1) throw new Error("ACCOUNTING_SOURCE_JOURNAL_STATE_CHANGED");
+  await tx.auditLog.create({
+    data: {
+      userId: actorId, businessUnitId, action: "POST", entity: "JournalEntry", entityId: reversal.id,
+      details: { sourceType: reversalSourceType, sourceId, reverses: original.voucherNumber, voucherNumber, reason },
+    },
+  });
   return reversal;
 }
