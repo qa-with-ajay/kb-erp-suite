@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { AuthProvider } from "@/components/auth-provider";
 import { AppShell, type AppNavItem } from "@/components/app-shell";
-import { getBusinessUnitPermissionCodes } from "@/lib/inventory-auth";
+import { getBusinessUnitPermissionCodes, hasGroupPermission } from "@/lib/inventory-auth";
 import { prisma } from "@/lib/prisma";
 import "./globals.css";
 
@@ -46,6 +46,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     }
     if (permissions.has("billing.read")) items.push({ label: "Sales & billing", href: "/sales" });
     if (permissions.has("accounting.read")) items.push({ label: "Financial Management", href: "/financial" });
+    if (await hasGroupPermission(session.user.id, "accounting.read")) items.push({ label: "Group Financials", href: "/financial/group" });
     if (permissions.has("purchases.manage")) items.push({ label: "Purchases", href: "/purchases" });
     if (permissions.has("customers.manage")) items.push({ label: "Customers", href: "/customers" });
     if (permissions.has("suppliers.manage")) items.push({ label: "Suppliers", href: "/suppliers" });
