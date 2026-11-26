@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const to = params.get("to");
   const validDate = (value: string | null) => !value || (/^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(value + "T00:00:00.000Z").getTime()));
   if (!validDate(from) || !validDate(to) || (from && to && from > to)) return NextResponse.json({ error: "Invalid expense date range." }, { status: 400 });
+  const manageAccess = await getBusinessUnitAccess("expenses.manage");
   const records = await prisma.expense.findMany({
     where: {
       businessUnitId: access.context.businessUnit.id,
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
     orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
     take: 250,
   });
-  return NextResponse.json({ expenses: records });
+  return NextResponse.json({ expenses: records, canManage: manageAccess.ok });
 }
 
 export async function POST(request: Request) {
