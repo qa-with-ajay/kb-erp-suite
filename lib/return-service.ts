@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { purchaseReturnInputSchema, returnReversalInputSchema, saleReturnInputSchema } from "@/lib/return-validation";
 import { lineAmounts, roundPurchaseQuantity } from "@/lib/purchase-service";
 import type { z } from "zod";
+import { postSaleReturnAccounting, postPurchaseReturnAccounting, reverseOperationalJournal } from "@/lib/accounting-posting";
 
 export type SaleReturnInput = z.infer<typeof saleReturnInputSchema>;
 export type PurchaseReturnInput = z.infer<typeof purchaseReturnInputSchema>;
@@ -372,6 +373,7 @@ export async function createSaleReturn(
       lineTotal: item.total, unitCost: item.cost.div(item.baseQuantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP), lineCost: item.cost,
     })) },
   } });
+  await postSaleReturnAccounting(tx, businessUnitId, actorId, record.id);
   await tx.auditLog.create({ data: {
     userId: actorId, businessUnitId, action: "CREATE", entity: "SaleReturn", entityId: record.id,
     details: { creditNoteNumber, invoiceNumber: sale.invoiceNumber, total: total.toString(),
@@ -539,6 +541,7 @@ export async function createPurchaseReturn(
       },
     },
   });
+  await postPurchaseReturnAccounting(tx, businessUnitId, actorId, record.id);
   await tx.auditLog.create({
     data: {
       userId: actorId, businessUnitId, action: "CREATE", entity: "PurchaseReturn", entityId: record.id,
@@ -693,6 +696,7 @@ export async function reverseSaleReturn(
     reversalMovementId: movement.id, reversalIdempotencyKey: input.idempotencyKey,
     reversedBy: actorId, reversedAt: new Date(), reversalReason: input.reason,
   } });
+  await reverseOperationalJournal(tx, businessUnitId, actorId, "SALE_RETURN", record.id, input.reason);
   await tx.auditLog.create({ data: {
     userId: actorId, businessUnitId, action: "REVERSE", entity: "SaleReturn", entityId: record.id,
     details: { creditNoteNumber: record.creditNoteNumber, reason: input.reason, total: record.total.toString() },
@@ -781,6 +785,7 @@ export async function reversePurchaseReturn(
       reversedBy: actorId, reversedAt: new Date(), reversalReason: input.reason,
     },
   });
+  await reverseOperationalJournal(tx, businessUnitId, actorId, "PURCHASE_RETURN", record.id, input.reason);
   await tx.auditLog.create({
     data: {
       userId: actorId, businessUnitId, action: "REVERSE", entity: "PurchaseReturn", entityId: record.id,
