@@ -5,7 +5,7 @@ import { useEffect } from "react";
 type ConfirmDialogProps = {
   open: boolean;
   title: string;
-  description?: string;
+  description?: string|React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;

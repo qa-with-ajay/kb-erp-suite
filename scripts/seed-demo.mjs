@@ -4,147 +4,234 @@ import { Prisma, PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const rounding = Prisma.Decimal.ROUND_HALF_UP;
 
-const demoUnits = {
-  KB_INTERIORS: {
-    categories: ["Demo Plywood", "Demo Laminates", "Demo Hardware"],
-    brands: ["Demo Century Surface", "Demo Green Surface", "Demo Hettich Hardware"],
-    customer: "Demo Interiors Customer",
-    supplier: "Demo Interiors Supplier",
-    products: [
-      { name: "Demo Plywood Panel 18mm", sku: "DEMO-KBI-PLY-18", category: "Demo Plywood", brand: "Demo Century Surface", baseUnit: "PCS", productType: "MATERIAL", purchasePrice: "1850", sellingPrice: "2450", gstPercentage: "18", minimumStock: "5", openingQuantity: "24" },
-      { name: "Demo Matte Laminate Sheet", sku: "DEMO-KBI-LAM-01", category: "Demo Laminates", brand: "Demo Green Surface", baseUnit: "PCS", productType: "MATERIAL", purchasePrice: "680", sellingPrice: "950", gstPercentage: "18", minimumStock: "6", openingQuantity: "30" },
-      { name: "Demo Soft-Close Hinge", sku: "DEMO-KBI-HNG-01", category: "Demo Hardware", brand: "Demo Hettich Hardware", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "110", sellingPrice: "175", gstPercentage: "18", minimumStock: "10", openingQuantity: "40" },
+function buildProducts(
+  prefix,
+  categoryBrandMap,
+  basePrice
+) {
+  return Array.from({ length: 20 }, (_, index) => {
+    const item = categoryBrandMap[index % categoryBrandMap.length];
+    const seq = String(index + 1).padStart(3, "0");
+
+    const purchasePrice = basePrice + index * 100;
+    const sellingPrice = Math.round(purchasePrice * 1.35);
+
+    return {
+      name: `${prefix} Product ${seq}`,
+      sku: `${prefix}-${seq}`,
+      category: item.category,
+      brand: item.brand,
+      baseUnit: "PCS",
+      productType: "STANDARD",
+      purchasePrice: purchasePrice.toString(),
+      sellingPrice: sellingPrice.toString(),
+      gstPercentage: "18",
+      minimumStock: "5",
+      openingQuantity: String(20 + (index % 10) * 5),
+    };
+  });
+}
+const KB_INTERIORS = {
+  categories: [
+    "Demo Plywood",
+    "Demo Laminates",
+    "Demo Hardware",
+    "Demo Edge Band",
+    "Demo Adhesives",
+  ],
+
+  brands: [
+    "Demo Century",
+    "Demo Greenlam",
+    "Demo Hettich",
+    "Demo Merino",
+    "Demo Fevicol",
+  ],
+
+  customer: "Demo Interiors Customer",
+  supplier: "Demo Interiors Supplier",
+
+  products: buildProducts(
+    "DEMO-KBI",
+    [
+      { category: "Demo Plywood", brand: "Demo Century" },
+      { category: "Demo Laminates", brand: "Demo Greenlam" },
+      { category: "Demo Hardware", brand: "Demo Hettich" },
+      { category: "Demo Edge Band", brand: "Demo Merino" },
+      { category: "Demo Adhesives", brand: "Demo Fevicol" },
     ],
-  },
-  KB_ELECTRICALS: {
-    categories: ["Demo Cables", "Demo Lighting", "Demo Switchgear"],
-    brands: ["Demo Polycab", "Demo Havells", "Demo Anchor"],
-    customer: "Demo Electricals Customer",
-    supplier: "Demo Electricals Supplier",
-    products: [
-      { name: "Demo Copper Cable Roll", sku: "DEMO-KBE-CAB-01", category: "Demo Cables", brand: "Demo Polycab", baseUnit: "ROLL", productType: "STANDARD", purchasePrice: "2100", sellingPrice: "2700", gstPercentage: "18", minimumStock: "3", openingQuantity: "18" },
-      { name: "Demo LED Panel Light", sku: "DEMO-KBE-LGT-01", category: "Demo Lighting", brand: "Demo Havells", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "420", sellingPrice: "650", gstPercentage: "12", minimumStock: "8", openingQuantity: "24" },
-      { name: "Demo Modular Switch", sku: "DEMO-KBE-SWG-01", category: "Demo Switchgear", brand: "Demo Anchor", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "55", sellingPrice: "90", gstPercentage: "18", minimumStock: "20", openingQuantity: "40" },
+    500
+  ),
+};
+const KB_ELECTRICALS = {
+  categories: [
+    "Demo Cables",
+    "Demo Lighting",
+    "Demo Switchgear",
+    "Demo Conduit",
+    "Demo Distribution",
+  ],
+
+  brands: [
+    "Demo Polycab",
+    "Demo Havells",
+    "Demo Anchor",
+    "Demo Finolex",
+    "Demo L&T",
+  ],
+
+  customer: "Demo Electricals Customer",
+  supplier: "Demo Electricals Supplier",
+
+  products: buildProducts(
+    "DEMO-KBE",
+    [
+      { category: "Demo Cables", brand: "Demo Polycab" },
+      { category: "Demo Lighting", brand: "Demo Havells" },
+      { category: "Demo Switchgear", brand: "Demo Anchor" },
+      { category: "Demo Conduit", brand: "Demo Finolex" },
+      { category: "Demo Distribution", brand: "Demo L&T" },
     ],
-  },
-  KB_KITCHEN_BATH: {
-    categories: ["Demo Faucets", "Demo Sinks", "Demo Storage"],
-    brands: ["Demo Jaquar", "Demo Cera", "Demo Ebco"],
-    customer: "Demo Kitchen & Bath Customer",
-    supplier: "Demo Kitchen & Bath Supplier",
-    products: [
-      { name: "Demo Pull-Down Faucet", sku: "DEMO-KBK-FCT-01", category: "Demo Faucets", brand: "Demo Jaquar", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "1900", sellingPrice: "2650", gstPercentage: "18", minimumStock: "4", openingQuantity: "18" },
-      { name: "Demo Stainless Sink Set", sku: "DEMO-KBK-SNK-01", category: "Demo Sinks", brand: "Demo Cera", baseUnit: "SET", productType: "STANDARD", purchasePrice: "2200", sellingPrice: "3200", gstPercentage: "18", minimumStock: "3", openingQuantity: "12" },
-      { name: "Demo Pull-Out Basket", sku: "DEMO-KBK-STO-01", category: "Demo Storage", brand: "Demo Ebco", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "1250", sellingPrice: "1800", gstPercentage: "18", minimumStock: "4", openingQuantity: "12" },
+    300
+  ),
+};
+const KB_KITCHEN_BATH = {
+  categories: [
+    "Demo Faucets",
+    "Demo Sinks",
+    "Demo Storage",
+    "Demo Accessories",
+    "Demo Shower Systems",
+  ],
+
+  brands: [
+    "Demo Jaquar",
+    "Demo Cera",
+    "Demo Ebco",
+    "Demo Kohler",
+    "Demo Hindware",
+  ],
+
+  customer: "Demo Kitchen Customer",
+  supplier: "Demo Kitchen Supplier",
+
+  products: buildProducts(
+    "DEMO-KBK",
+    [
+      { category: "Demo Faucets", brand: "Demo Jaquar" },
+      { category: "Demo Sinks", brand: "Demo Cera" },
+      { category: "Demo Storage", brand: "Demo Ebco" },
+      { category: "Demo Accessories", brand: "Demo Kohler" },
+      { category: "Demo Shower Systems", brand: "Demo Hindware" },
     ],
-  },
-  KB_TOOLS: {
-    categories: ["Demo Power Tools", "Demo Hand Tools", "Demo Measuring Tools"],
-    brands: ["Demo Bosch", "Demo Stanley", "Demo Taparia"],
-    customer: "Demo Tools Customer",
-    supplier: "Demo Tools Supplier",
-    products: [
-      { name: "Demo Cordless Drill", sku: "DEMO-KBT-DRL-01", category: "Demo Power Tools", brand: "Demo Bosch", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "3200", sellingPrice: "4500", gstPercentage: "18", minimumStock: "4", openingQuantity: "12" },
-      { name: "Demo Screwdriver Set", sku: "DEMO-KBT-SDR-01", category: "Demo Hand Tools", brand: "Demo Taparia", baseUnit: "SET", productType: "STANDARD", purchasePrice: "420", sellingPrice: "690", gstPercentage: "18", minimumStock: "8", openingQuantity: "24" },
-      { name: "Demo Measuring Tape", sku: "DEMO-KBT-MSR-01", category: "Demo Measuring Tools", brand: "Demo Stanley", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "90", sellingPrice: "150", gstPercentage: "18", minimumStock: "12", openingQuantity: "24" },
+    800
+  ),
+};
+const KB_TOOLS = {
+  categories: [
+    "Demo Power Tools",
+    "Demo Hand Tools",
+    "Demo Measuring Tools",
+    "Demo Cutting Tools",
+    "Demo Workshop Tools",
+  ],
+
+  brands: [
+    "Demo Bosch",
+    "Demo Stanley",
+    "Demo Taparia",
+    "Demo Dewalt",
+    "Demo Makita",
+  ],
+
+  customer: "Demo Tools Customer",
+  supplier: "Demo Tools Supplier",
+
+  products: buildProducts(
+    "DEMO-KBT",
+    [
+      { category: "Demo Power Tools", brand: "Demo Bosch" },
+      { category: "Demo Hand Tools", brand: "Demo Stanley" },
+      { category: "Demo Measuring Tools", brand: "Demo Taparia" },
+      { category: "Demo Cutting Tools", brand: "Demo Dewalt" },
+      { category: "Demo Workshop Tools", brand: "Demo Makita" },
     ],
-  },
-  KB_TECH: {
-    categories: ["Demo Computers", "Demo Networking", "Demo Peripherals"],
-    brands: ["Demo Lenovo", "Demo TP-Link", "Demo Logitech"],
-    customer: "Demo Tech Customer",
-    supplier: "Demo Tech Supplier",
-    products: [
-      { name: "Demo Business Laptop", sku: "DEMO-KBTECH-LTP-01", category: "Demo Computers", brand: "Demo Lenovo", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "42000", sellingPrice: "54000", gstPercentage: "18", minimumStock: "2", openingQuantity: "10" },
-      { name: "Demo Wi-Fi Router", sku: "DEMO-KBTECH-RTR-01", category: "Demo Networking", brand: "Demo TP-Link", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "2100", sellingPrice: "3200", gstPercentage: "18", minimumStock: "5", openingQuantity: "15" },
-      { name: "Demo Wireless Keyboard", sku: "DEMO-KBTECH-KBD-01", category: "Demo Peripherals", brand: "Demo Logitech", baseUnit: "PCS", productType: "STANDARD", purchasePrice: "850", sellingPrice: "1299", gstPercentage: "18", minimumStock: "5", openingQuantity: "20" },
+    600
+  ),
+};
+const KB_TECH = {
+  categories: [
+    "Demo Computers",
+    "Demo Networking",
+    "Demo Peripherals",
+    "Demo Storage",
+    "Demo Security",
+  ],
+
+  brands: [
+    "Demo Lenovo",
+    "Demo TPLink",
+    "Demo Logitech",
+    "Demo WD",
+    "Demo Hikvision",
+  ],
+
+  customer: "Demo Tech Customer",
+  supplier: "Demo Tech Supplier",
+
+  products: buildProducts(
+    "DEMO-KBTCH",
+    [
+      { category: "Demo Computers", brand: "Demo Lenovo" },
+      { category: "Demo Networking", brand: "Demo TPLink" },
+      { category: "Demo Peripherals", brand: "Demo Logitech" },
+      { category: "Demo Storage", brand: "Demo WD" },
+      { category: "Demo Security", brand: "Demo Hikvision" },
     ],
-  },
-  KB_FURNITURE: {
+    2500
+  ),
+};
+const KB_FURNITURE = {
   categories: [
     "Demo Sofas",
     "Demo Dining",
-    "Demo Bedroom Furniture"
+    "Demo Bedroom",
+    "Demo Living Room",
+    "Demo Office Furniture",
   ],
 
   brands: [
     "Demo WoodenCraft",
     "Demo ComfortPlus",
-    "Demo HomeStyle"
+    "Demo HomeStyle",
+    "Demo UrbanLiving",
+    "Demo OfficePro",
   ],
 
   customer: "Demo Furniture Customer",
-
   supplier: "Demo Furniture Supplier",
 
-  products: [
-    {
-      name: "Demo 3-Seater Sofa",
-      sku: "DEMO-KBFUR-SOF-01",
-      category: "Demo Sofas",
-      brand: "Demo ComfortPlus",
-      baseUnit: "PCS",
-      productType: "STANDARD",
-      purchasePrice: "18500",
-      sellingPrice: "24999",
-      gstPercentage: "18",
-      minimumStock: "2",
-      openingQuantity: "5"
-    },
-    {
-      name: "Demo 6-Seater Dining Table",
-      sku: "DEMO-KBFUR-DIN-01",
-      category: "Demo Dining",
-      brand: "Demo WoodenCraft",
-      baseUnit: "PCS",
-      productType: "STANDARD",
-      purchasePrice: "22000",
-      sellingPrice: "31999",
-      gstPercentage: "18",
-      minimumStock: "1",
-      openingQuantity: "3"
-    },
-    {
-      name: "Demo Queen Size Bed",
-      sku: "DEMO-KBFUR-BED-01",
-      category: "Demo Bedroom Furniture",
-      brand: "Demo HomeStyle",
-      baseUnit: "PCS",
-      productType: "STANDARD",
-      purchasePrice: "26000",
-      sellingPrice: "37999",
-      gstPercentage: "18",
-      minimumStock: "1",
-      openingQuantity: "4"
-    },
-    {
-      name: "Demo Coffee Table",
-      sku: "DEMO-KBFUR-CFT-01",
-      category: "Demo Sofas",
-      brand: "Demo WoodenCraft",
-      baseUnit: "PCS",
-      productType: "STANDARD",
-      purchasePrice: "2800",
-      sellingPrice: "4499",
-      gstPercentage: "18",
-      minimumStock: "3",
-      openingQuantity: "10"
-    },
-    {
-      name: "Demo 3-Door Wardrobe",
-      sku: "DEMO-KBFUR-WRD-01",
-      category: "Demo Bedroom Furniture",
-      brand: "Demo HomeStyle",
-      baseUnit: "PCS",
-      productType: "STANDARD",
-      purchasePrice: "17500",
-      sellingPrice: "25999",
-      gstPercentage: "18",
-      minimumStock: "1",
-      openingQuantity: "3"
-    }
-  ]
-},
+  products: buildProducts(
+    "DEMO-KBFUR",
+    [
+      { category: "Demo Sofas", brand: "Demo ComfortPlus" },
+      { category: "Demo Dining", brand: "Demo WoodenCraft" },
+      { category: "Demo Bedroom", brand: "Demo HomeStyle" },
+      { category: "Demo Living Room", brand: "Demo UrbanLiving" },
+      { category: "Demo Office Furniture", brand: "Demo OfficePro" },
+    ],
+    5000
+  ),
+};
+
+
+const demoUnits = {
+  KB_INTERIORS,
+  KB_ELECTRICALS,
+  KB_KITCHEN_BATH,
+  KB_TOOLS,
+  KB_TECH,
+  KB_FURNITURE,
 };
 
 function demoUuid(key) {
@@ -655,7 +742,7 @@ async function main() {
     );
     console.log(`Demo data ready for ${unit.name}.`);
   }
-  console.log("Demo data is ready across all five business units. Re-running this command is safe.");
+  console.log("Demo data is ready across all business units. Re-running this command is safe.");
 }
 
 main()
