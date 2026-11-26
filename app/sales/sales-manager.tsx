@@ -447,7 +447,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             <span className="text-xs text-gray-500">New sale</span>
           </div>
           <form onSubmit={submitSale} className="mt-3 space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 xl:grid-cols-4">
               <label className="text-sm font-medium">
                 Stock location
                 <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
@@ -464,6 +464,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               </label>
             </div>
 
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="min-w-0 space-y-3">
             <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">01 · Customer</h3>
@@ -530,6 +532,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             </section>
 
             <div className="rounded-lg border border-slate-200 bg-white p-2"><div className="mb-1 text-xs font-semibold text-slate-700">02 · Product entry</div><BarcodeScanner compact autoFocus={false} onScan={handleBarcodeScan} placeholder="Scan barcode to add product" /></div>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-slate-800">03 · Invoice items</h3>
             <div className="space-y-2">
               {lines.map((line, index) => {
                 const product = line.product;
@@ -681,12 +685,14 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             }} className="rounded-lg border border-emerald-800 px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">
               + Add product
             </button>
-
-            <div className="ml-auto grid w-full max-w-3xl gap-3 border-t border-gray-200 pt-3 text-sm md:grid-cols-2 md:items-start">
+            </section>
+              </div>
+              <aside className="min-w-0 xl:sticky xl:top-4">
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm shadow-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>{money(totals.subtotal)}</span></div>
               <div className="flex justify-between"><span>GST (added to listed price)</span><span>{money(totals.tax)}</span></div>
               <div className="flex justify-between text-base font-bold"><span>Total</span><span>{money(totals.total)}</span></div>
-              <div className="space-y-2 border-t border-gray-200 pt-3 md:border-l md:border-t-0 md:pl-3 md:pt-0">
+              <div className="space-y-2 border-t border-gray-200 pt-3">
                 <label className="block text-sm font-medium">
                   Amount received
                   <input
@@ -729,6 +735,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               <button type="submit" disabled={saving || !locationId || !lines.length || paymentInvalid || needsCustomer} className="mt-2 w-full rounded-lg bg-emerald-900 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
                 {saving ? "Completing sale…" : "Complete sale"}
               </button>
+            </div>
+              </aside>
             </div>
           </form>
         </section>
