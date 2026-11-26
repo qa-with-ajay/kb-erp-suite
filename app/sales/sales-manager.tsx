@@ -504,7 +504,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 <div className="space-y-3">
                   <p className="text-sm text-slate-600">No registered customer found. How would you like to continue?</p>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => { setCustomerMode("NEW"); setCustomerName(/\\d/.test(customerSearch) && !/[a-z]/i.test(customerSearch) ? "" : customerSearch.trim()); setCustomerPhone(/^\\d/.test(customerSearch.trim()) ? customerSearch.trim() : ""); invalidateRequestKey(); }} className="rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50">New Customer</button>
+                    <button type="button" onClick={() => { setCustomerMode("NEW"); setCustomerName(/\d/.test(customerSearch) && !/[a-z]/i.test(customerSearch) ? "" : customerSearch.trim()); setCustomerPhone(/^\\d/.test(customerSearch.trim()) ? customerSearch.trim() : ""); invalidateRequestKey(); }} className="rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50">New Customer</button>
                     <button type="button" onClick={() => { setCustomerMode("WALK_IN"); setCustomerName(""); setCustomerPhone(""); setCustomerId(""); invalidateRequestKey(); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Walk-in Customer</button>
                   </div>
                 </div>
