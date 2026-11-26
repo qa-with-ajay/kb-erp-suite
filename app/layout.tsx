@@ -49,6 +49,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       { label: "Financial Dashboard", href: "/financial", section: "Financial Management" },
       { label: "Chart of Accounts", href: "/financial/accounts", section: "Financial Management" },
       { label: "Journal Vouchers", href: "/financial/journals", section: "Financial Management" },
+      { label: "General Ledger", href: "/financial/reports/general-ledger", section: "Financial Management" },
+      { label: "Trial Balance", href: "/financial/reports/trial-balance", section: "Financial Management" },
     );
     if (await hasGroupPermission(session.user.id, "accounting.read")) items.push({ label: "Group Financials", href: "/financial/group" });
     if (permissions.has("purchases.manage")) items.push({ label: "Purchases", href: "/purchases" });
