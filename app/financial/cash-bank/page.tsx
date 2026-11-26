@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 type LedgerAccount = { id: string; code: string; name: string; type: string; isActive: boolean };
 type PaymentAccount = { id: string; name: string; type: "CASH" | "BANK" | "UPI"; ledgerAccountId: string; ledgerAccount: Pick<LedgerAccount, "id" | "code" | "name">; bankName: string | null; balance: string; isActive: boolean };
 type Transaction = { id: string; reconciliationItems?: Array<{ id: string }>; transactionNumber: string; type: "RECEIPT" | "PAYMENT" | "TRANSFER"; amount: string; transactionDate: string; narration: string; reference: string | null; paymentAccount: { id: string; name: string; type: string }; destinationAccount: { id: string; name: string; type: string } | null; offsetAccount: { id: string; code: string; name: string } | null; journalEntry: { voucherNumber: string; status: string } };
-type Reconciliation = { id: string; statementDate: string; statementBalance: string; bookBalance: string; difference: string; status: string; paymentAccount: { name: string; type: string }; _count: { items: number } };
+type Reconciliation = { id: string; statementDate: string; openingBalance: string; statementBalance: string; bookBalance: string; difference: string; notes: string | null; status: string; paymentAccount: { id: string; name: string; type: string }; items: Array<{ transactionId: string }>; _count: { items: number } };
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const money = (value: string) => Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -18,6 +18,7 @@ export default function CashBankPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingReconciliationId, setEditingReconciliationId] = useState<string | null>(null);
   const [accountForm, setAccountForm] = useState({ name: "", type: "BANK" as PaymentAccount["type"], ledgerAccountId: "", bankName: "", accountNumberLast4: "", ifsc: "", upiId: "" });
   const [txnForm, setTxnForm] = useState({ type: "RECEIPT" as Transaction["type"], paymentAccountId: "", destinationAccountId: "", offsetAccountId: "", amount: "", transactionDate: today(), narration: "", reference: "" });
   const [reconForm, setReconForm] = useState({ paymentAccountId: "", statementDate: today(), openingBalance: "", statementBalance: "", transactionIds: [] as string[], notes: "" });
@@ -65,8 +66,34 @@ export default function CashBankPage() {
   }
   async function createReconciliation(event: React.FormEvent) {
     event.preventDefault();
-    await submit("/api/financial/reconciliations", reconForm, "Reconciliation draft created. Complete it only when the difference is zero.");
+    const result = await submit(editingReconciliationId ? `/api/financial/reconciliations/${editingReconciliationId}` : "/api/financial/reconciliations", reconForm, editingReconciliationId ? "Reconciliation draft updated." : "Reconciliation draft created. Complete it only when the difference is zero.");
+    if (result) { setEditingReconciliationId(null); setReconForm({ paymentAccountId: "", statementDate: today(), openingBalance: "", statementBalance: "", transactionIds: [], notes: "" }); }
   }
+  function editReconciliation(item: Reconciliation) {
+    setEditingReconciliationId(item.id);
+    setReconForm({
+      paymentAccountId: item.paymentAccount.id,
+      statementDate: item.statementDate.slice(0, 10),
+      openingBalance: item.openingBalance,
+      statementBalance: item.statementBalance,
+      transactionIds: item.items.map((entry) => entry.transactionId),
+      notes: item.notes || "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  async function deleteReconciliation(id: string) {
+    if (!window.confirm("Delete this draft reconciliation? Its matched transactions will become available again.")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/financial/reconciliations/${id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to delete reconciliation.");
+      if (editingReconciliationId === id) { setEditingReconciliationId(null); setReconForm({ paymentAccountId: "", statementDate: today(), openingBalance: "", statementBalance: "", transactionIds: [], notes: "" }); }
+      setNotice("Draft reconciliation deleted."); await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to delete reconciliation."); }
+    finally { setBusy(false); }
+  }
+
   async function completeReconciliation(id: string) {
     setBusy(true); setError(""); setNotice("");
     try {
@@ -105,7 +132,7 @@ export default function CashBankPage() {
     </div>
     <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Cash book / Bank book</h2><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[58rem] text-left text-sm"><thead className="border-b border-gray-200 text-xs uppercase text-gray-500"><tr><th className="py-3 pr-3">Date</th><th className="py-3 pr-3">Voucher</th><th className="py-3 pr-3">Type</th><th className="py-3 pr-3">Account</th><th className="py-3 pr-3">Narration</th><th className="py-3 pr-3">Reference</th><th className="py-3 text-right">Amount</th></tr></thead><tbody>{transactions.map((t) => <tr key={t.id} className="border-b border-gray-100"><td className="py-3 pr-3">{new Date(t.transactionDate).toLocaleDateString("en-IN")}</td><td className="py-3 pr-3 font-mono text-xs">{t.transactionNumber}</td><td className="py-3 pr-3">{t.type}</td><td className="py-3 pr-3">{t.paymentAccount.name}{t.destinationAccount ? ` → ${t.destinationAccount.name}` : ""}</td><td className="py-3 pr-3">{t.narration}</td><td className="py-3 pr-3">{t.reference || "—"}</td><td className="py-3 text-right tabular-nums">₹{money(t.amount)}</td></tr>)}{!transactions.length && <tr><td colSpan={7} className="py-8 text-center text-gray-500">No cash/bank transactions recorded.</td></tr>}</tbody></table></div></section>
     <section className="mt-6 grid gap-6 xl:grid-cols-2">
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Bank reconciliation</h2><p className="mt-1 text-sm text-gray-600">Compare the statement closing balance with the posted ledger balance.</p><form onSubmit={createReconciliation} className="mt-4 space-y-3">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">{editingReconciliationId ? "Edit reconciliation draft" : "Bank reconciliation"}</h2><p className="mt-1 text-sm text-gray-600">Compare the statement closing balance with the posted ledger balance.</p><form onSubmit={createReconciliation} className="mt-4 space-y-3">
         <label className="block text-sm font-medium">Bank / UPI account<select required value={reconForm.paymentAccountId} onChange={(e) => setReconForm({ ...reconForm, paymentAccountId: e.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"><option value="">Select account</option>{accounts.filter((a) => a.isActive && a.type !== "CASH").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
         <label className="block text-sm font-medium">Statement date<input required type="date" value={reconForm.statementDate} onChange={(e) => setReconForm({ ...reconForm, statementDate: e.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
         <label className="block text-sm font-medium">Statement opening balance<input required inputMode="decimal" value={reconForm.openingBalance} onChange={(e) => setReconForm({ ...reconForm, openingBalance: e.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
@@ -113,9 +140,10 @@ export default function CashBankPage() {
         <label className="block text-sm font-medium">Notes (optional)<input value={reconForm.notes} onChange={(e) => setReconForm({ ...reconForm, notes: e.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
         <fieldset className="rounded-lg border border-gray-200 p-3"><legend className="px-1 text-sm font-medium">Transactions appearing on this statement</legend><div className="max-h-40 space-y-2 overflow-y-auto">{transactions.filter((t) => !t.reconciliationItems?.length && t.transactionDate.slice(0, 10) <= reconForm.statementDate && (t.paymentAccount.id === reconForm.paymentAccountId || t.destinationAccount?.id === reconForm.paymentAccountId)).map((t) => <label key={t.id} className="flex items-start gap-2 text-xs"><input type="checkbox" checked={reconForm.transactionIds.includes(t.id)} onChange={(e) => setReconForm((current) => ({ ...current, transactionIds: e.target.checked ? [...current.transactionIds, t.id] : current.transactionIds.filter((id) => id !== t.id) }))} className="mt-0.5" /><span>{t.transactionNumber} · {t.narration} · ₹{money(t.amount)}</span></label>)}{!transactions.some((t) => !t.reconciliationItems?.length && (t.paymentAccount.id === reconForm.paymentAccountId || t.destinationAccount?.id === reconForm.paymentAccountId)) && <p className="text-xs text-gray-500">No unreconciled cash/bank vouchers are available for this account.</p>}</div></fieldset>
         <p className="text-xs text-gray-500">{selectedRecon ? `Current ledger balance: ₹${money(selectedRecon.balance)}. Select transactions shown on the statement; opening balance plus matched movements must equal the statement closing balance.` : "Select an account to view its ledger balance."}</p>
-        <button disabled={busy} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Create reconciliation"}</button>
+        <button disabled={busy} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : editingReconciliationId ? "Update reconciliation" : "Create reconciliation"}
+        {editingReconciliationId && <button type="button" onClick={() => { setEditingReconciliationId(null); setReconForm({ paymentAccountId: "", statementDate: today(), openingBalance: "", statementBalance: "", transactionIds: [], notes: "" }); }} className="ml-3 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">Cancel edit</button>}</button>
       </form></div>
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Reconciliation history</h2><div className="mt-3 space-y-3">{reconciliations.map((r) => <article key={r.id} className="rounded-lg border border-gray-100 p-3"><div className="flex flex-wrap justify-between gap-2"><div className="font-medium">{r.paymentAccount.name} · {new Date(r.statementDate).toLocaleDateString("en-IN")}</div><span className={r.status === "RECONCILED" ? "rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800" : "rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800"}>{r.status}</span></div><p className="mt-1 text-sm text-gray-600">Statement ₹{money(r.statementBalance)} · Book ₹{money(r.bookBalance)} · Difference ₹{money(r.difference)}</p><p className="text-xs text-gray-500">{r._count.items} matched transactions</p>{r.status === "DRAFT" && <button disabled={busy} onClick={() => void completeReconciliation(r.id)} className="mt-2 text-sm font-semibold text-emerald-800 hover:underline">Complete if balanced</button>}</article>)}{!reconciliations.length && <p className="py-6 text-sm text-gray-500">No reconciliations yet.</p>}</div></div>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Reconciliation history</h2><div className="mt-3 space-y-3">{reconciliations.map((r) => <article key={r.id} className="rounded-lg border border-gray-100 p-3"><div className="flex flex-wrap justify-between gap-2"><div className="font-medium">{r.paymentAccount.name} · {new Date(r.statementDate).toLocaleDateString("en-IN")}</div><span className={r.status === "RECONCILED" ? "rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800" : "rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800"}>{r.status}</span></div><p className="mt-1 text-sm text-gray-600">Statement ₹{money(r.statementBalance)} · Book ₹{money(r.bookBalance)} · Difference ₹{money(r.difference)}</p><p className="text-xs text-gray-500">{r._count.items} matched transactions</p>{r.status === "DRAFT" && <div className="mt-2 flex gap-4"><button disabled={busy} onClick={() => editReconciliation(r)} className="text-sm font-semibold text-blue-700 hover:underline">Edit</button><button disabled={busy} onClick={() => void deleteReconciliation(r.id)} className="text-sm font-semibold text-red-700 hover:underline">Delete</button><button disabled={busy} onClick={() => void completeReconciliation(r.id)} className="text-sm font-semibold text-emerald-800 hover:underline">Complete if balanced</button></div>}</article>)}{!reconciliations.length && <p className="py-6 text-sm text-gray-500">No reconciliations yet.</p>}</div></div>
     </section>
   </main>;
 }
