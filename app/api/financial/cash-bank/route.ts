@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         if (!destination || destination.id === source.id) throw new Error("DESTINATION_ACCOUNT_NOT_FOUND");
       } else {
         offset = await tx.account.findFirst({
-          where: { id: input.offsetAccountId!, businessUnitId, isActive: true },
+          where: { id: input.offsetAccountId!, businessUnitId, isActive: true, isControlAccount: false },
           select: { id: true, code: true, name: true },
         });
         if (!offset) throw new Error("OFFSET_ACCOUNT_NOT_FOUND");
