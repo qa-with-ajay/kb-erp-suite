@@ -12,27 +12,32 @@ function normalizePhone(value: string) {
 }
 
 export async function GET(request: Request) {
-  const phone = new URL(request.url).searchParams.get("phone");
-  if (!phone) return listParties(request, "customers");
+  const params = new URL(request.url).searchParams;
+  const search = (params.get("search") ?? "").trim();
+  if (!search) return listParties(request, "customers");
+  if (search.length < 2) return NextResponse.json({ items: [] });
 
-  const normalized = normalizePhone(phone);
-  if (!/^\d{10}$/.test(normalized)) {
-    return NextResponse.json({ items: [] });
-  }
   const access = await getBusinessUnitAccess("customers.manage");
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
-  const candidates = await prisma.customer.findMany({
+  const phoneDigits = normalizePhone(search);
+  const conditions: Array<Record<string, unknown>> = [
+    { name: { contains: search, mode: "insensitive" } },
+  ];
+  if (phoneDigits.length >= 3) {
+    conditions.push({ phone: { contains: phoneDigits } });
+  }
+
+  const items = await prisma.customer.findMany({
     where: {
       businessUnitId: access.context.businessUnit.id,
       isActive: true,
-      phone: { contains: normalized.slice(-4) },
+      OR: conditions,
     },
     select: { id: true, name: true, phone: true },
-    take: 100,
+    take: 20,
     orderBy: { name: "asc" },
   });
-  const items = candidates.filter((customer) => customer.phone && normalizePhone(customer.phone) === normalized);
   return NextResponse.json({ items });
 }
 
