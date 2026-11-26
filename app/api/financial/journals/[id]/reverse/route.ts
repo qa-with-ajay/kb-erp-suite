@@ -46,7 +46,7 @@ export async function POST(request: Request, context: RouteContext) {
           voucherNumber,
           entryDate: reversalDate,
           narration: `Reversal of ${original.voucherNumber}: ${reason}`,
-          status: "POSTED",
+          status: "DRAFT",
           sourceType: "JOURNAL_REVERSAL",
           sourceId: original.id,
           idempotencyKey: `journal-reversal:${original.id}`,
@@ -66,6 +66,11 @@ export async function POST(request: Request, context: RouteContext) {
         },
         include: { lines: { include: { account: { select: { code: true, name: true } } } } },
       });
+      const postedReversal = await tx.journalEntry.update({
+        where: { id: reversal.id },
+        data: { status: "POSTED", postedBy: access.context.session.user.id, postedAt: new Date() },
+        include: { lines: { include: { account: { select: { code: true, name: true } } } } },
+      });
       const changed = await tx.journalEntry.updateMany({
         where: { id: original.id, businessUnitId: original.businessUnitId, status: "POSTED", reversedByEntryId: null },
         data: { status: "REVERSED", reversedByEntryId: reversal.id },
@@ -78,7 +83,7 @@ export async function POST(request: Request, context: RouteContext) {
           details: { originalVoucher: original.voucherNumber, reversalVoucher: voucherNumber, reason },
         },
       });
-      return reversal;
+      return postedReversal;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return NextResponse.json({ reversal: result }, { status: 201 });
   } catch (error) {
