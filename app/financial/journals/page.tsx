@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getBusinessDateString } from "@/lib/accounting-date";
 
 type Account = { id: string; code: string; name: string; type: string };
 type JournalLine = { id: string; accountId: string; debit: string | number; credit: string | number; description: string | null; account: { code: string; name: string } };
@@ -18,7 +19,7 @@ function amount(value: string | number) {
 export default function JournalVouchersPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [entryDate, setEntryDate] = useState(getBusinessDateString());
   const [narration, setNarration] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([
     { accountId: "", debit: "", credit: "", description: "" },
