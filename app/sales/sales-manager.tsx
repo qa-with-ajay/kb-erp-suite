@@ -606,8 +606,13 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         ))}
                       </select>
                     </label>
-                    <div className="space-y-2 text-sm sm:col-span-2 xl:col-span-1">
-                      <p className="text-xs font-semibold">Stock allocation</p>
+                    <div className="text-sm sm:col-span-2 xl:col-span-1">
+                      <details className="rounded-md border border-slate-200 bg-slate-50">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-xs font-semibold text-slate-700">
+                          <span>Stock allocation</span>
+                          <span className="font-normal text-slate-500">Allocated: {quantity.toFixed(2)}</span>
+                        </summary>
+                        <div className="space-y-2 border-t border-slate-200 bg-white p-2.5 text-sm">
                       {product && <label className="block text-xs font-medium">Sales unit
                         <select value={line.saleUnit || saleUnit(product)} onChange={(event) => {
                           const nextUnit = event.target.value;
@@ -643,6 +648,9 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         <input type="number" min="0.0001" step="0.0001" value={line.saleQuantity} onChange={(event) => updateLine(line.key, { saleQuantity: event.target.value })} className="mt-1 w-full rounded border p-2" placeholder="Enter quantity sold from opened package(s)" />
                       </label>}
                       {!selectedBalances.length && !selectedRemnants.length && <p className="text-amber-700">No available stock sources for this variant.</p>}
+                    </div>
+                        </div>
+                      </details>
                     </div>
                     <div className="text-sm">
                       <span className="font-medium">Invoice quantity ({line.saleUnit || saleUnit(product)})</span>
