@@ -284,7 +284,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       setError("Search by phone and select an existing customer, New Customer, or Walk-in Customer.");
       return;
     }
-    if (customerMode === "NEW" && (!customerName.trim() || !/^\d{10}$/.test(customerPhone.replace(/\D/g, "").replace(/^91/, "").replace(/^0/, "")))) {
+    if (customerMode === "NEW" && (!customerName.trim() || !/^\d{10}$/.test(customerPhone.replace(/\D/g, "").replace(/^0091/, "").replace(/^91/, "").replace(/^0/, "")))) {
       setError("Enter the new customer's name and a valid 10-digit phone number.");
       return;
     }
@@ -310,8 +310,8 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
           locationId,
           taxMode,
           customerId: customerId || null,
-          customerName,
-          customerPhone,
+          customerName: isWalkIn || !canSelectCustomer ? "" : customerName,
+          customerPhone: isWalkIn || !canSelectCustomer ? "" : customerPhone,
           saveCustomerToMaster: isNewCustomer && Boolean(customerName.trim()),
           idempotencyKey,
           payment: {
