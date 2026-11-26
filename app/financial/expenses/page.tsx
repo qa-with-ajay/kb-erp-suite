@@ -14,6 +14,7 @@ export default function ExpensesPage() {
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [canManage, setCanManage] = useState(false);
   const [form, setForm] = useState({ categoryId: "", paymentAccountId: "", expenseDate: today(), amount: "", description: "", reference: "" });
   const [categoryForm, setCategoryForm] = useState({ name: "", expenseAccountId: "" });
   const [error, setError] = useState("");
@@ -24,14 +25,14 @@ export default function ExpensesPage() {
     setError("");
     try {
       const [a, p, c, e] = await Promise.all([
-        fetch("/api/financial/accounts", { cache: "no-store" }),
+        fetch("/api/financial/expenses/accounts", { cache: "no-store" }),
         fetch("/api/financial/payment-accounts", { cache: "no-store" }),
         fetch("/api/financial/expenses/categories", { cache: "no-store" }),
         fetch("/api/financial/expenses", { cache: "no-store" }),
       ]);
       const [ad, pd, cd, ed] = await Promise.all([a.json(), p.json(), c.json(), e.json()]);
       for (const [response, data] of [[a, ad], [p, pd], [c, cd], [e, ed]] as const) if (!response.ok) throw new Error(data.error || "Unable to load expense workspace.");
-      setAccounts(ad.accounts); setPaymentAccounts(pd.accounts); setCategories(cd.categories); setExpenses(ed.expenses);
+      setAccounts(ad.accounts); setPaymentAccounts(pd.accounts); setCategories(cd.categories); setExpenses(ed.expenses); setCanManage(ed.canManage);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load expense workspace."); }
   }
   useEffect(() => { void load(); }, []);
@@ -66,7 +67,7 @@ export default function ExpensesPage() {
     {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
     {notice && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</div>}
     <div className="mb-6 grid gap-4 sm:grid-cols-3"><article className="rounded-xl border border-gray-200 bg-white p-5"><p className="text-sm text-gray-500">Recorded expenses</p><p className="mt-2 text-2xl font-bold">{expenses.length}</p></article><article className="rounded-xl border border-gray-200 bg-white p-5"><p className="text-sm text-gray-500">Total listed expenses</p><p className="mt-2 text-2xl font-bold">₹{money(String(total))}</p></article><article className="rounded-xl border border-gray-200 bg-white p-5"><p className="text-sm text-gray-500">Active categories</p><p className="mt-2 text-2xl font-bold">{categories.filter((c) => c.isActive).length}</p></article></div>
-    <div className="grid gap-6 xl:grid-cols-2">
+    {canManage && <div className="grid gap-6 xl:grid-cols-2">
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Record an expense</h2><form onSubmit={createExpense} className="mt-4 space-y-3">
         <label className="block text-sm font-medium">Expense category<select required value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"><option value="">Select category</option>{categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name} · {c.expenseAccount.code}</option>)}</select></label>
         <label className="block text-sm font-medium">Paid from<select required value={form.paymentAccountId} onChange={(e) => setForm({ ...form, paymentAccountId: e.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"><option value="">Select cash/bank account</option>{paymentAccounts.filter((a) => a.isActive).map((a) => <option key={a.id} value={a.id}>{a.name} · {a.type}</option>)}</select></label>
@@ -80,7 +81,7 @@ export default function ExpensesPage() {
         <label className="block text-sm font-medium">Expense ledger account<select required value={categoryForm.expenseAccountId} onChange={(e) => setCategoryForm({ ...categoryForm, expenseAccountId: e.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"><option value="">Select expense account</option>{expenseAccounts.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></label>
         <button disabled={busy} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">Add category</button>
       </form><div className="mt-5 divide-y divide-gray-100">{categories.map((category) => <div key={category.id} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-medium">{category.name}</p><p className="text-xs text-gray-500">{category.expenseAccount.code} · {category.expenseAccount.name}</p></div><span className="text-xs text-gray-500">{category._count?.expenses ?? 0} expenses</span></div>)}{!categories.length && <p className="py-5 text-sm text-gray-500">No categories configured.</p>}</div></section>
-    </div>
+    </div>}
     <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Expense register</h2><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[60rem] text-left text-sm"><thead className="border-b border-gray-200 text-xs uppercase text-gray-500"><tr><th className="py-3 pr-3">Date</th><th className="py-3 pr-3">Expense no.</th><th className="py-3 pr-3">Category</th><th className="py-3 pr-3">Description</th><th className="py-3 pr-3">Paid from</th><th className="py-3 pr-3">Reference</th><th className="py-3 pr-3 text-right">Amount</th><th className="py-3">Voucher</th></tr></thead><tbody>{expenses.map((expense) => <tr key={expense.id} className="border-b border-gray-100"><td className="py-3 pr-3">{new Date(expense.expenseDate).toLocaleDateString("en-IN")}</td><td className="py-3 pr-3 font-mono text-xs">{expense.expenseNumber}</td><td className="py-3 pr-3">{expense.category.name}</td><td className="py-3 pr-3">{expense.description}</td><td className="py-3 pr-3">{expense.paymentAccount.name}</td><td className="py-3 pr-3">{expense.reference || "—"}</td><td className="py-3 pr-3 text-right tabular-nums">₹{money(expense.amount)}</td><td className="py-3 font-mono text-xs">{expense.journalEntry.voucherNumber}</td></tr>)}{!expenses.length && <tr><td colSpan={8} className="py-8 text-center text-gray-500">No expenses recorded.</td></tr>}</tbody></table></div></section>
   </main>;
 }
