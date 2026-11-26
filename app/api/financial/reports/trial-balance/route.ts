@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const asOf = new Date(rawDate + "T00:00:00.000Z");
   const [accounts, lines] = await Promise.all([
     prisma.account.findMany({
-      where: { businessUnitId: access.context.businessUnit.id, isActive: true },
+      where: { businessUnitId: access.context.businessUnit.id },
       select: { id: true, code: true, name: true, type: true },
       orderBy: { code: "asc" },
     }),
