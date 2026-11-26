@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { postPaymentAccounting, postSaleAccounting } from "@/lib/accounting-posting";
+import { getBusinessDateUtc } from "@/lib/accounting-date";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 import { readJsonBody } from "@/lib/catalog-validation";
 import { createSale, isSameSaleRequest, type SaleResult } from "@/lib/sales-service";
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
         throw new PaymentRejected("Select or enter a customer to leave a balance due.");
       }
       if (amount.greaterThan(0)) {
-        await tx.payment.create({
+        const createdPayment = await tx.payment.create({
           data: {
             businessUnitId: access.context.businessUnit.id,
             saleId: sale.saleId,
@@ -156,12 +157,9 @@ export async function POST(request: Request) {
             amount,
             method: payment.method,
             reference: payment.reference || null,
+            paidAt: getBusinessDateUtc(),
             recordedBy: access.context.session.user.id,
           },
-        });
-        const createdPayment = await tx.payment.findFirstOrThrow({
-          where: { businessUnitId: access.context.businessUnit.id, saleId: sale.saleId, idempotencyKey: `${input.idempotencyKey}:initial-payment` },
-          select: { id: true },
         });
         await postPaymentAccounting(tx, access.context.businessUnit.id, access.context.session.user.id, createdPayment.id);
         // Mirror createSale's audit trail. Align action/entity naming with your /payments route if it differs.
@@ -171,7 +169,7 @@ export async function POST(request: Request) {
             businessUnitId: access.context.businessUnit.id,
             action: "CREATE",
             entity: "Payment",
-            entityId: sale.saleId,
+            entityId: createdPayment.id,
             details: { invoiceNumber: sale.invoiceNumber, amount: amount.toString(), method: payment.method, source: "sale-checkout" },
           },
         });
