@@ -274,7 +274,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
         if (existing) {
           const sourceKey = Object.keys(existing.allocations)[0];
           if (!sourceKey) {
-            setError("This product is already on the invoice. Select its stock allocation or add another product row.");
+            setError("This product is already on the invoice. Select its stock allocation before scanning it again.");
             return current;
           }
           setError("");
@@ -282,16 +282,21 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
             ? { ...line, allocations: { ...line.allocations, [sourceKey]: String(Number(line.allocations[sourceKey] || 0) + 1) } }
             : line);
         }
+
         const empty = current.find((line) => !line.product);
-        if (!empty) {
-          setError("Click Add product to open an invoice row before scanning another item.");
-          return current;
-        }
+        const scannedLine: DraftLine = {
+          key: empty?.key ?? crypto.randomUUID(),
+          product,
+          variantId,
+          saleUnit: saleUnit(product),
+          createRemnant: false,
+          saleQuantity: "",
+          allocations: defaultAllocations(product, variantId),
+        };
         setError("");
-        return current.map((line) => line.key === empty.key ? {
-          ...line, product, variantId, saleUnit: saleUnit(product), createRemnant: false,
-          saleQuantity: "", allocations: defaultAllocations(product, variantId),
-        } : line);
+        return empty
+          ? current.map((line) => line.key === empty.key ? scannedLine : line)
+          : [...current, scannedLine];
       });
       setProductSearch("");
       setProductSearchLineKey(null);
