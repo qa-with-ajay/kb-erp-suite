@@ -33,6 +33,8 @@ model User {
   stockMovements          StockMovement[]
   businessUnitRoles       UserBusinessUnitRole[]
   groupRoles              UserGroupRole[]
+  cashBankTransactionsCreated CashBankTransaction[]
+  expensesCreated         Expense[]             @relation("ExpenseCreator")
   journalEntriesCreated   JournalEntry[]       @relation("JournalEntryCreator")
   journalEntriesPosted    JournalEntry[]       @relation("JournalEntryPoster")
 }
@@ -135,6 +137,10 @@ model BusinessUnit {
   accounts                Account[]
   accountingPeriods      AccountingPeriod[]
   journalEntries          JournalEntry[]
+  paymentAccounts         PaymentAccount[]
+  cashBankTransactions   CashBankTransaction[]
+  expenseCategories      ExpenseCategory[]
+  expenses               Expense[]
 
   @@index([isActive, name])
 }
@@ -1020,6 +1026,9 @@ model Account {
   parent            Account?    @relation("AccountHierarchy", fields: [businessUnitId, parentAccountId], references: [businessUnitId, id], onDelete: Restrict)
   children          Account[]   @relation("AccountHierarchy")
   journalLines      JournalLine[]
+  cashBankOffsets   CashBankTransaction[]
+  paymentAccounts   PaymentAccount[]
+  expenseCategories ExpenseCategory[]
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, code])
@@ -1051,6 +1060,8 @@ model JournalEntry {
   reversalEntry      JournalEntry?        @relation("JournalEntryReversal", fields: [businessUnitId, reversedByEntryId], references: [businessUnitId, id], onDelete: Restrict)
   reversesEntry      JournalEntry?        @relation("JournalEntryReversal")
   lines              JournalLine[]
+  cashBankTransaction CashBankTransaction?
+  expense             Expense?
 
   @@unique([businessUnitId, id])
   @@unique([businessUnitId, voucherNumber])
@@ -1059,6 +1070,113 @@ model JournalEntry {
   @@unique([businessUnitId, sourceType, sourceId])
   @@index([businessUnitId, entryDate, status])
   @@index([businessUnitId, periodId, status])
+}
+
+enum PaymentAccountType {
+  CASH
+  BANK
+  UPI
+}
+
+enum CashBankTransactionType {
+  RECEIPT
+  PAYMENT
+  TRANSFER
+}
+
+model PaymentAccount {
+  id                  String       @id @default(uuid()) @db.Uuid
+  businessUnitId      String       @db.Uuid
+  name                String
+  type                PaymentAccountType
+  ledgerAccountId     String       @db.Uuid
+  bankName            String?
+  accountNumberLast4  String?
+  ifsc                String?
+  upiId               String?
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  businessUnit        BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  ledgerAccount       Account      @relation(fields: [businessUnitId, ledgerAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  transactions        CashBankTransaction[] @relation("CashBankSource")
+  incomingTransfers   CashBankTransaction[] @relation("CashBankDestination")
+  expenses            Expense[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, name])
+  @@unique([businessUnitId, ledgerAccountId])
+  @@index([businessUnitId, type, isActive])
+}
+
+model CashBankTransaction {
+  id                    String       @id @default(uuid()) @db.Uuid
+  businessUnitId        String       @db.Uuid
+  transactionNumber     String
+  type                  CashBankTransactionType
+  paymentAccountId      String       @db.Uuid
+  destinationAccountId  String?      @db.Uuid
+  offsetAccountId       String?      @db.Uuid
+  amount                Decimal      @db.Decimal(14, 2)
+  transactionDate       DateTime     @db.Date
+  reference             String?
+  narration             String
+  journalEntryId        String       @db.Uuid
+  createdBy             String
+  createdAt             DateTime     @default(now())
+  businessUnit          BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  paymentAccount        PaymentAccount @relation("CashBankSource", fields: [businessUnitId, paymentAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  destinationAccount    PaymentAccount? @relation("CashBankDestination", fields: [businessUnitId, destinationAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  offsetAccount         Account?     @relation(fields: [businessUnitId, offsetAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  journalEntry          JournalEntry @relation(fields: [businessUnitId, journalEntryId], references: [businessUnitId, id], onDelete: Restrict)
+  creator               User         @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, transactionNumber])
+  @@unique([businessUnitId, journalEntryId])
+  @@index([businessUnitId, paymentAccountId, transactionDate])
+}
+
+model ExpenseCategory {
+  id                String       @id @default(uuid()) @db.Uuid
+  businessUnitId    String       @db.Uuid
+  name              String
+  expenseAccountId  String       @db.Uuid
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  businessUnit      BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  expenseAccount    Account      @relation(fields: [businessUnitId, expenseAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  expenses          Expense[]
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, name])
+  @@index([businessUnitId, isActive])
+}
+
+model Expense {
+  id                String       @id @default(uuid()) @db.Uuid
+  businessUnitId    String       @db.Uuid
+  expenseNumber     String
+  categoryId        String       @db.Uuid
+  paymentAccountId  String       @db.Uuid
+  expenseDate       DateTime     @db.Date
+  amount            Decimal      @db.Decimal(14, 2)
+  description       String
+  reference         String?
+  journalEntryId    String       @db.Uuid
+  createdBy         String
+  createdAt         DateTime     @default(now())
+  businessUnit      BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  category          ExpenseCategory @relation(fields: [businessUnitId, categoryId], references: [businessUnitId, id], onDelete: Restrict)
+  paymentAccount    PaymentAccount @relation(fields: [businessUnitId, paymentAccountId], references: [businessUnitId, id], onDelete: Restrict)
+  journalEntry      JournalEntry @relation(fields: [businessUnitId, journalEntryId], references: [businessUnitId, id], onDelete: Restrict)
+  creator           User         @relation("ExpenseCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@unique([businessUnitId, id])
+  @@unique([businessUnitId, expenseNumber])
+  @@unique([businessUnitId, journalEntryId])
+  @@index([businessUnitId, expenseDate, categoryId])
 }
 
 model JournalLine {
