@@ -215,11 +215,11 @@ export async function createSale(
   if (!input.customerId && input.saveCustomerToMaster && input.customerName?.trim()) {
     const name = input.customerName.trim();
     const rawPhone = input.customerPhone?.trim() ?? "";
-    let normalizedPhone = rawPhone.replace(/\\D/g, "");
+    let normalizedPhone = rawPhone.replace(/\D/g, "");
     if (normalizedPhone.startsWith("0091")) normalizedPhone = normalizedPhone.slice(4);
     else if (normalizedPhone.length === 12 && normalizedPhone.startsWith("91")) normalizedPhone = normalizedPhone.slice(2);
     else if (normalizedPhone.length === 11 && normalizedPhone.startsWith("0")) normalizedPhone = normalizedPhone.slice(1);
-    if (!/^\\d{10}$/.test(normalizedPhone)) return { kind: "error", error: "CUSTOMER_PHONE_REQUIRED" };
+    if (!/^\d{10}$/.test(normalizedPhone)) return { kind: "error", error: "CUSTOMER_PHONE_REQUIRED" };
 
     const candidates = await tx.customer.findMany({
       where: { businessUnitId, isActive: true, phone: { contains: normalizedPhone.slice(-4) } },
@@ -227,7 +227,7 @@ export async function createSale(
       take: 100,
     });
     const matches = candidates.filter((item) => {
-      let digits = (item.phone ?? "").replace(/\\D/g, "");
+      let digits = (item.phone ?? "").replace(/\D/g, "");
       if (digits.startsWith("0091")) digits = digits.slice(4);
       else if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
       else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
