@@ -276,3 +276,14 @@ CROSS JOIN (VALUES
 ) AS seed("code", "name", "type", "description", "isControlAccount")
 WHERE unit."isActive" = true
 ON CONFLICT ("businessUnitId", "code") DO NOTHING;
+INSERT INTO "Account" (
+  "id", "businessUnitId", "code", "name", "type", "description",
+  "isSystem", "isControlAccount", "isActive", "createdAt", "updatedAt"
+)
+SELECT gen_random_uuid(), unit."id", '5100', 'Purchase Price Variance', 'EXPENSE',
+  'Difference between supplier credit value and inventory cost relieved on purchase returns.',
+  true, false, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM "BusinessUnit" unit
+WHERE unit."isActive" = true
+ON CONFLICT ("businessUnitId", "code") DO NOTHING;
+
