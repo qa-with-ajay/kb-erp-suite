@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   const businessUnitId = access.context.businessUnit.id;
   const input = parsed.data;
   const statementDate = new Date(input.statementDate + "T00:00:00.000Z");
+  const openingBalance = new Prisma.Decimal(input.openingBalance);
   const statementBalance = new Prisma.Decimal(input.statementBalance);
 
   try {
@@ -48,23 +49,19 @@ export async function POST(request: Request) {
           OR: [{ paymentAccountId: account.id }, { destinationAccountId: account.id }],
           reconciliationItems: { none: {} },
         },
-        select: { id: true },
+        select: { id: true, type: true, amount: true, paymentAccountId: true, destinationAccountId: true },
       }) : [];
       if (transactions.length !== new Set(input.transactionIds).size) throw new Error("RECONCILIATION_TRANSACTION_INVALID");
 
-      const totals = await tx.journalLine.aggregate({
-        where: {
-          businessUnitId,
-          accountId: account.ledgerAccountId,
-          journalEntry: { businessUnitId, status: "POSTED", entryDate: { lte: statementDate } },
-        },
-        _sum: { debit: true, credit: true },
-      });
-      const bookBalance = (totals._sum.debit ?? new Prisma.Decimal(0)).minus(totals._sum.credit ?? new Prisma.Decimal(0));
+      const movementTotal = transactions.reduce((sum, transaction) => {
+        if (transaction.destinationAccountId === account.id) return sum.plus(transaction.amount);
+        return transaction.type === "RECEIPT" ? sum.plus(transaction.amount) : sum.minus(transaction.amount);
+      }, new Prisma.Decimal(0));
+      const bookBalance = openingBalance.plus(movementTotal);
       const difference = statementBalance.minus(bookBalance);
       const created = await tx.bankReconciliation.create({
         data: {
-          businessUnitId, paymentAccountId: account.id, statementDate, statementBalance,
+          businessUnitId, paymentAccountId: account.id, statementDate, openingBalance, statementBalance,
           bookBalance, difference, status: "DRAFT", notes: input.notes || null,
           createdBy: access.context.session.user.id,
           items: { create: transactions.map((transaction) => ({ businessUnitId, transactionId: transaction.id })) },
@@ -77,7 +74,7 @@ export async function POST(request: Request) {
       await tx.auditLog.create({ data: {
         userId: access.context.session.user.id, businessUnitId, action: "CREATE",
         entity: "BankReconciliation", entityId: created.id,
-        details: { statementDate: input.statementDate, statementBalance: statementBalance.toFixed(2), bookBalance: bookBalance.toFixed(2), difference: difference.toFixed(2), matchedTransactions: transactions.length },
+        details: { statementDate: input.statementDate, openingBalance: openingBalance.toFixed(2), statementBalance: statementBalance.toFixed(2), bookBalance: bookBalance.toFixed(2), difference: difference.toFixed(2), matchedTransactions: transactions.length },
       } });
       return created;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
