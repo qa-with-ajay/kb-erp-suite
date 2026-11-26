@@ -1151,6 +1151,7 @@ model BankReconciliation {
   businessUnitId    String       @db.Uuid
   paymentAccountId  String       @db.Uuid
   statementDate     DateTime     @db.Date
+  openingBalance    Decimal      @db.Decimal(14, 2)
   statementBalance  Decimal      @db.Decimal(14, 2)
   bookBalance        Decimal      @db.Decimal(14, 2)
   difference         Decimal      @db.Decimal(14, 2)
