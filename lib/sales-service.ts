@@ -16,7 +16,7 @@ export type SaleResult =
       | "IDEMPOTENCY_CONFLICT" | "LOCATION_NOT_AVAILABLE" | "CUSTOMER_NOT_AVAILABLE"
       | "PRODUCT_NOT_AVAILABLE" | "VARIANT_REQUIRED" | "VARIANT_NOT_AVAILABLE"
       | "AMOUNT_LIMIT_EXCEEDED" | "INSUFFICIENT_STOCK" | "INVALID_QUANTITY"
-      | "INVALID_ALLOCATION" | "REMNANT_NOT_AVAILABLE" | "UNIT_MISMATCH";
+      | "INVALID_ALLOCATION" | "REMNANT_NOT_AVAILABLE" | "UNIT_MISMATCH" | "CUSTOMER_DUPLICATE" | "CUSTOMER_PHONE_REQUIRED";
       productName?: string };
 
 function lineKey(line: { productId: string; variantId?: string | null; saleUnit?: string | null; baseUnit?: string | null }) {
@@ -76,26 +76,6 @@ export async function createSale(
     select: { id: true, name: true, phone: true },
   }) : null;
   if (input.customerId && !customer) return { kind: "error", error: "CUSTOMER_NOT_AVAILABLE" };
-  if (!input.customerId && input.saveCustomerToMaster && input.customerName?.trim()) {
-    const name = input.customerName.trim();
-    const phone = input.customerPhone?.trim() || null;
-    const existing = await tx.customer.findFirst({
-      where: { businessUnitId, name: { equals: name, mode: "insensitive" }, isActive: true },
-      select: { id: true, name: true, phone: true },
-    });
-    if (existing && phone && existing.phone && existing.phone.replace(/\\D/g, "") !== phone.replace(/\\D/g, "")) {
-      return { kind: "error", error: "CUSTOMER_DUPLICATE" };
-    }
-    customer = existing ?? await tx.customer.create({
-      data: { businessUnitId, name, phone },
-      select: { id: true, name: true, phone: true },
-    });
-    if (!existing) {
-      await tx.auditLog.create({
-        data: { userId: actorId, businessUnitId, action: "CREATE", entity: "Customer", entityId: customer.id, details: { name: customer.name, source: "sale-checkout" } },
-      });
-    }
-  }
 
   const locationRows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "StockLocation"
@@ -230,6 +210,39 @@ export async function createSale(
     subtotal = subtotal.plus(lineSubtotal); taxAmount = taxAmount.plus(lineTax); total = total.plus(lineTotal); costOfGoods = costOfGoods.plus(lineCost);
     if ([subtotal, taxAmount, total, costOfGoods].some((value) => value.abs().greaterThan(maximumAmount)))
       return { kind: "error", error: "AMOUNT_LIMIT_EXCEEDED" };
+  }
+
+  if (!input.customerId && input.saveCustomerToMaster && input.customerName?.trim()) {
+    const name = input.customerName.trim();
+    const rawPhone = input.customerPhone?.trim() ?? "";
+    let normalizedPhone = rawPhone.replace(/\\D/g, "");
+    if (normalizedPhone.startsWith("0091")) normalizedPhone = normalizedPhone.slice(4);
+    else if (normalizedPhone.length === 12 && normalizedPhone.startsWith("91")) normalizedPhone = normalizedPhone.slice(2);
+    else if (normalizedPhone.length === 11 && normalizedPhone.startsWith("0")) normalizedPhone = normalizedPhone.slice(1);
+    if (!/^\\d{10}$/.test(normalizedPhone)) return { kind: "error", error: "CUSTOMER_PHONE_REQUIRED" };
+
+    const candidates = await tx.customer.findMany({
+      where: { businessUnitId, isActive: true, phone: { contains: normalizedPhone.slice(-4) } },
+      select: { id: true, name: true, phone: true },
+      take: 100,
+    });
+    const matches = candidates.filter((item) => {
+      let digits = (item.phone ?? "").replace(/\\D/g, "");
+      if (digits.startsWith("0091")) digits = digits.slice(4);
+      else if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+      else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+      return digits === normalizedPhone;
+    });
+    if (matches.length > 1) return { kind: "error", error: "CUSTOMER_DUPLICATE" };
+    customer = matches[0] ?? await tx.customer.create({
+      data: { businessUnitId, name, phone: rawPhone },
+      select: { id: true, name: true, phone: true },
+    });
+    if (matches.length === 0) {
+      await tx.auditLog.create({
+        data: { userId: actorId, businessUnitId, action: "CREATE", entity: "Customer", entityId: customer.id, details: { name: customer.name, source: "sale-checkout" } },
+      });
+    }
   }
 
   const profile = await tx.businessProfile.update({
