@@ -58,7 +58,7 @@ function variantLabel(variant: Product["variants"][number]) {
     .join(" · ");
 }
 
-function saleUnit(product: Product | null) { return product?.materialUnit ?? product?.baseUnit ?? "unit"; }
+function saleUnit(product: Product | null) { return product?.materialUnit ?? product?.baseUnit ?? "Unit"; }
 function saleUnitPrice(product: Product | null, unit: string) {
   if (!product) return 0;
   if (product.materialUnit && unit === product.materialUnit) return Number(product.sellingPrice) / Number(product.materialUnitsPerBaseUnit || 1);
@@ -456,9 +456,9 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 </select>
               </label>
               <label className="text-sm font-medium">
-                Invoice tax mode
+                Invoice Type
                 <select value={taxMode} onChange={(event) => { setTaxMode(event.target.value as "GST" | "NON_GST"); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
-                  <option value="GST">GST invoice (GST added)</option>
+                  <option value="GST">GST invoice</option>
                   <option value="NON_GST">Non-GST invoice</option>
                 </select>
               </label>
@@ -656,15 +656,15 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                       {line.createRemnant && product && <label className="block text-xs font-medium">Quantity to sell ({line.saleUnit})
                         <input type="number" min="0.0001" step="0.0001" value={line.saleQuantity} onChange={(event) => updateLine(line.key, { saleQuantity: event.target.value })} className="mt-1 w-full rounded border p-2" placeholder="Enter quantity sold from opened package(s)" />
                       </label>}
-                      {!selectedBalances.length && !selectedRemnants.length && <p className="text-amber-700">No available stock sources for this variant.</p>}
+                      {!selectedBalances.length && !selectedRemnants.length && <p className="text-amber-700">Select product to see available stock sources</p>}
                         </div>
                       </details>
                     </div>
                     <div className="text-sm">
-                      <span className="font-medium">Invoice quantity ({line.saleUnit || saleUnit(product)})</span>
+                      <span className="font-medium">Invoice Quantity ({line.saleUnit || saleUnit(product)})</span>
                       <p className="mt-2 text-lg font-semibold">{quantity.toFixed(4).replace(/0+$/, "").replace(/\.$/, "") || "0"}</p>
                       <span className="text-xs text-gray-500">Price / {line.saleUnit || saleUnit(product)}</span>
-                      <p className="mt-1">{product ? money(saleUnitPrice(product, line.saleUnit || saleUnit(product))) : "—"}</p>
+                      <p className="mt-1">{product ? money(saleUnitPrice(product, line.saleUnit || saleUnit(product))) : "0.00"}</p>
                     </div>
                     <button
                       type="button"
@@ -695,7 +695,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
               <aside className="min-w-0 xl:sticky xl:top-4">
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm shadow-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>{money(totals.subtotal)}</span></div>
-              <div className="flex justify-between"><span>GST (added to listed price)</span><span>{money(totals.tax)}</span></div>
+              <div className="flex justify-between"><span>GST</span><span>{money(totals.tax)}</span></div>
               <div className="flex justify-between text-base font-bold"><span>Total</span><span>{money(totals.total)}</span></div>
               <div className="space-y-2 border-t border-gray-200 pt-3">
                 <label className="block text-sm font-medium">
@@ -723,7 +723,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                   </select>
                 </label>
                 <label className="block text-sm font-medium">
-                  Reference (optional)
+                  Reference
                   <input
                     maxLength={100} value={paymentReference}
                     onChange={(event) => { invalidateRequestKey(); setPaymentReference(event.target.value); }}
