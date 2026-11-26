@@ -123,7 +123,7 @@ export async function postSaleAccounting(tx: Prisma.TransactionClient, businessU
 }
 
 function cashAccount(method: PaymentMethod) {
-  return method === "CASH" ? "1000" : "1010";
+  return method === "CASH" ? "1000" : method === "UPI" ? "1020" : "1010";
 }
 
 export async function postPaymentAccounting(tx: Prisma.TransactionClient, businessUnitId: string, actorId: string, paymentId: string) {
