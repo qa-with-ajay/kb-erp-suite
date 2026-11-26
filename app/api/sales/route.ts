@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { postPaymentAccounting, postSaleAccounting } from "@/lib/accounting-posting";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 import { readJsonBody } from "@/lib/catalog-validation";
 import { createSale, isSameSaleRequest, type SaleResult } from "@/lib/sales-service";
@@ -135,8 +136,10 @@ export async function POST(request: Request) {
     // Sale + first payment commit or roll back together.
     const result = await prisma.$transaction(async (tx) => {
       const sale = await createSale(tx, access.context.businessUnit.id, access.context.session.user.id, input);
-      // Errors and idempotent replays never create another payment.
-      if (sale.kind === "error" || sale.kind === "replayed" || !payment) return sale;
+      // Existing sale requests are replays; never duplicate source journals or payments.
+      if (sale.kind === "error" || sale.kind === "replayed") return sale;
+      await postSaleAccounting(tx, access.context.businessUnit.id, access.context.session.user.id, sale.saleId);
+      if (!payment) return sale;
 
       const { total } = await tx.sale.findUniqueOrThrow({ where: { id: sale.saleId }, select: { total: true } });
       const amount = payment.payInFull ? total : new Prisma.Decimal(payment.amount ?? "0");
@@ -156,6 +159,11 @@ export async function POST(request: Request) {
             recordedBy: access.context.session.user.id,
           },
         });
+        const createdPayment = await tx.payment.findFirstOrThrow({
+          where: { businessUnitId: access.context.businessUnit.id, saleId: sale.saleId, idempotencyKey: `${input.idempotencyKey}:initial-payment` },
+          select: { id: true },
+        });
+        await postPaymentAccounting(tx, access.context.businessUnit.id, access.context.session.user.id, createdPayment.id);
         // Mirror createSale's audit trail. Align action/entity naming with your /payments route if it differs.
         await tx.auditLog.create({
           data: {
