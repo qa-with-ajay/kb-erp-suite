@@ -648,7 +648,6 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         <input type="number" min="0.0001" step="0.0001" value={line.saleQuantity} onChange={(event) => updateLine(line.key, { saleQuantity: event.target.value })} className="mt-1 w-full rounded border p-2" placeholder="Enter quantity sold from opened package(s)" />
                       </label>}
                       {!selectedBalances.length && !selectedRemnants.length && <p className="text-amber-700">No available stock sources for this variant.</p>}
-                    </div>
                         </div>
                       </details>
                     </div>
