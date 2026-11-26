@@ -462,10 +462,10 @@ export function StockManager({ canManage }: { canManage: boolean }) {
             <label className="text-sm font-medium">
               Movement type
               <select value={type} onChange={(event) => { setType(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
-                <option value="INWARD">Stock inward</option>
-                <option value="OUTWARD">Stock outward</option>
-                <option value="ADJUSTMENT">Stock adjustment</option>
-                <option value="TRANSFER">Stock transfer</option>
+                <option value="INWARD">Stock Inward</option>
+                <option value="OUTWARD">Stock Outward</option>
+                <option value="ADJUSTMENT">Stock Adjustment</option>
+                <option value="TRANSFER">Stock Transfer</option>
               </select>
             </label>
             {type === "TRANSFER" ? (
@@ -542,7 +542,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
             )}
             <label className="text-sm font-medium">
               Quantity
-              <input required type="number" min="0.0001" step="0.0001" value={quantity} onChange={(event) => { setQuantity(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
+              <input required type="number" min="1" step="1" value={quantity} onChange={(event) => { setQuantity(event.target.value); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 p-2.5" />
             </label>
             {(type === "TRANSFER" || type === "OUTWARD" || (type === "ADJUSTMENT" && adjustmentDirection === "DECREASE")) && availableStock !== null && quantity && Number(quantity) > Number(availableStock) && (
               <p role="alert" className="text-sm font-medium text-red-700 sm:col-span-2">
@@ -562,7 +562,7 @@ export function StockManager({ canManage }: { canManage: boolean }) {
             {type === "INWARD" ? (
               <>
                 <label className="text-sm font-medium">
-                  Inward reason (optional)
+                  Inward reason
                   <select value={inwardReason} onChange={(event) => { setInwardReason(event.target.value); setInwardReasonDetails(""); invalidateRequestKey(); }} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white p-2.5">
                     <option value="">Select reason</option>
                     <option value="Supplier Purchase">Supplier Purchase</option>

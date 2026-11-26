@@ -654,7 +654,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                         <span><strong>Create a remnant from opened package</strong><span className="block text-gray-600">Deduct the selected whole package(s), sell the quantity entered, and register the reusable balance as a separate remnant.</span></span>
                       </label>}
                       {line.createRemnant && product && <label className="block text-xs font-medium">Quantity to sell ({line.saleUnit})
-                        <input type="number" min="0.0001" step="0.0001" value={line.saleQuantity} onChange={(event) => updateLine(line.key, { saleQuantity: event.target.value })} className="mt-1 w-full rounded border p-2" placeholder="Enter quantity sold from opened package(s)" />
+                        <input type="number" min="1" step="1" value={line.saleQuantity} onChange={(event) => updateLine(line.key, { saleQuantity: event.target.value })} className="mt-1 w-full rounded border p-2" placeholder="Enter quantity sold from opened package(s)" />
                       </label>}
                       {!selectedBalances.length && !selectedRemnants.length && <p className="text-amber-700">Select product to see available stock sources</p>}
                         </div>
