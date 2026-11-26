@@ -5,6 +5,7 @@ CREATE TABLE "BankReconciliation" (
   "businessUnitId" UUID NOT NULL,
   "paymentAccountId" UUID NOT NULL,
   "statementDate" DATE NOT NULL,
+  "openingBalance" DECIMAL(14,2) NOT NULL,
   "statementBalance" DECIMAL(14,2) NOT NULL,
   "bookBalance" DECIMAL(14,2) NOT NULL,
   "difference" DECIMAL(14,2) NOT NULL,
