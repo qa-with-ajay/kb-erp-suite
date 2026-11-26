@@ -33,6 +33,8 @@ const saleErrors: Record<SaleError, { message: string; status: number }> = {
   INVALID_ALLOCATION: { message: "Select valid stock sources and ensure their combined quantity matches the invoice quantity.", status: 400 },
   REMNANT_NOT_AVAILABLE: { message: "One or more selected remnants are no longer available in the selected location.", status: 409 },
   UNIT_MISMATCH: { message: "The selected remnant uses a different measurement unit from this sale.", status: 400 },
+  CUSTOMER_DUPLICATE: { message: "More than one customer record matches this phone number. Select the correct existing customer before continuing.", status: 409 },
+  CUSTOMER_PHONE_REQUIRED: { message: "A valid 10-digit phone number is required to create a customer record.", status: 400 },
 };
 
 function saleResponse(saleId: string, invoiceNumber: string, replayed: boolean) {
