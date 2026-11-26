@@ -51,10 +51,18 @@ export default async function FinancialDashboardPage() {
   });
 
   // Fetch all posted lines in the selected period for correct totals; the recent-voucher list is capped above.
-  const allLines = await prisma.journalLine.findMany({
+  const periodLines = await prisma.journalLine.findMany({
     where: {
       businessUnitId: access.context.businessUnit.id,
       journalEntry: { status: "POSTED", entryDate: { gte: financialYearStart, lte: now } },
+    },
+    select: { debit: true, credit: true, account: { select: { code: true, type: true } } },
+  });
+
+  const balanceLines = await prisma.journalLine.findMany({
+    where: {
+      businessUnitId: access.context.businessUnit.id,
+      journalEntry: { status: "POSTED", entryDate: { lte: now } },
     },
     select: { debit: true, credit: true, account: { select: { code: true, type: true } } },
   });
@@ -64,13 +72,20 @@ export default async function FinancialDashboardPage() {
     income: zero(), expenses: zero(), cashBank: zero(), receivables: zero(), payables: zero(),
     assets: zero(), liabilities: zero(), equity: zero(),
   };
-  for (const line of allLines) {
+  for (const line of periodLines) {
     const debit = new Prisma.Decimal(line.debit);
     const credit = new Prisma.Decimal(line.credit);
     const debitBalance = debit.minus(credit);
     const creditBalance = credit.minus(debit);
     if (line.account.type === "INCOME") totals.income = totals.income.plus(creditBalance);
     if (line.account.type === "EXPENSE") totals.expenses = totals.expenses.plus(debitBalance);
+
+  }
+  for (const line of balanceLines) {
+    const debit = new Prisma.Decimal(line.debit);
+    const credit = new Prisma.Decimal(line.credit);
+    const debitBalance = debit.minus(credit);
+    const creditBalance = credit.minus(debit);
     if (line.account.type === "ASSET") totals.assets = totals.assets.plus(debitBalance);
     if (line.account.type === "LIABILITY") totals.liabilities = totals.liabilities.plus(creditBalance);
     if (line.account.type === "EQUITY") totals.equity = totals.equity.plus(creditBalance);
@@ -80,7 +95,7 @@ export default async function FinancialDashboardPage() {
   }
   const currency = unit.profile?.currency ?? "INR";
   const netResult = totals.income.minus(totals.expenses);
-  const hasLedger = allLines.length > 0;
+  const hasLedger = periodLines.length > 0 || balanceLines.length > 0;
   const fyLabel = `FY ${financialYearStart.getUTCFullYear()}-${String(financialYearStart.getUTCFullYear() + 1).slice(-2)}`;
 
   return (
@@ -146,7 +161,7 @@ export default async function FinancialDashboardPage() {
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="font-semibold">Accounting workspace</h2>
-          <p className="mt-1 text-sm text-gray-600">The ledger foundation is in place. The next implementation slices will add controlled account maintenance, journal voucher entry and posting, and financial statements.</p>
+          <p className="mt-1 text-sm text-gray-600">Use Chart of Accounts and Journal Vouchers to maintain the ledger. General Ledger and Trial Balance are available under Financial Reports.</p>
           <ul className="mt-4 space-y-2 text-sm text-gray-700">
             <li>• Chart of Accounts</li>
             <li>• General Ledger and account ledger</li>
