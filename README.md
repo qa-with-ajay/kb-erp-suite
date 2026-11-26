@@ -381,8 +381,8 @@ Important business operations use Prisma transactions, business-unit scoping, da
 
 The following are not complete or should not be treated as production-ready capabilities:
 
-- The accounting foundation now includes business-unit-scoped chart of accounts, financial periods, journal headers/lines, debit-credit constraints, and a separate ledger-backed Financial Management dashboard. The workspace now includes account creation, journal draft creation, balanced debit/credit validation, controlled posting, immutable reversal vouchers, account General Ledger, and Trial Balance APIs/screens. The new `/financial` page provides a unit view and `/financial/group` provides a group-admin consolidated view with totals kept separate by currency.
-- Automatic posting from sales/purchases/payments/returns, expense management, cash/bank books, bank reconciliation, full P&L/Balance Sheet, and party statement ledgers are not yet implemented. Journal vouchers are currently manual; until source posting workflows are connected, operational totals are not represented as accounting balances. Account editing/deactivation and opening-balance migration remain future work. Period creation and controlled closing are available; reopening a closed period is not.
+- The accounting foundation includes business-unit-scoped chart of accounts, financial periods, journal headers/lines, database-enforced posted-journal balance and immutability, and separate unit/group Financial Management dashboards. The workspace includes account creation, journal draft creation, balanced debit/credit validation, controlled posting and reversal, General Ledger, Trial Balance, period creation/closing, and idempotent automatic journal posting for sales invoices, goods receipts, customer/supplier payments, sales returns, purchase returns, and their reversals. The new `/financial` page provides a unit view and `/financial/group` provides a group-admin consolidated view with totals kept separate by currency.
+- Expense management, dedicated cash/bank accounts and books, bank reconciliation, full P&L/Balance Sheet, party statements/ageing, refunds/credit settlement, GST compliance reports, and opening-balance migration remain future work. Automatic posting currently covers the listed operational sources; historical transactions created before accounting activation are not automatically backfilled. Account editing/deactivation and reopening a closed period are not yet available.
 - Returns create account credit; a controlled cash/bank refund and credit-note settlement workflow is not implemented.
 - GST rate calculation and GST/non-GST invoice modes exist, but full GST compliance is not implemented. HSN/SAC validation, place-of-supply tax determination, statutory return reports, e-invoicing, and e-way bill integration need separate work.
 - A4 and 58/80 mm print layouts exist and use the browser print dialog; a server-generated PDF/document archive and configurable invoice templates are not provided.
@@ -409,7 +409,7 @@ This is a proposed roadmap, not a list of already implemented features.
 
 ### Priority 1 — Finance, tax, and operational reporting
 
-1. Complete account maintenance (edit/deactivate with usage safeguards), accounting-period reopen controls, and opening-balance migration.
+1. Add account maintenance (edit/deactivate with usage safeguards), opening-balance migration, and controlled period reopening.
 2. Connect sales, purchases, payments, returns, and inventory valuation to automatic, idempotent journal posting; then deliver cash/bank books, P&L, Balance Sheet, and bank reconciliation.
 3. Add expense management, approvals, and supporting-document attachments.
 3. Add customer/supplier statements, ageing reports, credit settlement, refund approval, and refund audit trails.
