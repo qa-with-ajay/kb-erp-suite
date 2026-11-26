@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         },
       });
       return created;
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return NextResponse.json({ period }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("PERIOD_OVERLAP:")) {
@@ -64,6 +64,9 @@ export async function POST(request: Request) {
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "An accounting period with this name already exists." }, { status: 409 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return NextResponse.json({ error: "Another accounting-period change occurred at the same time. Refresh and retry." }, { status: 409 });
     }
     throw error;
   }
