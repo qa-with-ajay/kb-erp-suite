@@ -249,15 +249,10 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
         setError("This product and variant are already on the invoice. Update its existing line or choose another variant.");
         return current;
       }
-      const nextLine: DraftLine = {
+      return current.map((line) => line.key === lineKey ? {
         key: lineKey, product, variantId, saleUnit: saleUnit(product),
         createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, variantId),
-      };
-      const replaced = current.map((line) => line.key === lineKey ? nextLine : line);
-      return replaced.some((line) => !line.product) ? replaced : [...replaced, {
-        key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "",
-        createRemnant: false, saleQuantity: "", allocations: {},
-      }];
+      } : line);
     });
     setProductSearch("");
     setProductSearchLineKey(null);
@@ -273,21 +268,35 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
       const body = await readJson<{ product: Product; matchedVariantId: string | null }>(response);
       const product = body.product;
       const variantId = body.matchedVariantId ?? (product.variants.length === 1 ? product.variants[0].id : "");
-      setProducts((current) => current.some((item) => item.id === product.id) ? current : [...current, product]);
       invalidateRequestKey();
       setLines((current) => {
         const existing = current.find((line) => line.product?.id === product.id && line.variantId === variantId);
         if (existing) {
           const sourceKey = Object.keys(existing.allocations)[0];
-          return current.map((line) => line.key === existing.key && sourceKey
+          if (!sourceKey) {
+            setError("This product is already on the invoice. Select its stock allocation or add another product row.");
+            return current;
+          }
+          setError("");
+          return current.map((line) => line.key === existing.key
             ? { ...line, allocations: { ...line.allocations, [sourceKey]: String(Number(line.allocations[sourceKey] || 0) + 1) } }
             : line);
         }
         const empty = current.find((line) => !line.product);
-        if (empty) return current.map((line) => line.key === empty.key ? { ...line, product, variantId, saleUnit: saleUnit(product), createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, variantId) } : line);
-        return [...current, { key: crypto.randomUUID(), product, variantId, saleUnit: saleUnit(product), createRemnant: false, saleQuantity: "", allocations: defaultAllocations(product, variantId) }];
+        if (!empty) {
+          setError("Click Add product to open an invoice row before scanning another item.");
+          return current;
+        }
+        setError("");
+        return current.map((line) => line.key === empty.key ? {
+          ...line, product, variantId, saleUnit: saleUnit(product), createRemnant: false,
+          saleQuantity: "", allocations: defaultAllocations(product, variantId),
+        } : line);
       });
-      setError("");
+      setProductSearch("");
+      setProductSearchLineKey(null);
+      setProducts([]);
+      setProductSearchLoading(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to find scanned product.");
     }
@@ -647,8 +656,16 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
                 );
               })}
             </div>
-            <button type="button" onClick={() => { invalidateRequestKey(); setLines((current) => [...current, { key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]); }} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-900">
-              Add product
+            <button type="button" onClick={() => {
+              invalidateRequestKey();
+              const key = crypto.randomUUID();
+              setLines((current) => [...current, { key, product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]);
+              setProductSearch("");
+              setProducts([]);
+              setProductSearchLineKey(key);
+              setError("");
+            }} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-900">
+              + Add product
             </button>
 
             <div className="ml-auto max-w-sm space-y-2 border-t border-gray-200 pt-4 text-sm">
