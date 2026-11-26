@@ -54,7 +54,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       { label: "Balance Sheet", href: "/financial/reports/balance-sheet", section: "Financial Management" },
       { label: "Trial Balance", href: "/financial/reports/trial-balance", section: "Financial Management" },
       { label: "Accounting Periods", href: "/financial/periods", section: "Financial Management" },
+
     );
+    if (permissions.has("cashbank.read")) items.push({ label: "Cash & Bank", href: "/financial/cash-bank", section: "Financial Management" });
+    if (permissions.has("expenses.read")) items.push({ label: "Expenses", href: "/financial/expenses", section: "Financial Management" });
     if (await hasGroupPermission(session.user.id, "accounting.read")) items.push({ label: "Group Financials", href: "/financial/group" });
     if (permissions.has("purchases.manage")) items.push({ label: "Purchases", href: "/purchases" });
     if (permissions.has("customers.manage")) items.push({ label: "Customers", href: "/customers" });
