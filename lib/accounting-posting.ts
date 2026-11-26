@@ -1,5 +1,6 @@
 import { Prisma, type PaymentMethod } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { getBusinessDateUtc, getUtcDateOnly } from "@/lib/accounting-date";
 
 type JournalLineInput = {
   accountCode: string;
@@ -9,9 +10,7 @@ type JournalLineInput = {
 };
 
 function dateOnly(date: Date) {
-  const value = new Date(date);
-  value.setUTCHours(0, 0, 0, 0);
-  return value;
+  return getBusinessDateUtc(date);
 }
 
 function voucherCode(prefix: string, date: Date, id: string) {
@@ -36,7 +35,7 @@ async function createPostedJournal(
   });
   if (existing) return existing;
 
-  const entryDate = dateOnly(input.entryDate);
+  const entryDate = input.entryDateIsUtcDateOnly ? getUtcDateOnly(input.entryDate) : dateOnly(input.entryDate);
   const period = await tx.accountingPeriod.findFirst({
     where: { businessUnitId: input.businessUnitId, status: "OPEN", startDate: { lte: entryDate }, endDate: { gte: entryDate } },
     select: { id: true },
@@ -138,7 +137,7 @@ export async function postPaymentAccounting(tx: Prisma.TransactionClient, busine
   const cash = cashAccount(payment.method);
   if (payment.sale) {
     return createPostedJournal(tx, {
-      businessUnitId, actorId, entryDate: payment.paidAt, sourceType: "PAYMENT", sourceId: payment.id,
+      businessUnitId, actorId, entryDate: payment.paidAt, entryDateIsUtcDateOnly: true, sourceType: "PAYMENT", sourceId: payment.id,
       narration: `Customer receipt · ${payment.sale.invoiceNumber}`,
       lines: [
         { accountCode: cash, description: `Customer receipt · ${payment.sale.invoiceNumber}`, debit: payment.amount },
