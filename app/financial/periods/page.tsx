@@ -10,6 +10,7 @@ export default function AccountingPeriodsPage() {
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [form, setForm] = useState({ name: "", startDate: "", endDate: "" });
 
   async function load() {
     setLoading(true);
@@ -36,12 +37,36 @@ export default function AccountingPeriodsPage() {
     finally { setBusyId(""); }
   }
 
+  async function createPeriod(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusyId("new"); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/financial/periods", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to create accounting period.");
+      setForm({ name: "", startDate: "", endDate: "" });
+      setNotice(`${data.period.name} has been created.`);
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to create accounting period."); }
+    finally { setBusyId(""); }
+  }
+
   const date = (value: string) => new Date(value).toLocaleDateString("en-IN");
 
   return <main className="min-h-screen bg-gray-50 p-5 md:p-10">
     <header className="mb-7"><p className="text-sm font-semibold uppercase tracking-wide text-emerald-800">Financial Management</p><h1 className="mt-1 text-2xl font-bold">Accounting Periods</h1><p className="mt-1 text-sm text-gray-600">Review financial-year periods and close periods after all draft vouchers are resolved.</p></header>
     {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
     {notice && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</div>}
+    <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <h2 className="font-semibold">Create accounting period</h2>
+      <form onSubmit={createPeriod} className="mt-4 grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
+        <label className="text-sm font-medium">Period name<input required minLength={3} maxLength={60} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="FY 2027-28" className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
+        <label className="text-sm font-medium">Start date<input required type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
+        <label className="text-sm font-medium">End date<input required type="date" min={form.startDate || undefined} value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
+        <button disabled={busyId === "new"} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busyId === "new" ? "Creating…" : "Create period"}</button>
+      </form>
+    </section>
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       {loading ? <p className="py-8 text-sm text-gray-500">Loading periods…</p> : <div className="overflow-x-auto"><table className="w-full min-w-[42rem] text-left text-sm">
         <thead className="border-b border-gray-200 text-xs uppercase text-gray-500"><tr><th className="py-3 pr-3">Period</th><th className="py-3 pr-3">Start</th><th className="py-3 pr-3">End</th><th className="py-3 pr-3">Vouchers</th><th className="py-3 pr-3">Status</th><th className="py-3">Action</th></tr></thead>
