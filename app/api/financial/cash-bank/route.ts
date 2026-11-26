@@ -18,6 +18,7 @@ export async function GET(request: Request) {
   const transactions = await prisma.cashBankTransaction.findMany({
     where: {
       businessUnitId: access.context.businessUnit.id,
+      journalEntry: { status: "POSTED" },
       ...(accountId ? { OR: [{ paymentAccountId: accountId }, { destinationAccountId: accountId }] } : {}),
       ...(from || to ? { transactionDate: { ...(from ? { gte: new Date(from + "T00:00:00.000Z") } : {}), ...(to ? { lte: new Date(to + "T00:00:00.000Z") } : {}) } } : {}),
     },
