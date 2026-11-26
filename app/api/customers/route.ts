@@ -21,12 +21,10 @@ export async function GET(request: Request) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const phoneDigits = normalizePhone(search);
-  const conditions: Array<Record<string, unknown>> = [
-    { name: { contains: search, mode: "insensitive" } },
+  const conditions = [
+    { name: { contains: search, mode: "insensitive" as const } },
+    ...(phoneDigits.length >= 3 ? [{ phone: { contains: phoneDigits } }] : []),
   ];
-  if (phoneDigits.length >= 3) {
-    conditions.push({ phone: { contains: phoneDigits } });
-  }
 
   const items = await prisma.customer.findMany({
     where: {
