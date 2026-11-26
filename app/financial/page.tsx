@@ -90,7 +90,7 @@ export default async function FinancialDashboardPage() {
     if (line.account.type === "ASSET") totals.assets = totals.assets.plus(debitBalance);
     if (line.account.type === "LIABILITY") totals.liabilities = totals.liabilities.plus(creditBalance);
     if (line.account.type === "EQUITY") totals.equity = totals.equity.plus(creditBalance);
-    if (line.account.code === "1000" || line.account.code === "1010") totals.cashBank = totals.cashBank.plus(debitBalance);
+    if (line.account.code === "1000" || line.account.code === "1010" || line.account.code === "1020") totals.cashBank = totals.cashBank.plus(debitBalance);
     if (line.account.code === "1100") totals.receivables = totals.receivables.plus(debitBalance);
     if (line.account.code === "2000") totals.payables = totals.payables.plus(creditBalance);
   }
