@@ -126,6 +126,122 @@ WHERE role."code" = 'GROUP_ADMIN'
   AND permission."code" IN ('accounting.read', 'accounting.manage', 'accounting.post', 'accounting.close_period')
 ON CONFLICT ("roleId", "permissionId") DO NOTHING;
 
+
+-- Posted journals are immutable; corrections must be represented by a reversal voucher.
+CREATE OR REPLACE FUNCTION "enforce_journal_entry_immutability"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD."status" <> 'DRAFT' THEN
+      RAISE EXCEPTION 'Posted or reversed journal entries cannot be deleted.';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  IF OLD."status" <> 'DRAFT' THEN
+    IF OLD."status" = 'POSTED'
+      AND NEW."status" = 'REVERSED'
+      AND NEW."reversedByEntryId" IS NOT NULL
+      AND (to_jsonb(NEW) - ARRAY['status', 'reversedByEntryId', 'updatedAt'])
+          = (to_jsonb(OLD) - ARRAY['status', 'reversedByEntryId', 'updatedAt']) THEN
+      RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'Posted or reversed journal entries are immutable; create a reversal instead.';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+CREATE TRIGGER "JournalEntry_immutable_guard"
+BEFORE UPDATE OR DELETE ON "JournalEntry"
+FOR EACH ROW EXECUTE FUNCTION "enforce_journal_entry_immutability"();
+
+CREATE OR REPLACE FUNCTION "enforce_journal_line_immutability"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+DECLARE
+  entry_status "JournalEntryStatus";
+  target_business_unit UUID;
+  target_entry UUID;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    target_business_unit := OLD."businessUnitId";
+    target_entry := OLD."journalEntryId";
+  ELSE
+    target_business_unit := NEW."businessUnitId";
+    target_entry := NEW."journalEntryId";
+  END IF;
+
+  SELECT "status" INTO entry_status
+  FROM "JournalEntry"
+  WHERE "businessUnitId" = target_business_unit AND "id" = target_entry;
+
+  IF entry_status IS DISTINCT FROM 'DRAFT' THEN
+    RAISE EXCEPTION 'Journal lines can only be changed while their voucher is a draft.';
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$;
+
+CREATE TRIGGER "JournalLine_immutable_guard"
+BEFORE INSERT OR UPDATE OR DELETE ON "JournalLine"
+FOR EACH ROW EXECUTE FUNCTION "enforce_journal_line_immutability"();
+
+-- Deferred constraint checks ensure a voucher is balanced when the transaction commits.
+CREATE OR REPLACE FUNCTION "enforce_posted_journal_balanced"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+DECLARE
+  target_business_unit UUID;
+  target_entry UUID;
+  entry_status "JournalEntryStatus";
+  debit_total NUMERIC(18,2);
+  credit_total NUMERIC(18,2);
+  line_count BIGINT;
+BEGIN
+  IF TG_TABLE_NAME = 'JournalEntry' THEN
+    target_business_unit := COALESCE(NEW."businessUnitId", OLD."businessUnitId");
+    target_entry := COALESCE(NEW."id", OLD."id");
+  ELSIF TG_OP = 'DELETE' THEN
+    target_business_unit := OLD."businessUnitId";
+    target_entry := OLD."journalEntryId";
+  ELSE
+    target_business_unit := NEW."businessUnitId";
+    target_entry := NEW."journalEntryId";
+  END IF;
+
+  SELECT "status" INTO entry_status
+  FROM "JournalEntry"
+  WHERE "businessUnitId" = target_business_unit AND "id" = target_entry;
+
+  IF entry_status IN ('POSTED', 'REVERSED') THEN
+    SELECT COALESCE(SUM("debit"), 0), COALESCE(SUM("credit"), 0), COUNT(*)
+      INTO debit_total, credit_total, line_count
+    FROM "JournalLine"
+    WHERE "businessUnitId" = target_business_unit AND "journalEntryId" = target_entry;
+    IF line_count < 2 OR debit_total <= 0 OR debit_total <> credit_total THEN
+      RAISE EXCEPTION 'Posted journal voucher must contain at least two lines and balance debits to credits.';
+    END IF;
+  END IF;
+  RETURN NULL;
+END;
+$;
+
+CREATE CONSTRAINT TRIGGER "JournalEntry_balanced_guard"
+AFTER INSERT OR UPDATE ON "JournalEntry"
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION "enforce_posted_journal_balanced"();
+
+CREATE CONSTRAINT TRIGGER "JournalLine_balanced_guard"
+AFTER INSERT OR UPDATE OR DELETE ON "JournalLine"
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION "enforce_posted_journal_balanced"();
+
 -- Bootstrap the current Indian financial year and a starter chart of accounts for each active unit.
 INSERT INTO "AccountingPeriod" ("id", "businessUnitId", "name", "startDate", "endDate", "status", "createdAt", "updatedAt")
 SELECT gen_random_uuid(), unit."id", 'FY 2026-27', DATE '2026-04-01', DATE '2027-03-31', 'OPEN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
