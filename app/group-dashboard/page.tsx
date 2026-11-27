@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { formatAmount, formatQuantity, getGroupDashboardData } from "@/lib/dashboard-data";
 import { getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
 import { GroupDashboardProductLink } from "@/components/group-dashboard-product-link";
+import DashboardScopeSwitcher from "@/components/dashboard-scope-switcher";
+import { prisma } from "@/lib/prisma";
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -20,6 +22,7 @@ export default async function GroupDashboardPage() {
   if (!(await hasGroupPermission(session.user.id, "group.dashboard.read"))) redirect("/dashboard");
 
   const canViewGroupInventory = await hasGroupPermission(session.user.id, "inventory.read");
+  const unitsForSwitcher = await prisma.businessUnit.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true }, orderBy: { name: "asc" } });
   const units = await getGroupDashboardData();
   const productCount = units.reduce((total, unit) => total + unit.productCount, 0);
   const movementCount = units.reduce((total, unit) => total + unit.movementCount, 0);
@@ -80,6 +83,7 @@ export default async function GroupDashboardPage() {
           <h1 className="mt-1 text-2xl font-bold">Group Dashboard</h1>
           <p className="mt-1 text-sm text-gray-600">Consolidated current inventory snapshot across active business units</p>
         </div>
+        <DashboardScopeSwitcher units={unitsForSwitcher} selected="group" canViewGroup />
       </header>
 
       <section className="mt-8">
