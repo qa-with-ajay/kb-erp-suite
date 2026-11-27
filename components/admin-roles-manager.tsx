@@ -15,6 +15,7 @@ export function AdminRolesManager() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [viewingRole, setViewingRole] = useState<Role | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,14 +101,43 @@ export function AdminRolesManager() {
 
     <section className="admin-users__list-card">
       <div className="admin-users__section-heading"><div><h2>Available roles</h2><p>System roles and custom roles configured for the ERP.</p></div></div>
-      {loading ? <p className="admin-users__empty">Loading roles…</p> : <div className="admin-users__role-grid">
-        {data.roles.map((role) => <article className="admin-users__role-card" key={role.id}>
-          <div className="admin-users__role-card-top"><span className={`admin-users__status ${role.isActive ? "is-active" : "is-inactive"}`}>{role.isActive ? "Active" : "Inactive"}</span><span className="admin-users__role-scope">{role.scope === "GROUP" ? "Group-wide" : "Business unit"}</span></div>
-          <h3>{role.name}</h3><p>{role.code}</p>
-          <div className="admin-users__role-meta"><span>{role.assignedUsers} assigned user{role.assignedUsers === 1 ? "" : "s"}</span><span>{role.permissionCodes.length} permissions</span></div>
-          <div className="admin-users__role-actions">{role.isSystem ? <span className="admin-users__system-label">Built-in role · protected</span> : <><button type="button" onClick={() => edit(role)}>Edit permissions</button><button type="button" className={role.isActive ? "is-danger" : ""} onClick={() => void toggleStatus(role)}>{role.isActive ? "Deactivate" : "Activate"}</button></>}</div>
-        </article>)}
-      </div>}
+      {loading ? <p className="admin-users__empty">Loading roles…</p> : (
+        <div className="admin-users__table-wrap">
+          <table className="admin-users__table admin-roles__table">
+            <thead><tr><th>Role</th><th>Scope</th><th>Permissions</th><th>Assigned users</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {data.roles.map((role) => {
+                const areas = [...new Set(role.permissionCodes.map((code) => code.split(".")[0].replaceAll("_", " ")))];
+                return <tr key={role.id}>
+                  <td><strong>{role.name}</strong><small>{role.code}{role.isSystem ? " · Built-in" : " · Custom"}</small></td>
+                  <td>{role.scope === "GROUP" ? "Group" : "Business Unit"}</td>
+                  <td><div className="admin-roles__summary">{role.code === "GROUP_ADMIN" ? "All permissions" : areas.length ? areas.map((area) => area.replace(/\\b\\w/g, (letter) => letter.toUpperCase())).join(", ") : "No permissions"}</div><small>{role.permissionCodes.length} permission{role.permissionCodes.length === 1 ? "" : "s"}</small></td>
+                  <td>{role.assignedUsers}</td>
+                  <td><span className={`admin-users__status ${role.isActive ? "is-active" : "is-inactive"}`}>{role.isActive ? "Active" : "Inactive"}</span></td>
+                  <td><div className="admin-users__row-actions"><button type="button" onClick={() => setViewingRole(role)}>View</button>{!role.isSystem && <button type="button" onClick={() => edit(role)}>Edit</button>}{!role.isSystem && <button type="button" className={role.isActive ? "is-danger" : ""} onClick={() => void toggleStatus(role)}>{role.isActive ? "Deactivate" : "Activate"}</button>}</div></td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
+    {viewingRole && <div className="admin-roles__modal-backdrop" role="presentation" onClick={() => setViewingRole(null)}>
+      <section className="admin-roles__detail" role="dialog" aria-modal="true" aria-labelledby="admin-role-detail-title" onClick={(event) => event.stopPropagation()}>
+        <div className="admin-users__section-heading">
+          <div><h2 id="admin-role-detail-title">{viewingRole.name}</h2><p>{viewingRole.scope === "GROUP" ? "Group-wide role" : "Business-unit role"} · {viewingRole.isSystem ? "Built-in role" : "Custom role"}</p></div>
+          <button type="button" className="admin-users__secondary-button" onClick={() => setViewingRole(null)}>Close</button>
+        </div>
+        <div className="admin-roles__detail-status"><span className={`admin-users__status ${viewingRole.isActive ? "is-active" : "is-inactive"}`}>{viewingRole.isActive ? "Active" : "Inactive"}</span><span>{viewingRole.assignedUsers} assigned users</span></div>
+        {viewingRole.code === "GROUP_ADMIN" ? <div className="admin-users__global-notice"><strong>All permissions</strong><span>Group Admin has system-wide access across all active business units.</span></div> : <div className="admin-roles__permission-list">
+          {permissionsByArea.map(([area, permissions]) => {
+            const selected = permissions.filter((permission) => viewingRole.permissionCodes.includes(permission.code));
+            if (!selected.length) return null;
+            return <section className="admin-users__permission-group" key={area}><h3>{area.replaceAll("_", " ")}</h3><ul>{selected.map((permission) => <li key={permission.code}><strong>{permission.code}</strong><span>{permission.description}</span></li>)}</ul></section>;
+          })}
+        </div>}
+      </section>
+    </div>}
+
   </div>;
 }

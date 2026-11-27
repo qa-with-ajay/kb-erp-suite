@@ -1229,3 +1229,19 @@ tbody tr:hover {
 .app-shell__settings-button { display: grid; width: 2.55rem; height: 2.55rem; flex: 0 0 auto; place-items: center; border: 1px solid #e6ebf2; border-radius: 0.75rem; color: #4a5870; text-decoration: none; }
 .app-shell__settings-button:hover { border-color: #d8e1ec; background: #f7f9fc; color: #25334b; }
 .app-shell__settings-icon { width: 1.25rem; height: 1.25rem; }
+
+
+/* Roles & permissions: compact listing and readable permission details */
+.admin-roles__table { min-width: 900px; }
+.admin-roles__summary { max-width: 22rem; line-height: 1.55; overflow-wrap: anywhere; }
+.admin-roles__table td small { display: block; margin-top: .25rem; color: #8995a6; font-size: .67rem; }
+.admin-roles__modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow-y: auto; padding: 1.25rem; background: rgb(15 23 42 / 48%); }
+.admin-roles__detail { width: min(100%, 48rem); max-height: min(85vh, 52rem); overflow-y: auto; border: 1px solid #e4eaf1; border-radius: 1rem; background: #fff; padding: clamp(1rem, 3vw, 1.5rem); box-shadow: 0 20px 60px rgb(15 23 42 / 22%); }
+.admin-roles__detail-status { display: flex; align-items: center; gap: .8rem; margin: -.35rem 0 1rem; color: #748297; font-size: .72rem; }
+.admin-roles__permission-list { display: grid; gap: .8rem; margin-top: 1rem; }
+.admin-roles__permission-list ul { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.admin-roles__permission-list li { display: grid; gap: .18rem; border-bottom: 1px solid #edf1f5; padding: .35rem 0 .55rem; }
+.admin-roles__permission-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.admin-roles__permission-list li strong { color: #3e4d63; font-size: .72rem; overflow-wrap: anywhere; }
+.admin-roles__permission-list li span { color: #8995a6; font-size: .68rem; line-height: 1.45; }
+@media (max-width: 720px) { .admin-roles__modal-backdrop { align-items: start; padding: .65rem; } .admin-roles__detail { max-height: 92vh; } }
