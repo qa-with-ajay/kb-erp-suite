@@ -139,7 +139,7 @@ async function main() {
     throw new Error("Financial demo seeding is disabled in production.");
   }
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
-  const databaseName = new URL(process.env.DATABASE_URL).pathname.replace(/^\\//, "");
+const databaseName = new URL(process.env.DATABASE_URL).pathname.replace(/^\/+/, "");
   if (databaseName !== DEMO_DATABASE) {
     throw new Error(`Safety check failed: this seed only runs on ${DEMO_DATABASE}; current database is ${databaseName || "(unknown)"}.`);
   }
