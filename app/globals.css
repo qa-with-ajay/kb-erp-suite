@@ -1310,3 +1310,26 @@ tbody tr:hover {
 @media (prefers-reduced-motion: reduce) {
   .app-shell__sidebar { transition: none; }
 }
+
+/* Keep the complete navigation reachable on every viewport. */
+.app-shell__sidebar {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+.app-shell__brand,
+.app-shell__nav-section,
+.app-shell__no-access {
+  flex: 0 0 auto;
+}
+.app-shell__nav-section + .app-shell__nav-section {
+  margin-top: 1.25rem;
+}
+@media (min-width: 901px) {
+  .app-shell__sidebar {
+    height: 100vh;
+    height: 100dvh;
+  }
+}
