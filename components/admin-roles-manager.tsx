@@ -42,7 +42,7 @@ export function AdminRolesManager() {
 
   function reset() { setEditingId(null); setForm(blank); setError(""); setNotice(""); }
   function edit(role: Role) {
-    if (role.isSystem) return;
+    if (role.code === "GROUP_ADMIN") return;
     setEditingId(role.id);
     setForm({ name: role.name, scope: role.scope, permissionCodes: role.permissionCodes });
     setError(""); setNotice("");
@@ -76,9 +76,10 @@ export function AdminRolesManager() {
   return <div className="admin-users">
     <section className="admin-users__form-card">
       <div className="admin-users__section-heading">
-        <div><h2>{editingId ? "Edit custom role" : "Create custom role"}</h2><p>Built-in roles are protected. Custom roles can be tailored to your operating structure.</p></div>
+        <div><h2>{editingId ? "Edit role & permissions" : "Create custom role"}</h2><p>Manage permissions for system and custom roles. Group Admin remains protected as the system superadmin.</p></div>
         {editingId && <button type="button" className="admin-users__secondary-button" onClick={reset}>Cancel edit</button>}
       </div>
+      {editingId && data.roles.find((role) => role.id === editingId)?.isSystem && <div className="admin-users__global-notice"><strong>System role</strong><span>You can update its name and permissions. Scope and role code remain fixed. Changes immediately affect all assigned users.</span></div>}
       <form className="admin-users__form" onSubmit={submit}>
         <div className="admin-users__fields">
           <label className="admin-users__field"><span>Role name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} minLength={2} maxLength={80} required placeholder="e.g. Sales Supervisor" /></label>
@@ -95,7 +96,7 @@ export function AdminRolesManager() {
         </div>
         {error && <p className="admin-users__message admin-users__message--error" role="alert">{error}</p>}
         {notice && <p className="admin-users__message admin-users__message--success" role="status">{notice}</p>}
-        <div className="admin-users__form-actions"><button className="admin-users__primary-button" type="submit" disabled={saving || form.permissionCodes.length === 0}>{saving ? "Saving…" : editingId ? "Save role" : "Create role"}</button><span className="admin-users__hint">Assign custom roles to users from User management.</span></div>
+        <div className="admin-users__form-actions"><button className="admin-users__primary-button" type="submit" disabled={saving || (!editingId && form.permissionCodes.length === 0)}>{saving ? "Saving…" : editingId ? "Save role" : "Create role"}</button><span className="admin-users__hint">Changes apply to every user assigned this role.</span></div>
       </form>
     </section>
 
@@ -114,7 +115,7 @@ export function AdminRolesManager() {
                   <td><div className="admin-roles__summary">{role.code === "GROUP_ADMIN" ? "All permissions" : areas.length ? areas.map((area) => area.replace(/\\b\\w/g, (letter) => letter.toUpperCase())).join(", ") : "No permissions"}</div><small>{role.permissionCodes.length} permission{role.permissionCodes.length === 1 ? "" : "s"}</small></td>
                   <td>{role.assignedUsers}</td>
                   <td><span className={`admin-users__status ${role.isActive ? "is-active" : "is-inactive"}`}>{role.isActive ? "Active" : "Inactive"}</span></td>
-                  <td><div className="admin-users__row-actions"><button type="button" onClick={() => setViewingRole(role)}>View</button>{!role.isSystem && <button type="button" onClick={() => edit(role)}>Edit</button>}{!role.isSystem && <button type="button" className={role.isActive ? "is-danger" : ""} onClick={() => void toggleStatus(role)}>{role.isActive ? "Deactivate" : "Activate"}</button>}</div></td>
+                  <td><div className="admin-users__row-actions"><button type="button" onClick={() => setViewingRole(role)}>View</button>{role.code !== "GROUP_ADMIN" && <button type="button" onClick={() => edit(role)}>Edit</button>}{role.code !== "GROUP_ADMIN" && <button type="button" className={role.isActive ? "is-danger" : ""} onClick={() => void toggleStatus(role)}>{role.isActive ? "Deactivate" : "Activate"}</button>}{role.code === "GROUP_ADMIN" && <span className="admin-users__system-label">Protected</span>}</div></td>
                 </tr>;
               })}
             </tbody>
