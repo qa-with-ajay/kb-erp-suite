@@ -1245,3 +1245,68 @@ tbody tr:hover {
 .admin-roles__permission-list li strong { color: #3e4d63; font-size: .72rem; overflow-wrap: anywhere; }
 .admin-roles__permission-list li span { color: #8995a6; font-size: .68rem; line-height: 1.45; }
 @media (max-width: 720px) { .admin-roles__modal-backdrop { align-items: start; padding: .65rem; } .admin-roles__detail { max-height: 92vh; } }
+
+
+/* Responsive application navigation: desktop rail and mobile/tablet drawer */
+.app-shell__sidebar-toggle {
+  display: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #344158;
+  cursor: pointer;
+}
+.app-shell__sidebar-toggle span {
+  display: block;
+  width: 1.1rem;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.app-shell__sidebar-backdrop { display: none; }
+
+@media (max-width: 900px) {
+  .app-shell__sidebar-toggle { display: flex; }
+  .app-shell__sidebar {
+    position: fixed;
+    z-index: 1001;
+    inset: 0 auto 0 0;
+    width: min( min(82vw, 300px), 300px);
+    max-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: translateX(-105%);
+    transition: transform 200ms ease;
+    box-shadow: 12px 0 32px rgb(23 36 59 / 12%);
+  }
+  .app-shell__sidebar.app-shell__sidebar--open { transform: translateX(0); }
+  .app-shell__sidebar-backdrop {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgb(15 23 42 / 42%);
+    cursor: pointer;
+  }
+  .app-shell__main { margin-left: 0; min-width: 0; }
+  .app-shell__topbar { gap: 0.75rem; padding-inline: 1rem; }
+  .app-shell__topbar-brand { min-width: 0; margin-right: auto; }
+}
+
+@media (max-width: 460px) {
+  .app-shell__topbar { gap: 0.5rem; padding-inline: 0.65rem; }
+  .app-shell__topbar-brand p { max-width: 8.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell__topbar-actions { flex: 0 0 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell__sidebar { transition: none; }
+}
