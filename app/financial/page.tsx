@@ -68,7 +68,7 @@ export default async function FinancialDashboardPage({
   const requestedUnitId = params.businessUnitId ?? (params.scope && params.scope !== "group" ? params.scope : undefined);
   const activeAccess = await getBusinessUnitAccess("accounting.read");
   const selectedUnit = assignedUnits.find((unit) => unit.id === requestedUnitId)
-    ?? assignedUnits.find((unit) => unit.id === activeAccess.context?.businessUnit.id)
+    ?? assignedUnits.find((unit) => unit.id === (activeAccess.ok ? activeAccess.context.businessUnit.id : undefined))
     ?? assignedUnits[0];
   const showGroup = requestedScope === "group";
   const now = getBusinessDateUtc();
