@@ -75,6 +75,9 @@ async function createPostedJournal(
 
   const id = randomUUID();
   const voucherNumber = voucherCode("AUTO", entryDate, id);
+  // Create the parent and child rows separately. With composite tenant relations,
+  // Prisma's checked nested-create input omits scalar businessUnitId fields.
+  // Both writes remain inside the caller's transaction, so they are atomic.
   const draft = await tx.journalEntry.create({
     data: {
       id,
@@ -87,9 +90,11 @@ async function createPostedJournal(
       sourceId: input.sourceId,
       idempotencyKey: `auto:${input.sourceType}:${input.sourceId}`,
       createdBy: input.actorId,
-      lines: { create: lines },
     },
     select: { id: true, voucherNumber: true },
+  });
+  await tx.journalLine.createMany({
+    data: lines.map((line) => ({ ...line, journalEntryId: draft.id })),
   });
   await tx.journalEntry.update({
     where: { id: draft.id },
@@ -310,13 +315,19 @@ export async function reverseOperationalJournal(
       entryDate: reversalDate, narration: `Reversal of ${original.voucherNumber}: ${reason}`,
       sourceType: reversalSourceType, sourceId,
       idempotencyKey: `auto:${reversalSourceType}:${sourceId}`, createdBy: actorId,
-      lines: { create: original.lines.map((line, index) => ({
-        businessUnitId, accountId: line.accountId, lineNumber: index + 1,
-        description: `Reversal: ${line.description ?? original.narration}`,
-        debit: new Prisma.Decimal(line.credit), credit: new Prisma.Decimal(line.debit),
-      })) },
     },
     select: { id: true, voucherNumber: true },
+  });
+  await tx.journalLine.createMany({
+    data: original.lines.map((line, index) => ({
+      businessUnitId,
+      journalEntryId: reversal.id,
+      accountId: line.accountId,
+      lineNumber: index + 1,
+      description: `Reversal: ${line.description ?? original.narration}`,
+      debit: new Prisma.Decimal(line.credit),
+      credit: new Prisma.Decimal(line.debit),
+    })),
   });
   await tx.journalEntry.update({
     where: { id },
