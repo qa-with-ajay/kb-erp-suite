@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BusinessUnitSwitcher } from "@/components/business-unit-switcher";
+import DashboardScopeSwitcher from "@/components/dashboard-scope-switcher";
+import { getAvailableBusinessUnits, getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
+import { prisma } from "@/lib/prisma";
 import { getUnitDashboardData, formatAmount, formatQuantity } from "@/lib/dashboard-data";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 
@@ -15,6 +17,13 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
 }
 
 export default async function DashboardPage() {
+  const session = await getInventorySession();
+  if (!session) redirect("/login");
+  const canViewGroup = await hasGroupPermission(session.user.id, "group.dashboard.read");
+  const units = canViewGroup
+    ? await prisma.businessUnit.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true }, orderBy: { name: "asc" } })
+    : await getAvailableBusinessUnits(session.user.id);
+
   let access = await getBusinessUnitAccess("reports.unit.read");
   if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("inventory.read");
   if (!access.ok) redirect(access.status === 401 ? "/login" : "/access-denied");
@@ -38,9 +47,7 @@ export default async function DashboardPage() {
           <h1 className="mt-1 text-2xl font-bold">{dashboard.name} Dashboard</h1>
           <p className="mt-1 text-sm text-gray-600">Current inventory and business overview</p>
         </div>
-        <div className="flex flex-wrap items-center gap-5">
-          <BusinessUnitSwitcher />
-        </div>
+        <DashboardScopeSwitcher units={units} selected={access.context.businessUnit.id} canViewGroup={canViewGroup} />
       </header>
 
       <section className="mt-8">
