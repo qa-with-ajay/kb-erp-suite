@@ -67,8 +67,8 @@ export async function POST(request: Request) {
           entryDate: expenseDate, narration: input.description, sourceType: "EXPENSE", sourceId: id,
           idempotencyKey: `expense:${id}`, createdBy: actorId,
           lines: { create: [
-            { businessUnitId, accountId: category.expenseAccount.id, lineNumber: 1, description: input.description, debit: amount, credit: new Prisma.Decimal(0) },
-            { businessUnitId, accountId: paymentAccount.ledgerAccount.id, lineNumber: 2, description: input.description, debit: new Prisma.Decimal(0), credit: amount },
+            { accountId: category.expenseAccount.id, lineNumber: 1, description: input.description, debit: amount, credit: new Prisma.Decimal(0) },
+            { accountId: paymentAccount.ledgerAccount.id, lineNumber: 2, description: input.description, debit: new Prisma.Decimal(0), credit: amount },
           ] },
         },
         select: { id: true, voucherNumber: true },
