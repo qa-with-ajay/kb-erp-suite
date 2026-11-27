@@ -18,6 +18,7 @@ type InventoryAccessResult =
 
 function getPermissionCodes(assignments: Array<{
   role: {
+    code: string;
     isActive: boolean;
     scope: "GROUP" | "BUSINESS_UNIT";
     permissions: Array<{ permission: { code: string } }>;
@@ -55,6 +56,7 @@ export async function getBusinessUnitAccess(permission: string): Promise<Invento
       },
     }),
   ]);
+  const isGroupAdmin = groupRoles.some(({ role }) => role.isActive && role.scope === "GROUP" && role.code === "GROUP_ADMIN");
   const groupPermissions = getPermissionCodes(groupRoles, "GROUP");
   const activeUnitRoles = unitRoles.filter(
     ({ role }) => role.isActive && role.scope === "BUSINESS_UNIT",
@@ -64,7 +66,7 @@ export async function getBusinessUnitAccess(permission: string): Promise<Invento
   );
 
   const selectedUnitId = (await cookies()).get(ACTIVE_BUSINESS_UNIT_COOKIE)?.value;
-  const hasGroupPermission = groupPermissions.has(permission);
+  // GROUP_ADMIN is the system-wide superadmin; it must not depend on individual permission rows.\n  const hasGroupPermission = isGroupAdmin || groupPermissions.has(permission);
   let businessUnit: BusinessUnitContext["businessUnit"] | undefined;
 
   if (hasGroupPermission) {
@@ -119,7 +121,7 @@ export async function getBusinessUnitPermissionCodes() {
     }),
     cookies().then((cookieStore) => cookieStore.get(ACTIVE_BUSINESS_UNIT_COOKIE)?.value),
   ]);
-  const permissions = getPermissionCodes(groupRoles, "GROUP");
+  const isGroupAdmin = groupRoles.some(({ role }) => role.isActive && role.scope === "GROUP" && role.code === "GROUP_ADMIN");\n  const permissions = getPermissionCodes(groupRoles, "GROUP");\n  if (isGroupAdmin) {\n    const allPermissions = await prisma.permission.findMany({ select: { code: true } });\n    return new Set(allPermissions.map(({ code }) => code));\n  }
   const activeUnitRoles = unitRoles.filter(({ role }) => role.isActive && role.scope === "BUSINESS_UNIT");
 
   if (selectedUnitId) {
