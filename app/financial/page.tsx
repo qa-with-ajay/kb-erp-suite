@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { getBusinessUnitAccess, getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
 import { prisma } from "@/lib/prisma";
 import { getBusinessDateUtc } from "@/lib/accounting-date";
+import UnitSelector from "./unit-selector";
 
 type UnitOption = { id: string; code: string; name: string; profile?: { currency: string } | null };
 
@@ -14,8 +15,6 @@ function money(value: Prisma.Decimal, currency: string) {
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><p className="text-sm text-gray-500">{label}</p><p className="mt-3 text-2xl font-bold text-gray-950">{value}</p><p className="mt-2 text-xs text-gray-500">{detail}</p></article>;
 }
-
-import UnitSelector from "./unit-selector";
 
 export default async function FinancialDashboardPage({
   searchParams,
