@@ -2,10 +2,14 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
+import { getFinancialUnitAccess } from "@/lib/financial-unit-access";
 import { accountInputSchema } from "@/lib/accounting-validation";
 
 export async function GET(request: Request) {
-  const access = await getBusinessUnitAccess("accounting.read");
+  const requestedUnitId = new URL(request.url).searchParams.get("businessUnitId");
+  const access = requestedUnitId
+    ? await getFinancialUnitAccess(requestedUnitId)
+    : await getBusinessUnitAccess("accounting.read");
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const search = new URL(request.url).searchParams.get("search")?.trim();
   const accounts = await prisma.account.findMany({
