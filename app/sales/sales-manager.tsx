@@ -136,7 +136,7 @@ export function SalesManager({ canManage, canSelectCustomer }: { canManage: bool
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([{ key: crypto.randomUUID(), product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]);
+  const [lines, setLines] = useState<DraftLine[]>([{ key: "initial-sale-line", product: null, variantId: "", saleUnit: "", createRemnant: false, saleQuantity: "", allocations: {} }]);
   const [requestKey, setRequestKey] = useState("");
   // null = "not edited": the amount follows the invoice total (full payment).
   const [amountReceived, setAmountReceived] = useState<string | null>(null);
