@@ -218,6 +218,11 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock,
   const pathname = usePathname();
   const { data: session } = useSession();
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
   const currentUserName = session?.user?.name || userName;
   const currentUserRole = userRole || session?.user?.role || "";
 
@@ -243,7 +248,8 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock,
 
   return (
     <div className="app-shell">
-      <aside className="app-shell__sidebar">
+      {sidebarOpen && <button type="button" className="app-shell__sidebar-backdrop" aria-label="Close navigation menu" onClick={() => setSidebarOpen(false)} />}
+      <aside id="app-shell-sidebar" className={`app-shell__sidebar${sidebarOpen ? " app-shell__sidebar--open" : ""}`} aria-label="Main navigation">
         <Link href={items[0]?.href ?? "/login"} className="app-shell__brand" aria-label="Kumar Brothers ERP home">
           <span className="app-shell__brand-mark" aria-hidden="true">KB</span>
           <span>
@@ -261,7 +267,7 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock,
                   {sectionItems.map((item) => {
                     const active = activeItem?.href === item.href;
                     return (
-                      <Link key={item.href} href={item.href} className="app-shell__nav-link" aria-current={active ? "page" : undefined}>
+                      <Link key={item.href} href={item.href} className="app-shell__nav-link" aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)}>
                         {item.label}
                       </Link>
                     );
