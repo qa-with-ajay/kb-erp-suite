@@ -18,7 +18,6 @@ export async function getFinancialUnitAccess(businessUnitId: string) {
       where: {
         userId: session.user.id,
         businessUnitId,
-        ...(selectedRoleCode ? { role: { code: selectedRoleCode } } : {}),
         role: {
           isActive: true,
           scope: "BUSINESS_UNIT",
