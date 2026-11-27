@@ -20,7 +20,8 @@ export default function GeneralLedgerPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch("/api/financial/accounts", { cache: "no-store" });
+        const unitId = new URLSearchParams(window.location.search).get("businessUnitId");
+        const response = await fetch(`/api/financial/accounts${unitId ? `?businessUnitId=${encodeURIComponent(unitId)}` : ""}`, { cache: "no-store" });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Unable to load accounts.");
         setAccounts(data.accounts);
@@ -33,6 +34,8 @@ export default function GeneralLedgerPage() {
     setLoading(true); setError("");
     try {
       const params = new URLSearchParams({ accountId });
+      const unitId = new URLSearchParams(window.location.search).get("businessUnitId");
+      if (unitId) params.set("businessUnitId", unitId);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
       const response = await fetch(`/api/financial/reports/general-ledger?${params}`, { cache: "no-store" });
