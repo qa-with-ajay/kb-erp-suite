@@ -43,7 +43,14 @@ async function createPostedJournal(
   });
   if (!period) throw new Error(`ACCOUNTING_PERIOD_REQUIRED:${input.sourceType}`);
 
-  const accountCodes = [...new Set(input.lines.map((line) => line.accountCode))];
+  // Resolve only accounts that will actually receive a non-zero journal line.
+  // Zero-value lines (for example, GST on a non-GST sale or zero COGS)
+  // must not make an otherwise valid journal depend on unused accounts.
+  const effectiveLines = input.lines.filter((line) =>
+    (line.debit ?? new Prisma.Decimal(0)).greaterThan(0) ||
+    (line.credit ?? new Prisma.Decimal(0)).greaterThan(0)
+  );
+  const accountCodes = [...new Set(effectiveLines.map((line) => line.accountCode))];
   const accounts = await tx.account.findMany({
     where: { businessUnitId: input.businessUnitId, code: { in: accountCodes }, isActive: true },
     select: { id: true, code: true },
@@ -54,9 +61,7 @@ async function createPostedJournal(
     throw new Error(`ACCOUNTING_ACCOUNTS_REQUIRED:${missing.join(",")}`);
   }
 
-  const lines = input.lines
-    .filter((line) => (line.debit ?? new Prisma.Decimal(0)).greaterThan(0) || (line.credit ?? new Prisma.Decimal(0)).greaterThan(0))
-    .map((line, index) => ({
+  const lines = effectiveLines.map((line, index) => ({
       businessUnitId: input.businessUnitId,
       accountId: accountByCode.get(line.accountCode)!,
       lineNumber: index + 1,
