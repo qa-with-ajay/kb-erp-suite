@@ -101,7 +101,7 @@ export default async function GroupFinancialDashboardPage() {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead className="border-b border-gray-200 text-xs uppercase text-gray-500">
-              <tr><th className="py-2 pr-4">Business unit</th><th className="py-2 pr-4">Currency</th><th className="py-2 pr-4">Revenue</th><th className="py-2 pr-4">Expenses</th><th className="py-2 pr-4">Net result</th><th className="py-2">Ledger</th></tr>
+              <tr><th className="py-2 pr-4">Business unit</th><th className="py-2 pr-4">Currency</th><th className="py-2 pr-4">Revenue</th><th className="py-2 pr-4">Expenses</th><th className="py-2 pr-4">Net result</th><th className="py-2 pr-4">Ledger</th><th className="py-2">Dashboard</th></tr>
             </thead>
             <tbody>
               {unitResults.map((unit) => <tr key={unit.id} className="border-b border-gray-100 last:border-0">
@@ -110,7 +110,7 @@ export default async function GroupFinancialDashboardPage() {
                 <td className="py-3 pr-4">{money(unit.income, unit.currency)}</td>
                 <td className="py-3 pr-4">{money(unit.expenses, unit.currency)}</td>
                 <td className="py-3 pr-4 font-semibold">{money(unit.netResult, unit.currency)}</td>
-                <td className="py-3">{unit.hasLedger ? <span className="text-emerald-700">Entries posted</span> : <span className="text-gray-500">No entries</span>}</td>
+                <td className="py-3 pr-4">{unit.hasLedger ? <span className="text-emerald-700">Entries posted</span> : <span className="text-gray-500">No entries</span>}</td><td className="py-3"><a className="font-medium text-emerald-800 hover:underline" href={`/financial/units/${unit.id}`}>Open dashboard →</a></td>
               </tr>)}
             </tbody>
           </table>
