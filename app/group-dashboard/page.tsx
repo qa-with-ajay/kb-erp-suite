@@ -4,7 +4,7 @@ import { formatAmount, formatQuantity, getGroupDashboardData } from "@/lib/dashb
 import { getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
 import { GroupDashboardProductLink } from "@/components/group-dashboard-product-link";
 import DashboardScopeSwitcher from "@/components/dashboard-scope-switcher";
-import { prisma } from "@/lib/prisma";
+import { getAvailableBusinessUnits } from "@/lib/inventory-auth";
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -22,7 +22,7 @@ export default async function GroupDashboardPage() {
   if (!(await hasGroupPermission(session.user.id, "group.dashboard.read"))) redirect("/dashboard");
 
   const canViewGroupInventory = await hasGroupPermission(session.user.id, "inventory.read");
-  const unitsForSwitcher = await prisma.businessUnit.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true }, orderBy: { name: "asc" } });
+  const unitsForSwitcher = await getAvailableBusinessUnits(session.user.id);
   const units = await getGroupDashboardData();
   const productCount = units.reduce((total, unit) => total + unit.productCount, 0);
   const movementCount = units.reduce((total, unit) => total + unit.movementCount, 0);
