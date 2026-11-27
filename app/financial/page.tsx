@@ -15,24 +15,7 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><p className="text-sm text-gray-500">{label}</p><p className="mt-3 text-2xl font-bold text-gray-950">{value}</p><p className="mt-2 text-xs text-gray-500">{detail}</p></article>;
 }
 
-function UnitSelector({ units, selected, canViewGroup }: { units: UnitOption[]; selected: string; canViewGroup: boolean }) {
-  return <form action="/financial" method="get" className="flex flex-col gap-1">
-    <label htmlFor="financial-scope" className="text-xs font-medium text-gray-500">Financial view</label>
-    <select id="financial-scope" name="scope" defaultValue={selected} onChange={(event) => {
-      const form = event.currentTarget.form;
-      if (form) {
-        const value = event.currentTarget.value;
-        const unitInput = form.querySelector<HTMLInputElement>('input[name="businessUnitId"]');
-        if (unitInput) unitInput.disabled = value === "group";
-        form.requestSubmit();
-      }
-    }} className="min-w-56 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
-      {canViewGroup && <option value="group">Group Financial</option>}
-      {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-    </select>
-    <input type="hidden" name="businessUnitId" value={selected !== "group" ? selected : ""} disabled={selected === "group"} />
-  </form>;
-}
+import UnitSelector from "./unit-selector";
 
 export default async function FinancialDashboardPage({
   searchParams,
