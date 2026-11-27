@@ -280,6 +280,18 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock,
       </aside>
       <div className="app-shell__main">
         <header className="app-shell__topbar">
+          <button
+            type="button"
+            className="app-shell__sidebar-toggle"
+            aria-label={sidebarOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-controls="app-shell-sidebar"
+            aria-expanded={sidebarOpen}
+            onClick={() => setSidebarOpen((open) => !open)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
           <div className="app-shell__topbar-brand">
             <p>KUMAR BROTHERS &amp; ASSOCIATES</p>
             <span>KB Interiors business suite</span>
