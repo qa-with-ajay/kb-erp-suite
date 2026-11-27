@@ -31,11 +31,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     userDisplayRole = accountRoles?.groupRoles[0]?.role.name ?? accountRoles?.businessUnitRoles[0]?.role.name ?? userDisplayRole;
     canViewLowStock = permissions.has("inventory.read") || permissions.has("reports.unit.read");
 
-    if (permissions.has("group.dashboard.read")) {
-      items.push({ label: "Group dashboard", href: "/group-dashboard" });
-    }
-    if (permissions.has("reports.unit.read") || permissions.has("inventory.read")) {
-      items.push({ label: "Unit Dashboard", href: "/dashboard" });
+    if (permissions.has("group.dashboard.read") || permissions.has("reports.unit.read") || permissions.has("inventory.read")) {
+      items.push({ label: "Dashboard", href: "/dashboard" });
     }
     if (permissions.has("inventory.read")) {
       items.push(
