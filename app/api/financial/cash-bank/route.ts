@@ -89,8 +89,8 @@ export async function POST(request: Request) {
           narration: input.narration, sourceType: "CASH_BANK", sourceId: id,
           idempotencyKey: `cashbank:${id}`, createdBy: actorId,
           lines: { create: [
-            { businessUnitId, accountId: debitAccountId, lineNumber: 1, description: input.narration, debit: amount, credit: new Prisma.Decimal(0) },
-            { businessUnitId, accountId: creditAccountId, lineNumber: 2, description: input.narration, debit: new Prisma.Decimal(0), credit: amount },
+            { accountId: debitAccountId, lineNumber: 1, description: input.narration, debit: amount, credit: new Prisma.Decimal(0) },
+            { accountId: creditAccountId, lineNumber: 2, description: input.narration, debit: new Prisma.Decimal(0), credit: amount },
           ] },
         },
         select: { id: true, voucherNumber: true },
