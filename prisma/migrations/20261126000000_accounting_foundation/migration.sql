@@ -131,7 +131,7 @@ ON CONFLICT ("roleId", "permissionId") DO NOTHING;
 CREATE OR REPLACE FUNCTION "enforce_journal_entry_immutability"()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN
     IF OLD."status" <> 'DRAFT' THEN
@@ -152,7 +152,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER "JournalEntry_immutable_guard"
 BEFORE UPDATE OR DELETE ON "JournalEntry"
@@ -161,7 +161,7 @@ FOR EACH ROW EXECUTE FUNCTION "enforce_journal_entry_immutability"();
 CREATE OR REPLACE FUNCTION "enforce_journal_line_immutability"()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
   entry_status "JournalEntryStatus";
   target_business_unit UUID;
@@ -185,7 +185,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER "JournalLine_immutable_guard"
 BEFORE INSERT OR UPDATE OR DELETE ON "JournalLine"
@@ -195,7 +195,7 @@ FOR EACH ROW EXECUTE FUNCTION "enforce_journal_line_immutability"();
 CREATE OR REPLACE FUNCTION "enforce_posted_journal_balanced"()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
   target_business_unit UUID;
   target_entry UUID;
@@ -230,7 +230,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END;
-$;
+$$;
 
 CREATE CONSTRAINT TRIGGER "JournalEntry_balanced_guard"
 AFTER INSERT OR UPDATE ON "JournalEntry"
