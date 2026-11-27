@@ -43,8 +43,32 @@ type SaleRow = {
 type PageResponse<T> = { items: T[]; total: number; page: number; pageSize: number };
 
 async function readJson<T>(response: Response): Promise<T> {
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? "The request could not be completed.");
+  const rawBody = await response.text();
+  let body: unknown = null;
+
+  if (rawBody.trim()) {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      const preview = rawBody.replace(/\\s+/g, " ").slice(0, 240);
+      throw new Error(
+        `Server returned an invalid response (HTTP ${response.status}). ${preview || "The response body was empty."}`,
+      );
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
+        ? body.error
+        : `The request failed (HTTP ${response.status}).`;
+    throw new Error(message);
+  }
+
+  if (body === null) {
+    throw new Error(`Server returned an empty response (HTTP ${response.status}).`);
+  }
+
   return body as T;
 }
 
