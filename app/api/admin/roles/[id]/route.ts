@@ -6,7 +6,7 @@ import { requireRoleAdministration } from "@/lib/role-admin-auth";
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   isActive: z.boolean().optional(),
-  permissionCodes: z.array(z.string().min(2).max(80)).min(1).max(50).refine((codes) => new Set(codes).size === codes.length, "Permissions must be unique.").optional(),
+  permissionCodes: z.array(z.string().min(2).max(80)).max(100).refine((codes) => new Set(codes).size === codes.length, "Permissions must be unique.").optional(),
 }).refine((value) => value.name !== undefined || value.isActive !== undefined || value.permissionCodes !== undefined);
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -20,8 +20,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const existing = await prisma.role.findUnique({ where: { id }, select: { id: true, code: true, isSystem: true } });
   if (!existing) return NextResponse.json({ error: "Role not found." }, { status: 404 });
-  if (existing.isSystem) return NextResponse.json({ error: "Built-in system roles cannot be edited or deactivated. Create a custom role instead." }, { status: 403 });
-  if (parsed.data.permissionCodes) {
+  if (existing.code === "GROUP_ADMIN") return NextResponse.json({ error: "The protected Group Admin superadmin role cannot be modified or deactivated." }, { status: 403 });
+  if (parsed.data.permissionCodes !== undefined) {
     const permissions = await prisma.permission.findMany({ where: { code: { in: parsed.data.permissionCodes } }, select: { id: true, code: true } });
     if (permissions.length !== new Set(parsed.data.permissionCodes).size) return NextResponse.json({ error: "One or more selected permissions are invalid." }, { status: 400 });
     const currentRole = await prisma.role.findUnique({ where: { id }, select: { scope: true } });
