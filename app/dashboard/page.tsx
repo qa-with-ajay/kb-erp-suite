@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import DashboardScopeSwitcher from "@/components/dashboard-scope-switcher";
-import { getAvailableBusinessUnits, getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
+import { getAvailableBusinessUnits, getInventorySession, getBusinessUnitAccess, hasGroupPermission } from "@/lib/inventory-auth";
 import { getUnitDashboardData, formatAmount, formatQuantity } from "@/lib/dashboard-data";
-import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -20,10 +19,11 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
   const canViewGroup = await hasGroupPermission(session.user.id, "group.dashboard.read");
   const units = await getAvailableBusinessUnits(session.user.id);
+  if (canViewGroup && units.length === 0) redirect("/group-dashboard");
 
   let access = await getBusinessUnitAccess("reports.unit.read");
   if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("inventory.read");
-  if (!access.ok) redirect(access.status === 401 ? "/login" : "/access-denied");
+  if (!access.ok) redirect(access.status === 401 ? "/login" : canViewGroup ? "/group-dashboard" : "/access-denied");
 
   const [dashboard, canViewBilling, canViewInventory, canManageCustomers, canManageSuppliers, canManagePurchases] = await Promise.all([
     getUnitDashboardData(access.context.businessUnit.id),
