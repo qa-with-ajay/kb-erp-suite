@@ -66,7 +66,8 @@ export async function getBusinessUnitAccess(permission: string): Promise<Invento
   );
 
   const selectedUnitId = (await cookies()).get(ACTIVE_BUSINESS_UNIT_COOKIE)?.value;
-  // GROUP_ADMIN is the system-wide superadmin; it must not depend on individual permission rows.\n  const hasGroupPermission = isGroupAdmin || groupPermissions.has(permission);
+  // GROUP_ADMIN is the system-wide superadmin; it must not depend on individual permission rows.
+  const hasGroupPermission = isGroupAdmin || groupPermissions.has(permission);
   let businessUnit: BusinessUnitContext["businessUnit"] | undefined;
 
   if (hasGroupPermission) {
@@ -121,7 +122,12 @@ export async function getBusinessUnitPermissionCodes() {
     }),
     cookies().then((cookieStore) => cookieStore.get(ACTIVE_BUSINESS_UNIT_COOKIE)?.value),
   ]);
-  const isGroupAdmin = groupRoles.some(({ role }) => role.isActive && role.scope === "GROUP" && role.code === "GROUP_ADMIN");\n  const permissions = getPermissionCodes(groupRoles, "GROUP");\n  if (isGroupAdmin) {\n    const allPermissions = await prisma.permission.findMany({ select: { code: true } });\n    return new Set(allPermissions.map(({ code }) => code));\n  }
+  const isGroupAdmin = groupRoles.some(({ role }) => role.isActive && role.scope === "GROUP" && role.code === "GROUP_ADMIN");
+  const permissions = getPermissionCodes(groupRoles, "GROUP");
+  if (isGroupAdmin) {
+    const allPermissions = await prisma.permission.findMany({ select: { code: true } });
+    return new Set(allPermissions.map(({ code }) => code));
+  }
   const activeUnitRoles = unitRoles.filter(({ role }) => role.isActive && role.scope === "BUSINESS_UNIT");
 
   if (selectedUnitId) {
@@ -167,7 +173,7 @@ export async function hasGroupPermission(userId: string, permissionCode: string)
         code: session.user.selectedRoleCode,
         isActive: true,
         scope: "GROUP",
-        permissions: { some: { permission: { code: permissionCode } } },
+        ...(session.user.selectedRoleCode === "GROUP_ADMIN" ? {} : { permissions: { some: { permission: { code: permissionCode } } } }),
         groupUsers: { some: { userId } },
       },
       select: { id: true },
@@ -180,7 +186,10 @@ export async function hasGroupPermission(userId: string, permissionCode: string)
       role: {
         isActive: true,
         scope: "GROUP",
-        permissions: { some: { permission: { code: permissionCode } } },
+        OR: [
+          { code: "GROUP_ADMIN" },
+          { permissions: { some: { permission: { code: permissionCode } } } },
+        ],
       },
     },
     select: { roleId: true },
