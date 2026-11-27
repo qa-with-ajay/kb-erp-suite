@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import DashboardScopeSwitcher from "@/components/dashboard-scope-switcher";
 import { getAvailableBusinessUnits, getInventorySession, hasGroupPermission } from "@/lib/inventory-auth";
-import { prisma } from "@/lib/prisma";
 import { getUnitDashboardData, formatAmount, formatQuantity } from "@/lib/dashboard-data";
 import { getBusinessUnitAccess } from "@/lib/inventory-auth";
 
@@ -20,9 +19,7 @@ export default async function DashboardPage() {
   const session = await getInventorySession();
   if (!session) redirect("/login");
   const canViewGroup = await hasGroupPermission(session.user.id, "group.dashboard.read");
-  const units = canViewGroup
-    ? await prisma.businessUnit.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true }, orderBy: { name: "asc" } })
-    : await getAvailableBusinessUnits(session.user.id);
+  const units = await getAvailableBusinessUnits(session.user.id);
 
   let access = await getBusinessUnitAccess("reports.unit.read");
   if (!access.ok && access.status === 403) access = await getBusinessUnitAccess("inventory.read");
