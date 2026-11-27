@@ -9,7 +9,7 @@ import { LOW_STOCK_NOTIFICATIONS_KEY, UI_PREFERENCES_CHANGED_EVENT } from "@/lib
 export type AppNavItem = {
   label: string;
   href: string;
-  section?: "Workspace" | "Administration";
+  section?: "Workspace" | "Financial Management" | "Administration";
 };
 
 type Props = {
@@ -251,7 +251,7 @@ export function AppShell({ children, items, userName, userRole, canViewLowStock,
           </span>
         </Link>
         {items.length > 0 ? (
-          (["Workspace", "Administration"] as const).map((section) => {
+          (["Workspace", "Financial Management", "Administration"] as const).map((section) => {
             const sectionItems = items.filter((item) => (item.section ?? "Workspace") === section);
             if (!sectionItems.length) return null;
             return (
