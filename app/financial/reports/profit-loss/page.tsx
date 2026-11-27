@@ -19,6 +19,8 @@ export default function ProfitLossPage() {
     setLoading(true); setError("");
     try {
       const params = new URLSearchParams({ from, asOf });
+      const unitId = new URLSearchParams(window.location.search).get("businessUnitId");
+      if (unitId) params.set("businessUnitId", unitId);
       const response = await fetch(`/api/financial/reports/profit-loss?${params}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to generate Profit & Loss.");
