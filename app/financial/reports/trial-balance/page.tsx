@@ -14,7 +14,10 @@ export default function TrialBalancePage() {
   async function load() {
     setLoading(true); setError("");
     try {
-      const response = await fetch(`/api/financial/reports/trial-balance?asOf=${asOf}`, { cache: "no-store" });
+      const params = new URLSearchParams({ asOf });
+      const unitId = new URLSearchParams(window.location.search).get("businessUnitId");
+      if (unitId) params.set("businessUnitId", unitId);
+      const response = await fetch(`/api/financial/reports/trial-balance?${params}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to load trial balance.");
       setReport(data);
