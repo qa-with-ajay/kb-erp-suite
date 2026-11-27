@@ -113,7 +113,6 @@ async function seedUnit(unit, actorId) {
           createdBy: actorId,
           lines: {
             create: voucher.lines.map(([code, debit, credit], index) => ({
-              businessUnitId: unit.id,
               accountId: accountByCode.get(String(code)).id,
               lineNumber: index + 1,
               description: `[DEMO] ${voucher.narration}`,
